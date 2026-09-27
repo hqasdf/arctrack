@@ -1,23 +1,499 @@
-# Arc Track
+# 🏹 Arc Track
 
-The foundation of an archery performance platform for recurve and compound archers.
+**Arc Track** is an archery scoring and performance analytics platform built for recurve and compound archers.
 
-The app contains Sessions, Arrow Counter, Analytics, Organisation and Profile features, plus Supabase email/password authentication. Account creation, sign-in, confirmation, recovery, and sign-out use the configured Supabase connection. Registration confirmation and recovery use six-digit codes; configure Supabase expiry to 300 seconds.
+It allows archers to record training and competition sessions, plot arrows directly onto a target face, analyse performance over time, and share read-only performance data with authorised Head Coaches.
 
-Start with [the guided Supabase setup](docs/auth-setup.md). Until connection settings are present, authentication forms stay disabled and protected pages redirect to sign-in. This is intentional.
+The goal of Arc Track is to go beyond simply recording scores by turning every plotted arrow into useful performance data.
 
-## Run locally
+---
 
-Use Node.js 22.18 or newer. Open a terminal in this `web` folder:
+## 🌐 Live Website
+
+**https://archery-website.vercel.app**
+
+---
+
+## ✨ Features
+
+Arc Track is built around five main areas:
+
+- **Sessions**
+- **Arrow Counter**
+- **Analytics**
+- **Organisation**
+- **Profile**
+
+Authentication is handled using Supabase Auth.
+
+---
+
+# 🎯 Sessions
+
+Sessions are the main scoring workspace.
+
+An archer can create either:
+
+- **Training Sessions**
+- **Competition Sessions**
+
+Each Session can contain one or more Rounds.
+
+The scoring hierarchy is:
+
+```text
+Session
+└── Round
+    └── End
+        └── Arrow
+```
+
+Each Round stores its shooting configuration, including:
+
+- Round name
+- Division
+- Distance
+- Target face diameter
+- Target face layout
+- Planned number of Ends
+- Arrows per End
+
+Round numbering is handled by the database.
+
+---
+
+# 🏹 Target-Based Scoring
+
+Arc Track uses a target-first scoring system.
+
+Instead of manually entering every score, the archer can tap directly on the target where the Arrow landed.
+
+```text
+Tap target
+→ calculate score
+→ place Arrow marker
+→ save Arrow
+→ move to next Arrow
+```
+
+Arc Track currently supports:
+
+- Full target faces
+- 80 cm six-ring faces
+- Triple faces
+
+Each Arrow stores:
+
+- Numeric score
+- Whether the Arrow is an X
+- Normalised X coordinate
+- Normalised Y coordinate
+- Triple-face index where applicable
+
+Because the Arrow position is stored together with the score, the same data can later be used for grouping and performance analysis.
+
+---
+
+## Score Storage
+
+Scores are stored numerically while X is tracked separately.
+
+| Display | Score | X |
+|---|---:|---:|
+| X | 10 | Yes |
+| 10 | 10 | No |
+| 9–1 | 9–1 | No |
+| M | 0 | No |
+
+This keeps score calculations simple while still distinguishing an X from a normal 10.
+
+---
+
+# ✏️ Arrow Editing
+
+Previously recorded Arrows can be selected and corrected.
+
+An archer can:
+
+- Move an Arrow marker
+- Correct its score
+- Clear its marker while keeping the score
+- Delete the previous Arrow
+- Retry a failed save
+
+New Arrows automatically advance the scoring cursor.
+
+Editing an existing Arrow keeps that Arrow selected instead of automatically advancing.
+
+---
+
+# 🔍 Target Zoom and Navigation
+
+The scoring target supports:
+
+- Zooming
+- Panning
+- Resetting the view
+
+Arrow coordinates are stored using normalised target coordinates, so zooming or moving the target does not affect the saved Arrow position or calculated score.
+
+---
+
+# 📊 Round Insights
+
+Each Round includes performance analysis based on the Arrows recorded.
+
+Round Insights includes:
+
+- Total score
+- Number of Arrows
+- Average score per Arrow
+- X count
+- 10 + X count
+- Round completion
+- End-by-End performance
+- Grouping analysis
+
+Grouping analysis includes:
+
+- Group centre
+- Group size
+- RMS spread
+- Possible flyers
+
+The same scoring and grouping logic is shared across Arc Track to keep calculations consistent.
+
+---
+
+# 📈 Analytics
+
+The Analytics page provides a wider view of an archer's performance across multiple Sessions.
+
+Filters include:
+
+- Training / Competition / All
+- 7 days / 30 days / All time
+- Distance
+- Division
+- Target face
+
+Analytics includes:
+
+- Total Arrows
+- Average score
+- X count
+- 10 + X rate
+- Best completed Round
+- Performance trend
+- Results by distance
+- Grouping analysis
+- Arrow volume
+- Training vs Competition comparison
+
+The aim is to make it easier to understand performance trends over time instead of only looking at individual scores.
+
+---
+
+# 🔢 Arrow Counter
+
+Arc Track includes a lightweight Arrow Counter for training.
+
+The counter is stored locally and does not require a Session to be created.
+
+It supports:
+
+- Custom Arrow increments
+- Tap-to-add
+- Undo
+- Reset
+
+This is useful when an archer only wants to track training volume without recording a full scoring Session.
+
+---
+
+# 👥 Organisations
+
+Arc Track supports organisations for coach-athlete visibility.
+
+Users can join an organisation using a join code.
+
+New members join as **Archers**.
+
+An organisation can contain:
+
+- Archers
+- Head Coaches
+
+Head Coaches can view Sessions belonging to active Archer members of their organisation.
+
+They can view:
+
+- Sessions
+- Rounds
+- Scores
+- Arrow plots
+- Round Insights
+
+Coach access is **read-only**.
+
+A Head Coach cannot:
+
+- Create Rounds for an athlete
+- Modify an athlete's Arrows
+- Change an athlete's scores
+- Delete athlete data
+
+Archers cannot view another Archer's Sessions.
+
+If an Archer leaves an organisation, Head Coach access to that athlete's data is removed.
+
+---
+
+# 🔐 Authentication
+
+Arc Track uses **Supabase Auth** for account management.
+
+Supported flows include:
+
+- Account creation
+- Email verification
+- Sign in
+- Password recovery
+- Password update
+- Sign out
+
+Registration and password recovery use six-digit email codes.
+
+Protected pages require a valid authenticated session before they can be accessed.
+
+Authentication is resolved before protected routes are shown so users do not briefly see private pages before identity verification completes.
+
+---
+
+# 🗄️ Database
+
+Arc Track uses **PostgreSQL through Supabase**.
+
+The main scoring structure is:
+
+```text
+auth.users
+│
+├── profiles
+│
+├── sessions
+│   └── session_rounds
+│       └── session_ends
+│           └── arrows
+│
+└── organization_members
+    └── organizations
+```
+
+Scores, totals and performance metrics are generally derived from Arrow records rather than stored separately.
+
+This reduces duplicated data and helps keep calculations consistent.
+
+---
+
+# ⚙️ Atomic Round Creation
+
+Round creation is handled by a PostgreSQL function:
+
+```text
+create_round_with_ends(...)
+```
+
+The database:
+
+1. Locks the parent Session
+2. Determines the next Round number
+3. Creates the Round
+4. Creates all planned Ends
+5. Returns the new Round ID and Round number
+
+These operations happen in a single database transaction.
+
+If End creation fails, the Round creation is rolled back as well.
+
+This prevents partially-created Rounds from being left in the database.
+
+---
+
+# 🛠️ Safe Round Updates
+
+Existing Rounds can update supported settings through:
+
+```text
+update_owned_round_settings(...)
+```
+
+The owner can update:
+
+- Round name
+- Division
+- Distance
+- Target face diameter
+- Planned Ends
+
+If the number of planned Ends is increased, Arc Track appends the additional Ends without replacing the existing Round.
+
+The update preserves:
+
+- Round ID
+- Round number
+- Existing Ends
+- Existing Arrows
+- Scores
+- X values
+- Arrow coordinates
+
+Face layout and Arrows per End remain fixed under the current update model.
+
+---
+
+# 🛡️ Security
+
+Arc Track uses Supabase Row Level Security and database functions to enforce ownership and organisation access.
+
+Important security rules include:
+
+- Users control their own Sessions
+- Archers cannot read another Archer's data
+- Head Coaches receive read-only access to active Archers in shared organisations
+- Coach access is removed when organisation membership ends
+- Database functions verify the authenticated user before allowing protected writes
+- Client applications never use a Supabase service-role key
+
+The database remains the final security boundary even if client-side checks are bypassed.
+
+---
+
+# 🧠 Shared Scoring and Analytics Logic
+
+Arc Track contains shared logic for:
+
+- Target scoring
+- Round presets
+- Analytics calculations
+- Grouping calculations
+- Shared types
+- Portable date utilities
+
+This helps keep score calculations and analytics consistent across different parts of the project.
+
+---
+
+# 🧱 Tech Stack
+
+## Frontend
+
+- Next.js
+- React
+- TypeScript
+- CSS Modules
+
+## Backend
+
+- Supabase
+- PostgreSQL
+- Supabase Auth
+- Row Level Security
+- PostgreSQL RPC functions
+
+## Deployment
+
+- Vercel
+
+## Mobile
+
+Arc Track also has an **Expo / React Native mobile application** in development.
+
+The mobile application shares scoring, analytics, grouping and Round logic with the web application while keeping platform-specific navigation and gestures separate.
+
+---
+
+# 📁 Project Structure
+
+```text
+web/
+├── src/
+│   ├── app/                 Next.js routes
+│   ├── components/          Shared web components
+│   ├── features/            Feature-specific logic
+│   └── styles/              Global styling
+│
+├── apps/
+│   └── mobile/              Expo / React Native mobile app
+│
+├── packages/
+│   └── core/                Shared scoring and analytics logic
+│
+├── supabase/
+│   ├── migrations/          Database migrations
+│   └── tests/               SQL rollback fixtures
+│
+├── tests/                   Web tests
+│
+├── package.json
+└── README.md
+```
+
+---
+
+# 🚀 Running Arc Track Locally
+
+## Requirements
+
+- Node.js 22.18 or newer
+- Supabase environment variables configured
+
+From the repository root:
 
 ```powershell
 npm.cmd ci
 npm.cmd run dev
 ```
 
-Open http://127.0.0.1:3000/sign-in. Use this address consistently with APP_URL and the Supabase URL settings. Localhost and 127.0.0.1 have separate session cookies. Email codes can be read on any device. The development server binds only to this computer. Stop it with Ctrl+C. Changes to source files appear automatically while it runs. Use `npm` instead of `npm.cmd` outside Windows.
+Then open:
 
-## Checks
+```text
+http://127.0.0.1:3000
+```
+
+Authenticated users are directed to:
+
+```text
+/sessions
+```
+
+To stop the development server:
+
+```text
+Ctrl + C
+```
+
+---
+
+# 🔑 Environment Variables
+
+The web application requires the Supabase project connection and application URL.
+
+Example:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+APP_URL=http://127.0.0.1:3000
+```
+
+Never expose a Supabase service-role key in client-side environment variables.
+
+---
+
+# ✅ Validation
+
+Run the web validation suite with:
 
 ```powershell
 npm.cmd run lint
@@ -26,49 +502,36 @@ npm.cmd run typecheck
 npm.cmd run build
 ```
 
-The production build does not launch a server. To view it, stop the development server and run `npm.cmd start`.
+The production build command creates the production build but does not start the server.
 
-## Learn the structure
+To run the compiled application:
 
-- `src/app/layout.tsx`: document structure and site metadata.
-- `src/app/page.tsx`: redirects `/` to Sessions.
-- `src/app/(platform)/layout.tsx`: verifies identity and puts the shared shell around platform pages. Parentheses group routes without changing URLs. Each current protected page also checks identity.
-- `src/app/(platform)/sessions/page.tsx`: session preview content.
-- `src/components/layout/app-shell.tsx`: header, navigation placement, main content, and footer.
-- `src/components/layout/navigation.tsx`: the small client component that highlights the current route.
-- `src/features/sessions/round-presets.ts`: agreed round defaults, explicitly separated from future scoring validation.
-- `src/styles/globals.css`: shared colour, spacing, and typography tokens.
-- Files ending in `.module.css`: styles imported by components without globally exposing their class names.
+```powershell
+npm.cmd start
+```
 
-Pages are Server Components by default. The navigation uses `usePathname`, so it has `"use client"`. This keeps browser JavaScript focused on the part that needs it. Native `<details>` provides the expandable round explanation without additional React state.
+---
 
-Auth forms call server actions, which validate input and call Supabase Auth. Cookies retain the session, and protected pages verify identity on the server. No custom PostgreSQL tables exist yet. Later, a scoring component will send input to an authorised server operation, which will validate it and save it to PostgreSQL.
+# 💡 Why I Built Arc Track
 
-## Guided first exercise
+Arc Track started from a simple problem:
 
-1. Open the Sessions page and find its heading.
-2. Change the heading and save the file. The browser should update automatically.
-3. Open `src/styles/globals.css` and locate `--color-peach`. This token controls the shared accent colour.
-4. Navigate between Sessions and Analytics. Notice that the surrounding layout stays consistent while the page changes.
+> Most scoring tools tell an archer what they scored, but not necessarily how they are shooting.
 
-## Manual acceptance checks
+As an archer, I wanted a system that could record both the score and physical position of every Arrow.
 
-First complete the account checks in docs/auth-setup.md. The following foundation checks require a signed-in account, except the not-found screen.
+By storing both pieces of information, the same Arrow data can be used for:
 
-1. Open `/`: expect `/sessions`.
-2. Confirm Sessions is available as the normal signed-in starting page.
-3. Check presets: 18 m shows 10 × 3, 30 arrows, 300 points. 30/50/70 m each show 6 × 6, 36 arrows, 360 points.
-4. Expand “A different end arrangement?”: expect the 70 m, 3 × 12 example. Collapse it again.
-5. Reload `/sessions` directly: expect the page to remain available without visiting the dashboard first.
-6. Resize to 390 px and 320 px wide: expect stacked content, readable labels, and no horizontal page scrolling.
-7. Reload, then press Tab: the Skip to content link should appear. Press Enter to jump to the main content. Continue using Tab and Enter to navigate. The round explanation supports Enter/Space.
-8. Visit a nonexistent URL: expect the custom not-found screen with a working Sessions link.
-9. Confirm Sign out is visible while signed in and the unavailable-saving explanation remains clear. Sign out and confirm direct visits to protected pages return to sign-in.
+```text
+Scoring
++
+Grouping
++
+Performance trends
++
+Training volume
++
+Coach review
+```
 
-An unavailable localhost page usually means the development server is stopped. A port-in-use message usually means another server is running; check the terminal for the actual address rather than killing unrelated processes. This preview is not accessible from a separate phone while bound to localhost; use browser mobile emulation for this increment.
-
-## Next increment
-
-Finish connecting Supabase and verifying real account/email flows, then discuss the identity/profile relationship before writing database migrations. Follow `docs/project-state.md` for agreed requirements and `docs/decisions.md` for architectural decisions.
-
-Reference: https://nextjs.org/docs/app/getting-started/installation
+The goal of Arc Track is to give archers a clearer picture of their performance over time and make training data genuinely useful.

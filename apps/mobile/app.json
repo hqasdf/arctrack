@@ -6,8 +6,24 @@
     "orientation": "portrait",
     "scheme": "arctrack",
     "userInterfaceStyle": "light",
-    "ios": { "supportsTablet": true },
-    "plugins": ["expo-router"],
-    "experiments": { "typedRoutes": true }
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.whqq.arctrack",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "dfd3b325-3579-49b1-bd3b-6e8c762993eb"
+      }
+    }
   }
 }
