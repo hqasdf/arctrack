@@ -9,7 +9,10 @@
     "./presets": "./src/round-presets.ts",
     "./insights": "./src/session-insights-model.ts",
     "./dates": "./src/date.ts",
-    "./analytics": "./src/analytics-model.ts"
+    "./analytics": "./src/analytics-model.ts",
+    "./coach-round": "./src/coach-round-model.ts",
+    "./coach-analytics": "./src/coach-analytics-model.ts",
+    "./organization-entry": "./src/organization-entry.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.mjs",

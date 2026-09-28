@@ -11,7 +11,7 @@ const links = [
   { href: "/sessions", label: "Sessions", icon: "sessions" },
   { href: "/arrow-counter", label: "Arrow Counter", icon: "target" },
   { href: "/analytics", label: "Analytics", icon: "analytics" },
-  { href: "/organization", label: "Organisation", icon: "organization" },
+  { href: "/organization", label: "Coach's Workspace", icon: "organization" },
   { href: "/profile", label: "Profile", icon: "profile" },
 ] as const;
 

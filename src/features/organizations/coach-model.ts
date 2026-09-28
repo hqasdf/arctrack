@@ -1,5 +1,4 @@
 import { calculateArrowVolume, calculateOverview } from "../analytics/analytics-model.ts";
-import { calculateGroupingMetrics } from "../sessions/session-insights-model.ts";
 import { arrowAverage, roundTotal, xCount, type RoundDraft, type SessionDraft } from "../sessions/scoring-model.ts";
 
 export type CoachAthlete = {
@@ -42,10 +41,5 @@ export function athleteAnalytics(sessions: SessionDraft[], today: string) {
   })));
   const overview = calculateOverview(rounds);
   const volume = calculateArrowVolume(sessions, { sessionType: "all", dateRange: "all" }, today, "daily");
-  const latest = latestCompletedRound(sessions);
-  const plotted = latest?.round.arrows.flatMap((arrow) => arrow.plot &&
-    (latest.round.faceType !== "triple_face" || arrow.plot.faceIndex !== undefined)
-    ? [{ x: arrow.plot.x, y: arrow.plot.y }] : []) ?? [];
-  const grouping = latest ? calculateGroupingMetrics(plotted, latest.round.faceDiameterCm) : null;
-  return { overview, volume, latest, grouping };
+  return { overview, volume };
 }

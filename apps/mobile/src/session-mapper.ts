@@ -2,7 +2,7 @@ import type { ArrowEntry, RoundDraft, ScoreLabel, SessionDraft, TargetFaceType }
 import type { Division } from "@arc-track/core/presets";
 
 type DbArrow = { id: string; arrow_number: number; score_points: number; is_x: boolean; plot_x: number | null; plot_y: number | null; face_index: number | null };
-type DbEnd = { end_number: number; arrows: DbArrow[] | null };
+type DbEnd = { id?: string; end_number: number; arrows: DbArrow[] | null };
 type DbRound = { id: string; round_number: number; name: string; division: string; distance_metres: number; face_diameter_cm: number; face_type: string; planned_ends: number; arrows_per_end: number; session_ends: DbEnd[] | null };
 export type DbSessionDetail = { id: string; title: string; session_date: string; session_type: string; arrow_count: number; session_rounds: DbRound[] | null };
 

@@ -6,7 +6,7 @@ import { mapCoachRoster, mapOwnOrganizations, normalizeJoinCode, type CoachAthle
 export { athleteLabel, mapCoachRoster, mapOwnOrganizations, normalizeJoinCode } from "./organization-model";
 export type { CoachAthlete, OwnOrganization } from "./organization-model";
 
-export async function readOwnOrganizations(userId: string): Promise<OwnOrganization[]> {
+export async function readOwnOrganizations(userId: string, includeJoinCodes = false): Promise<OwnOrganization[]> {
   if (!supabase) throw new Error("Organisations could not be loaded.");
   const { data, error } = await supabase.from("organization_members")
     .select("organization_id,role,organizations(name)").eq("user_id", userId).eq("status", "active");
@@ -14,7 +14,7 @@ export async function readOwnOrganizations(userId: string): Promise<OwnOrganizat
   const organizations = mapOwnOrganizations((data ?? []) as unknown as Parameters<typeof mapOwnOrganizations>[0]);
   const client = supabase;
   return Promise.all(organizations.map(async (item) => {
-    if (item.role !== "head_coach") return item;
+    if (item.role !== "head_coach" || !includeJoinCodes) return item;
     const { data: code, error: codeError } = await client.rpc("read_organization_join_code", { p_organization_id: item.id });
     return { ...item, joinCode: codeError || typeof code !== "string" ? null : code };
   }));
@@ -67,19 +67,36 @@ export async function readCoachAthleteSessions(userId: string, organizationId: s
   if (!supabase) throw new Error("Athlete Sessions could not be loaded.");
   const athletes = knownAthletes ?? await readCoachAthletes(userId, organizationId);
   if (!athletes?.some((athlete) => athlete.userId === athleteId)) return null;
-  const { data, error } = await supabase.from("sessions").select(SESSION_DETAIL_SELECT)
-    .eq("user_id", athleteId).order("session_date", { ascending: false }).order("created_at", { ascending: false });
-  if (error) throw new Error("Athlete Sessions could not be loaded.");
-  return (data ?? []).map((row) => mapSessionDetail(row as unknown as DbSessionDetail));
+  const rows: DbSessionDetail[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await supabase.from("sessions").select(SESSION_DETAIL_SELECT)
+      .eq("user_id", athleteId).order("session_date", { ascending: false }).order("created_at", { ascending: false })
+      .range(offset, offset + 499);
+    if (error) throw new Error("Athlete Sessions could not be loaded.");
+    rows.push(...((data ?? []) as unknown as DbSessionDetail[]));
+    if ((data ?? []).length < 500) break;
+  }
+  return rows.map(mapSessionDetail);
 }
 
-export async function readCoachOrganizationSessions(userId: string, organizationId: string, knownAthletes?: CoachAthlete[]): Promise<Array<SessionDraft & { userId: string }> | null> {
+export async function readCoachOrganizationSessions(userId: string, organizationId: string, knownAthletes?: CoachAthlete[]): Promise<Array<SessionDraft & { userId: string; createdAt: string }> | null> {
   if (!supabase) throw new Error("Organisation Sessions could not be loaded.");
   const athletes = knownAthletes ?? await readCoachAthletes(userId, organizationId);
   if (athletes === null) return null;
   if (athletes.length === 0) return [];
-  const { data, error } = await supabase.from("sessions").select(`user_id,${SESSION_DETAIL_SELECT}`)
-    .in("user_id", athletes.map((athlete) => athlete.userId)).order("session_date", { ascending: false }).order("created_at", { ascending: false });
-  if (error) throw new Error("Organisation Sessions could not be loaded.");
-  return (data ?? []).map((row) => ({ ...mapSessionDetail(row as unknown as DbSessionDetail), userId: row.user_id }));
+  const rows: Array<DbSessionDetail & { user_id: string; created_at: string }> = [];
+  const ids = athletes.map((athlete) => athlete.userId);
+  for (let start = 0; start < ids.length; start += 100) {
+    const batch = ids.slice(start, start + 100);
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase.from("sessions").select(`user_id,created_at,${SESSION_DETAIL_SELECT}`)
+        .in("user_id", batch).order("session_date", { ascending: false }).order("created_at", { ascending: false })
+        .range(offset, offset + 499);
+      if (error) throw new Error("Organisation Sessions could not be loaded.");
+      rows.push(...((data ?? []) as unknown as Array<DbSessionDetail & { user_id: string; created_at: string }>));
+      if ((data ?? []).length < 500) break;
+    }
+  }
+  return rows.map((row) => ({ ...mapSessionDetail(row), userId: row.user_id, createdAt: row.created_at }))
+    .sort((a, b) => b.date.localeCompare(a.date));
 }

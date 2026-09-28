@@ -5,7 +5,7 @@ import type { OrganizationRole } from "./validation";
 
 export type OwnOrganization = { id: string; name: string; role: OrganizationRole; joinCode: string | null };
 
-export async function readOwnOrganizations(): Promise<OwnOrganization[]> {
+export async function readOwnOrganizations(includeJoinCodes = false): Promise<OwnOrganization[]> {
   const user = await requireUser();
   const supabase = await createAuthClient();
   const { data, error } = await supabase.from("organization_members")
@@ -16,7 +16,7 @@ export async function readOwnOrganizations(): Promise<OwnOrganization[]> {
     organization_id: string; role: OrganizationRole; organizations: { id: string; name: string } | null;
   }>).flatMap((row) => row.organizations ? [{ id: row.organization_id, name: row.organizations.name, role: row.role }] : []);
   return Promise.all(memberships.map(async (item) => {
-    if (item.role !== "head_coach") return { ...item, joinCode: null };
+    if (!includeJoinCodes || item.role !== "head_coach") return { ...item, joinCode: null };
     const { data: joinCode, error: codeError } = await supabase.rpc("read_organization_join_code", { p_organization_id: item.id });
     if (codeError || !joinCode) throw new Error("Join code could not be loaded.");
     return { ...item, joinCode };

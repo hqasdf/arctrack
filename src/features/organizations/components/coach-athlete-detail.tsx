@@ -1,70 +1,64 @@
-﻿import Link from "next/link";
-import { formatAnalyticsDate } from "@/features/analytics/analytics-model";
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { buildCoachAthleteInsights, coachFilterOptions, DEFAULT_COACH_FILTERS, type CoachFilters, type CoachPeriod } from "@arc-track/core/coach-analytics";
+import { formatDateOnly } from "@arc-track/core/dates";
+import { targetFaceLabel } from "@arc-track/core/analytics";
+import { summarizeCoachRound } from "@arc-track/core/coach-round";
+import { athleteName, type CoachAthlete } from "../coach-model";
 import type { SessionDraft } from "@/features/sessions/scoring-model";
-import { athleteAnalytics, athleteName, completedRounds, roundSummary, thisWeek, type CoachAthlete } from "../coach-model";
+import { CoachLineChart, VerticalBarChart } from "./coach-charts";
 import styles from "./coach.module.css";
 
-export function CoachAthleteDetail({ organization, athlete, sessions, today }: {
-  organization: { id: string; name: string };
-  athlete: CoachAthlete;
-  sessions: SessionDraft[];
-  today: string;
-}) {
-  const week = thisWeek(sessions, today);
-  const { overview, volume, grouping } = athleteAnalytics(sessions, today);
-  const recentRounds = completedRounds(sessions).slice(0, 3);
-  const recentVolume = volume.slice(-7).reverse();
-  const maxVolume = Math.max(...recentVolume.map((point) => point.arrowCount));
+export function CoachAthleteDetail({ organization, athlete, sessions, today }: { organization: { id: string; name: string }; athlete: CoachAthlete; sessions: SessionDraft[]; today: string }) {
+  const [filters, setFilters] = useState<CoachFilters>(DEFAULT_COACH_FILTERS);
+  const identified = useMemo(() => sessions.map((session) => ({ ...session, userId: athlete.userId })), [sessions, athlete.userId]);
+  const options = useMemo(() => coachFilterOptions(identified, today, filters), [identified, today, filters]);
+  const result = useMemo(() => buildCoachAthleteInsights({ userId: athlete.userId, name: athleteName(athlete) }, identified, filters, today), [athlete, identified, filters, today]);
+  const set = <K extends keyof CoachFilters>(key: K, value: CoachFilters[K]) => setFilters((current) => ({ ...current, [key]: value }));
+  const base = `/organization/${organization.id}/athletes/${athlete.userId}`;
+  const latest = result.filteredSessions.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+  const recentRounds = result.filteredRounds.filter(({ round }) => round.arrows.length > 0 && round.arrows.length === round.ends * round.arrowsPerEnd).sort((a, b) => b.session.date.localeCompare(a.session.date)).slice(0, 5);
+  const noArrows = <p className={styles.empty}>No Arrow data available for these filters.</p>;
   return <div className={styles.workspace}>
-    <header className={styles.heading}>
-      <Link href={`/organization/${organization.id}`} className={styles.back}>← {organization.name}</Link>
-      <p className={styles.eyebrow}>Organisation athlete · Active</p>
-      <h1>{athleteName(athlete)}</h1>
-      <p>Read-only view of this Archer&apos;s Sessions.</p>
-    </header>
-    <section className={styles.overview} aria-label="Athlete overview">
-      <div><strong>{sessions.length}</strong><span>Sessions</span></div>
-      <div><strong>{week.sessionCount > 0 ? week.arrowCount : "—"}</strong><span>Arrows this week</span></div>
-      <div><strong>{overview.totalArrows}</strong><span>Scored Arrows</span></div>
-      <div><strong>{overview.averagePerArrow === null ? "—" : overview.averagePerArrow.toFixed(2)}</strong><span>Avg/Arrow</span></div>
-      <div><strong>{overview.xPercentage === null ? "—" : `${overview.xCount} · ${overview.xPercentage.toFixed(1)}%`}</strong><span>X count · X%</span></div>
+    <header className={styles.heading}><Link href={`/organization/${organization.id}`} className={styles.back}>← {organization.name}</Link><p className={styles.eyebrow}>Head Coach · Athlete performance · Read only</p><h1>{athleteName(athlete)}</h1><p>{latest?.rounds.at(-1)?.division ?? "Division not recorded"} · Latest activity: {latest ? formatDateOnly(latest.date) : "No Session in this period"}</p></header>
+    <section className={styles.section}><h2>Filters</h2><div className={styles.filterGrid}>
+      <label>Period<select value={filters.period} onChange={(event) => set("period", event.target.value as CoachPeriod)}><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="all">All time</option></select></label>
+      <label>Session type<select value={filters.sessionType} onChange={(event) => set("sessionType", event.target.value as CoachFilters["sessionType"])}><option value="all">All</option><option value="training">Training</option><option value="competition">Competition</option></select></label>
+      <label>Distance<select value={filters.distance} onChange={(event) => set("distance", event.target.value === "all" ? "all" : Number(event.target.value))}><option value="all">All distances</option>{options.distances.map((value) => <option key={value} value={value}>{value} m</option>)}</select></label>
+      <label>Division<select value={filters.division} onChange={(event) => set("division", event.target.value)}><option value="all">All divisions</option>{options.divisions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+      <label>Target face<select value={filters.targetFace} onChange={(event) => set("targetFace", event.target.value)}><option value="all">All faces</option>{options.targetFaces.map((face) => <option key={face.value} value={face.value}>{face.label}</option>)}</select></label>
+    </div></section>
+    <section className={styles.overview} aria-label="Athlete summary">
+      <Metric label="Scored Arrows" value={String(result.overview.totalArrows)}/><Metric label="Sessions" value={String(result.summary.sessionCount)}/><Metric label="Avg / Arrow" value={result.overview.averagePerArrow?.toFixed(2) ?? "—"}/>
+      <Metric label="10+X rate" value={result.overview.tenPlusXPercentage === null ? "—" : `${result.overview.tenPlusXPercentage.toFixed(1)}%`}/><Metric label="X rate" value={result.overview.xPercentage === null ? "—" : `${result.overview.xPercentage.toFixed(1)}%`}/>
+      <Metric label="Best completed Round" value={result.overview.bestRound ? `${result.overview.bestRound.name} · ${result.overview.bestRound.average.toFixed(2)}` : "—"}/>
+      <Metric label="End variation" value={result.endVariation === null ? "Need 2 completed Ends" : `${result.endVariation.toFixed(2)} pts/Arrow`}/><Metric label="Avg group size" value={result.groupingTrend ? `${(result.groupingTrend.points.reduce((sum, point) => sum + point.groupSizeCm, 0) / result.groupingTrend.points.length).toFixed(1)} cm` : "—"}/>
+      <Metric label="Latest Session" value={latest ? formatDateOnly(latest.date, false) : "—"}/>
     </section>
-    <section className={styles.section}>
-      <h2>Recent Sessions</h2>
-      {sessions.length === 0 ? <p className={styles.empty}>No Sessions recorded for this athlete yet.</p> :
-        <ul className={styles.recordList}>{sessions.slice(0, 5).map((session) => <li key={session.id}>
-          <div><strong>{session.title}</strong><span>{formatAnalyticsDate(session.date)} · {session.sessionType === "competition" ? "Competition" : "Training"}</span></div>
-          <div>{session.arrowCount > 0 && <span>{session.arrowCount} arrows</span>}
-            {session.rounds.length > 0 && <span>{session.rounds.map((round) => round.name).join(" · ")}</span>}</div>
-        </li>)}</ul>}
-    </section>
-    <section className={styles.section}>
-      <h2>Latest completed Rounds</h2>
-      {recentRounds.length === 0 ? <p className={styles.empty}>No completed Rounds yet.</p> :
-        <ul className={styles.recordList}>{recentRounds.map(({ session, round }) => {
-          const score = roundSummary(round);
-          return <li key={round.id}><div><strong>{round.name} · {round.distanceMetres} m</strong>
-            <span>{formatAnalyticsDate(session.date)} · {round.faceDiameterCm} cm {round.faceType.replaceAll("_", " ")}</span></div>
-            <div><strong>{score.total} pts</strong><span>{score.average?.toFixed(2) ?? "—"} avg/Arrow · {score.xCount}X</span></div>
-          </li>;
-        })}</ul>}
-    </section>
-    <section className={styles.section}>
-      <h2>Arrow Volume</h2>
-      <p className={styles.note}>Session Arrow count, grouped by date.</p>
-      {volume.length === 0 ? <p className={styles.empty}>No Arrow Volume recorded yet.</p> :
-        <ul className={styles.volumeList}>{recentVolume.map((point) => <li key={point.key}>
-          <span>{formatAnalyticsDate(point.startDate)}</span><div className={styles.volumeTrack}><span style={{ width: `${maxVolume > 0 ? point.arrowCount / maxVolume * 100 : 0}%` }}/></div><strong>{point.arrowCount}</strong>
-        </li>)}</ul>}
-    </section>
-    {grouping && <section className={styles.section}>
-      <h2>Latest completed Round grouping</h2>
-      <p className={styles.note}>{grouping.arrowCount} plotted Arrows. Triple-face positions use each spot’s local coordinates.</p>
-      {grouping.groupSizeCm !== null && <div className={styles.groupingNumbers}>
-        <div><strong>{grouping.groupSizeCm.toFixed(1)} cm</strong><span>Group size</span></div>
-        <div><strong>{grouping.spreadCm === null ? "—" : `${grouping.spreadCm.toFixed(1)} cm`}</strong><span>RMS spread</span></div>
-      </div>}
-    </section>}
+    <section className={styles.section}><h2>Performance Trend</h2>{result.sessionTrend.some((point) => point.average !== null) ? <CoachLineChart yLabel="Avg / Arrow" maxValue={10} points={result.sessionTrend.filter((point) => point.average !== null).map((point) => ({ label: formatDateOnly(point.session.date, false), value: point.average, tooltip: `${point.session.title} · ${formatDateOnly(point.session.date)} · ${point.average?.toFixed(2)} avg/Arrow · ${point.arrowCount} Arrows · ${point.session.sessionType}` }))}/> : noArrows}</section>
+    <div className={styles.chartPair}>
+      <section className={styles.section}><h2>Accuracy Trend</h2>{result.summary.arrowCount ? <CoachLineChart yLabel="10+X %" secondaryLabel="X %" maxValue={100} points={result.sessionTrend.filter((point) => point.tenPlusXRate !== null).map((point) => ({ label: formatDateOnly(point.session.date, false), value: point.tenPlusXRate, secondary: point.xRate, tooltip: `${point.session.title}: ${point.tenPlusXRate?.toFixed(1)}% 10+X · ${point.xRate?.toFixed(1)}% X · ${point.arrowCount} Arrows` }))}/> : noArrows}</section>
+      <section className={styles.section}><h2>Arrow Volume</h2>{result.summary.arrowCount ? <VerticalBarChart yLabel="Arrows" points={result.series.filter((point) => point.arrowCount).map((point) => ({ label: point.label, value: point.arrowCount, tooltip: `${point.label}: ${point.arrowCount} scored Arrows · ${point.sessionCount} Sessions` }))}/> : noArrows}</section>
+    </div>
+    <div className={styles.chartPair}>
+      <section className={styles.section}><h2>Grouping Trend</h2>{result.groupingTrend ? <><p className={styles.note}>Comparable format: {result.groupingTrend.format}. Group diameter from plotted Arrows only.</p><CoachLineChart yLabel="Group size cm" points={result.groupingTrend.points.map((point) => ({ label: formatDateOnly(point.date, false), value: point.groupSizeCm, tooltip: `${formatDateOnly(point.date)}: ${point.groupSizeCm.toFixed(1)} cm group size` }))}/></> : <p className={styles.empty}>Need at least two comparable Rounds with three plotted Arrows each.</p>}</section>
+      <section className={styles.section}><h2>Score Distribution</h2>{result.summary.arrowCount ? <VerticalBarChart yLabel="Arrows" points={result.distribution.map((item) => ({ label: item.score, value: item.count, tooltip: `${item.score}: ${item.count} Arrows · ${item.percentage.toFixed(1)}%` }))}/> : noArrows}</section>
+    </div>
+    <div className={styles.chartPair}>
+      <section className={styles.section}><h2>Performance by Distance</h2>{result.byDistance.length ? <VerticalBarChart yLabel="Avg / Arrow" points={result.byDistance.map((item) => ({ label: `${item.distance} m`, value: item.average, tooltip: `${item.distance} m: ${item.average.toFixed(2)} avg/Arrow · ${item.arrowCount} Arrows` }))}/> : noArrows}</section>
+      <section className={styles.section}><h2>Training vs Competition</h2>{result.summary.sessionCount ? <div className={styles.typeCards}>{result.byType.map((item) => <div key={item.type}><strong>{item.type === "training" ? "Training" : "Competition"}</strong><span>{item.sessionCount} Sessions · {item.arrowCount} scored Arrows</span><span>{item.average?.toFixed(2) ?? "—"} avg/Arrow</span><span>{item.tenPlusXRate?.toFixed(1) ?? "—"}% 10+X · {item.xRate?.toFixed(1) ?? "—"}% X</span></div>)}</div> : <p className={styles.empty}>No Sessions in this period.</p>}</section>
+    </div>
+    <section className={styles.section}><h2>End Consistency</h2><p className={styles.note}>Standard deviation of completed End averages; partial Ends are excluded.</p><p>{result.endVariation === null ? "Need at least two completed Ends." : `${result.endVariation.toFixed(2)} points per Arrow across ${result.completedEndCount} completed Ends.`}</p></section>
+    <section className={styles.section}><h2>Recent Sessions</h2>{result.filteredSessions.length ? <ul className={styles.recordList}>{result.filteredSessions.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6).map((session) => {
+      const trend = result.sessionTrend.find((item) => item.session.id === session.id);
+      return <li key={session.id}><div><strong><Link href={`${base}/sessions/${session.id}`}>{session.title}</Link></strong><span>{formatDateOnly(session.date)} · {session.sessionType} · {session.rounds.length} Rounds</span></div><div><strong>{trend?.arrowCount ?? 0} scored Arrows</strong><span>{trend?.average?.toFixed(2) ?? "—"} avg/Arrow · {trend?.tenPlusXRate?.toFixed(1) ?? "—"}% 10+X · {trend?.xRate?.toFixed(1) ?? "—"}% X</span></div></li>;
+    })}</ul> : <p className={styles.empty}>No Sessions recorded for these filters.</p>}</section>
+    <section className={styles.section}><h2>Recent Rounds</h2>{recentRounds.length ? <ul className={styles.recordList}>{recentRounds.map(({ session, round }) => {
+      const score = summarizeCoachRound(round);
+      return <li key={round.id}><div><strong><Link href={`${base}/sessions/${session.id}/rounds/${round.id}`}>{round.name} · {round.distanceMetres} m</Link></strong><span>{formatDateOnly(session.date)} · {targetFaceLabel(round)}</span></div><div><strong>{score.total} pts</strong><span>{score.average?.toFixed(2) ?? "—"} avg/Arrow · {score.xCount} X</span></div></li>;
+    })}</ul> : <p className={styles.empty}>No completed Rounds in these filters.</p>}</section>
   </div>;
 }
-
+function Metric({ label, value }: { label: string; value: string }) { return <div><strong>{value}</strong><span>{label}</span></div>; }

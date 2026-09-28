@@ -22,17 +22,24 @@ export async function createOrganization(input: CreateOrganizationInput): Promis
   } catch { return { ok: false, message: "Organisation saving is temporarily unavailable." }; }
 }
 
-export async function joinOrganization(codeInput: string): Promise<Result<"joined" | "already_member">> {
-  await requireUser();
+export async function joinOrganization(codeInput: string): Promise<Result<{ status: "joined" | "already_member"; organizationId: string | null; role: "archer" | "head_coach" | null }>> {
+  const user = await requireUser();
   const code = normalizeJoinCode(codeInput);
   if (!code) return { ok: false, message: "Enter a valid 8-character join code." };
   try {
     const supabase = await createAuthClient({ writable: true });
+    const { data: before } = await supabase.from("organization_members").select("organization_id")
+      .eq("user_id", user.id).eq("status", "active");
     const { data, error } = await supabase.rpc("join_organization_by_code", { p_code: code });
     if (error || (data !== "joined" && data !== "already_member"))
       return { ok: false, message: "The join code is invalid or no longer active." };
     revalidatePath("/organization");
-    return { ok: true, data };
+    const { data: after } = await supabase.from("organization_members").select("organization_id,role")
+      .eq("user_id", user.id).eq("status", "active");
+    const known = new Set((before ?? []).map((item) => item.organization_id));
+    const joined = (after ?? []).find((item) => !known.has(item.organization_id));
+    return { ok: true, data: { status: data, organizationId: joined?.organization_id ?? null,
+      role: joined?.role === "head_coach" ? "head_coach" : joined?.role === "archer" ? "archer" : null } };
   } catch { return { ok: false, message: "Joining is temporarily unavailable." }; }
 }
 

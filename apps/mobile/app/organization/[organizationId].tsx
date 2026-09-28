@@ -1,81 +1,89 @@
-﻿import { formatDateOnly } from "@arc-track/core/dates";
-import { arrowAverage, roundTotal } from "@arc-track/core/scoring";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "../../src/auth";
+import { buildCoachTeamAnalytics, coachPeriodScoreChange, DEFAULT_COACH_FILTERS, type CoachPeriod } from "@arc-track/core/coach-analytics";
+import { formatDateOnly } from "@arc-track/core/dates";
+import { points } from "@arc-track/core/scoring";
+import { router, useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { athleteLabel } from "../../src/organizations";
+import { CoachBars, CoachChoices, CoachLine, CoachMetric, CoachNav, CoachSection, CoachState, coachPalette, coachStyles } from "../../src/coach-ui";
+import { useCoachWorkspace } from "../../src/coach-workspace";
 import { singaporeToday } from "../../src/mobile-analytics";
-import {
-  athleteLabel, readCoachAthletes, readCoachOrganization, readCoachOrganizationSessions,
-  type CoachAthlete,
-} from "../../src/organizations";
-import { colors, PAGE_TOP_SPACING } from "../../src/theme";
-import type { SessionDraft } from "@arc-track/core/scoring";
 
-type CoachSession = SessionDraft & { userId: string };
-export default function CoachDashboardScreen() {
+export default function CoachOverviewScreen() {
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
-  const { user } = useAuth();
-  const [name, setName] = useState("");
-  const [athletes, setAthletes] = useState<CoachAthlete[] | null>(null);
-  const [sessions, setSessions] = useState<CoachSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    if (!user || !organizationId) return;
-    setLoading(true); setError(null);
-    try {
-      const org = await readCoachOrganization(user.id, organizationId);
-      if (!org) { setAthletes(null); return; }
-      const roster = await readCoachAthletes(user.id, organizationId);
-      if (!roster) { setAthletes(null); return; }
-      setName(org.name); setAthletes(roster);
-      setSessions(await readCoachOrganizationSessions(user.id, organizationId, roster) ?? []);
-    } catch { setError("Coach Dashboard could not be loaded. Try again."); }
-    finally { setLoading(false); }
-  }, [user, organizationId]);
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
-  if (loading) return <View style={styles.state}><ActivityIndicator color={colors.accent} /></View>;
-  if (error) return <View style={styles.state}><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>Retry</Text></Pressable></View>;
-  if (!athletes) return <View style={styles.state}><Text style={styles.muted}>Coach access is unavailable for this organisation.</Text></View>;
+  const { data, loading, error, reload } = useCoachWorkspace(organizationId);
+  const [period, setPeriod] = useState<CoachPeriod>("30");
   const today = singaporeToday(new Date());
-  const monday = new Date(`${today}T00:00:00Z`);
-  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
-  const weekStart = monday.toISOString().slice(0, 10);
-  const thisWeek = sessions.filter((session) => session.date >= weekStart && session.date <= today);
-  return <ScrollView style={styles.page} contentContainerStyle={styles.content}>
-    <Text style={styles.title}>{name}</Text><Text style={styles.muted}>Head Coach · read only</Text>
-    <View style={styles.metrics}>
-      <Metric label="ATHLETES" value={String(athletes.length)} />
-      <Metric label="ARROWS THIS WEEK" value={String(thisWeek.reduce((sum, session) => sum + session.arrowCount, 0))} />
-      <Metric label="SESSIONS THIS WEEK" value={String(thisWeek.length)} />
+  const athletes = useMemo(() => data?.athletes.map((athlete) => ({ userId: athlete.userId, name: athleteLabel(athlete) })) ?? [], [data]);
+  const result = useMemo(() => data ? buildCoachTeamAnalytics(athletes, data.sessions, { ...DEFAULT_COACH_FILTERS, period }, today) : null, [data, athletes, period, today]);
+  if (loading || error || !data || !result) return <CoachState loading={loading} error={error} unavailable="Coach access is unavailable for this organisation." retry={() => void reload()}/>;
+  const base = { organizationId: data.organization.id };
+  const names = new Map(athletes.map((athlete) => [athlete.userId, athlete.name]));
+  const scoredTotal = result.distribution.reduce((sum, item) => sum + item.count * points(item.score), 0);
+  const xCount = result.distribution.find((item) => item.score === "X")?.count ?? 0;
+  const tensCount = result.distribution.find((item) => item.score === "10")?.count ?? 0;
+  const average = result.summary.arrowCount ? (scoredTotal / result.summary.arrowCount).toFixed(2) : "—";
+  const tenPlusXRate = result.summary.arrowCount ? ((tensCount + xCount) / result.summary.arrowCount * 100).toFixed(1) : null;
+  const xRate = result.summary.arrowCount ? (xCount / result.summary.arrowCount * 100).toFixed(1) : null;
+  const recordedTimes = new Map(data.sessions.map((session) => [session.id, session.createdAt]));
+  const sessionTime = (id: string) => {
+    const recorded = recordedTimes.get(id);
+    return recorded ? new Intl.DateTimeFormat("en-SG", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" }).format(new Date(recorded)) : null;
+  };
+  return <ScrollView style={coachStyles.page} contentContainerStyle={coachStyles.content}>
+    <CoachNav organizationId={data.organization.id} current="overview"/>
+    <Text style={coachStyles.eyebrow}>HEAD COACH · OVERVIEW</Text>
+    <Text style={coachStyles.title}>{data.organization.name}</Text>
+    <CoachChoices label="Period" value={period} choices={[["7","7d"],["30","30d"],["90","90d"],["all","All"]]} change={(value) => setPeriod(value as CoachPeriod)}/>
+    <View style={coachStyles.metrics}>
+      <CoachMetric label="Active Archers" value={result.summary.activeArchers}/><CoachMetric label="Active this period" value={result.summary.activeThisPeriod}/>
+      <CoachMetric label="Sessions" value={result.summary.sessionCount}/><CoachMetric label="Total scored Arrows" value={result.summary.arrowCount}/>
+      <CoachMetric label="Avg / Arrow" value={average}/><CoachMetric label="10+X rate" value={tenPlusXRate === null ? "—" : `${tenPlusXRate}%`}/>
     </View>
-    <Text style={styles.heading}>Athletes</Text>
-    {athletes.length === 0 ? <Text style={styles.muted}>No active Archer members yet.</Text> : athletes.map((athlete) => {
-      const own = sessions.filter((session) => session.userId === athlete.userId);
-      const latest = own.flatMap((session) => session.rounds.map((round) => ({ session, round })))
-        .filter(({ round }) => round.arrows.length > 0 && round.arrows.length === round.ends * round.arrowsPerEnd)[0];
-      const weekly = own.filter((session) => session.date >= weekStart && session.date <= today)
-        .reduce((sum, session) => sum + session.arrowCount, 0);
-      return <Pressable key={athlete.userId} accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]", params: { organizationId, userId: athlete.userId } })} style={styles.athlete}>
-        <Text style={styles.athleteName}>{athleteLabel(athlete)}</Text>
-        <Text style={styles.muted}>{weekly} arrows this week{own[0] ? ` · Last Session ${formatDateOnly(own[0].date, false)}` : ""}</Text>
-        {latest ? <Text style={styles.muted}>Latest completed: {roundTotal(latest.round.arrows)} pts · {arrowAverage(latest.round.arrows)?.toFixed(2)} avg</Text> : null}
-      </Pressable>;
-    })}
+    <CoachSection title="Team Performance">
+      <Text style={coachStyles.muted}>Average score per Arrow from saved scores.</Text>
+      <CoachLine axis="Avg / Arrow" maxValue={10} points={result.series.filter((point) => point.scoreAverage !== null).map((point) => ({ label: point.label, value: point.scoreAverage, detail: `${point.label}: ${point.scoreAverage?.toFixed(2)} average from ${point.arrowCount} Arrows` }))}/>
+    </CoachSection>
+    <CoachSection title="Team Accuracy">
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+        <View accessible accessibilityLabel={`10 plus X rate ${tenPlusXRate ?? "unavailable"} percent`} style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 1, borderColor: coachPalette.border, justifyContent: "center", alignItems: "center" }}>
+          <View style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 1, borderColor: coachPalette.accent, justifyContent: "center", alignItems: "center" }}><Text style={{ color: coachPalette.accent, fontWeight: "800", fontSize: 19 }}>{tenPlusXRate ?? "—"}%</Text></View>
+        </View>
+        <View style={{ flex: 1, gap: 6 }}><Text style={coachStyles.muted}>10+X rate</Text><Text style={coachStyles.cardTitle}>{xRate ?? "—"}% X rate</Text><Text style={coachStyles.muted}>{result.summary.trainingSessions} Training · {result.summary.competitionSessions} Competition Sessions</Text></View>
+      </View>
+    </CoachSection>
+    <CoachSection title="Team Arrow Volume">
+      <Text style={coachStyles.muted}>Saved scored Arrows across active Archers.</Text>
+      <CoachBars axis="Arrows" points={result.series.filter((point) => point.arrowCount > 0).map((point) => ({ label: point.label, value: point.arrowCount, detail: `${point.label}: ${point.arrowCount} Arrows` }))}/>
+    </CoachSection>
+    <CoachSection title="Suggested Reviews">
+      <Text style={coachStyles.muted}>Recent completed or Competition Sessions. Review status is not tracked yet.</Text>
+      {result.reviewQueue.length ? result.reviewQueue.slice(0, 4).map(({ session, arrowCount, average, tenPlusXCount, xCount }) => <Pressable key={session.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]", params: { ...base, userId: session.userId, sessionId: session.id } })} style={coachStyles.card}>
+        <Text style={coachStyles.cardTitle}>{names.get(session.userId) ?? "Archer"} · {session.title}</Text>
+        <Text style={coachStyles.muted}>{formatDateOnly(session.date)} · {session.sessionType}</Text>
+        <Text style={coachStyles.muted}>{arrowCount} scored Arrows · {average?.toFixed(2) ?? "—"} avg · {tenPlusXCount} 10+X · {xCount} X</Text>
+        <Text style={coachStyles.link}>Review Session →</Text>
+      </Pressable>) : <Text style={coachStyles.muted}>No Sessions currently suggested for review.</Text>}
+      <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/reviews", params: base })}><Text style={coachStyles.link}>Open Reviews →</Text></Pressable>
+    </CoachSection>
+    <CoachSection title="Athlete Snapshots">
+      {result.perAthlete.length ? result.perAthlete.map((athlete) => {
+        const change = coachPeriodScoreChange(data.sessions, athlete.userId, period, today);
+        return <Pressable key={athlete.userId} accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]", params: { ...base, userId: athlete.userId } })} style={coachStyles.card}>
+          <Text style={coachStyles.cardTitle}>{athlete.name}</Text>
+          <Text style={coachStyles.muted}>{athlete.latestSession?.rounds.at(-1)?.division ?? "No division yet"} · Last Session {athlete.latestSession ? formatDateOnly(athlete.latestSession.date) : "—"}</Text>
+          <Text style={coachStyles.muted}>{athlete.average?.toFixed(2) ?? "—"} avg/Arrow{change === null ? "" : ` · ${change >= 0 ? "+" : ""}${change.toFixed(2)} vs prior period`}</Text>
+          <Text style={coachStyles.muted}>{athlete.tenPlusXRate?.toFixed(1) ?? "—"}% 10+X · {athlete.xRate?.toFixed(1) ?? "—"}% X</Text>
+          <Text style={coachStyles.muted}>{athlete.arrowCount} scored Arrows · {athlete.sessionCount} Sessions</Text>
+        </Pressable>;
+      }) : <Text style={coachStyles.muted}>No active Archer members yet.</Text>}
+    </CoachSection>
+    <CoachSection title="Recent Activity">
+      {result.recent.length ? result.recent.slice(0, 6).map(({ session, arrowCount, average }) => <Pressable key={session.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]", params: { ...base, userId: session.userId, sessionId: session.id } })} style={coachStyles.card}>
+        <Text style={coachStyles.cardTitle}>{names.get(session.userId) ?? "Archer"} · {session.title}</Text>
+        <Text style={coachStyles.muted}>{formatDateOnly(session.date)}{sessionTime(session.id) ? ` · ${sessionTime(session.id)} SGT` : ""} · {session.sessionType}</Text>
+        <Text style={coachStyles.muted}>{arrowCount} scored Arrows · {average?.toFixed(2) ?? "—"} avg/Arrow</Text>
+      </Pressable>) : <Text style={coachStyles.muted}>No team Sessions in this period.</Text>}
+    </CoachSection>
   </ScrollView>;
 }
-function Metric({ label, value }: { label: string; value: string }) {
-  return <View style={styles.metric}><Text style={styles.label}>{label}</Text><Text style={styles.value}>{value}</Text></View>;
-}
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.background }, content: { padding: 18, paddingTop: 18 + PAGE_TOP_SPACING, paddingBottom: 35, gap: 9 },
-  title: { color: colors.text, fontSize: 25, fontWeight: "800" }, muted: { color: colors.muted, fontSize: 13, lineHeight: 19 },
-  metrics: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }, metric: { minWidth: 90, flexGrow: 1, backgroundColor: colors.surface, borderRadius: 10, padding: 11 },
-  label: { color: colors.muted, fontSize: 10, fontWeight: "700" }, value: { color: colors.text, fontSize: 20, fontWeight: "800" },
-  heading: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: 16 },
-  athlete: { backgroundColor: colors.surface, borderRadius: 10, padding: 14, gap: 4, borderWidth: 1, borderColor: colors.border },
-  athleteName: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  state: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
-  link: { color: colors.accent, fontWeight: "700" },
-});

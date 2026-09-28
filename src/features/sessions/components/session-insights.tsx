@@ -9,14 +9,14 @@ const tripleRings = [.5, .4, .3, .2, .1];
 const tripleCentres = [-110, 0, 110] as const;
 const views = { full_face: "-105 -105 210 210", six_ring: "-65 -65 130 130", triple_face: "-58 -168 116 336" } as const;
 
-export function RoundInsights({ round }: { round: RoundDraft }) {
+export function RoundInsights({ round, showTarget = true }: { round: RoundDraft; showTarget?: boolean }) {
   const endAnalysis = calculateEndAnalysis(round);
   const grouping = calculateRoundGroupingInsights(round);
   return <section className={styles.sessionInsights} aria-labelledby="round-insights-heading">
     <div className={styles.insightsHeading}><div><p className={styles.kicker}>Saved performance</p><h2 id="round-insights-heading">Round Insights</h2></div></div>
     <div className={styles.insightsGrid}>
       <article className={styles.insightCard} aria-labelledby="end-performance-heading"><p className={styles.kicker}>Within this Round</p><h3 id="end-performance-heading">End Performance</h3><EndChart ends={endAnalysis.ends}/><div className={styles.insightMetrics}><Metric label="Best End" value={endAnalysis.best ? `End ${endAnalysis.best.endNumber} / ${endAnalysis.best.average!.toFixed(1)} avg` : "No completed End"}/><Metric label="Lowest End" value={endAnalysis.worst ? `End ${endAnalysis.worst.endNumber} / ${endAnalysis.worst.average!.toFixed(1)} avg` : "No completed End"}/><Metric label="End consistency" value={endAnalysis.consistency === null ? "Need at least two completed Ends" : `Your completed Ends were typically about ${endAnalysis.consistency.toFixed(1)} points/Arrow from your Round average.`}/></div><p className={styles.insightNote}>{describeEndTrend(endAnalysis.trendSlope)}</p><details className={styles.insightDetails}><summary>View details</summary><p>Completed-End average: {endAnalysis.average === null ? "not available" : `${endAnalysis.average.toFixed(2)} points/Arrow`}. Variation: {endAnalysis.consistency === null ? "not available" : `${endAnalysis.consistency.toFixed(2)} standard deviation`}. Trend slope: {endAnalysis.trendSlope === null ? "not available" : `${endAnalysis.trendSlope >= 0 ? "+" : ""}${endAnalysis.trendSlope.toFixed(2)} points/Arrow per End`}.</p></details></article>
-      <article className={styles.insightCard} aria-labelledby="grouping-insights-heading"><p className={styles.kicker}>Saved target coordinates</p><h3 id="grouping-insights-heading">Target / Grouping Insights</h3><GroupingTarget round={round} grouping={grouping}/><GroupingSummary round={round} grouping={grouping}/></article>
+      <article className={styles.insightCard} aria-labelledby="grouping-insights-heading"><p className={styles.kicker}>Saved target coordinates</p><h3 id="grouping-insights-heading">Target / Grouping Insights</h3>{showTarget && <GroupingTarget round={round} grouping={grouping}/>}<GroupingSummary round={round} grouping={grouping}/></article>
     </div>
   </section>;
 }
@@ -27,7 +27,7 @@ function EndChart({ ends }: { ends: EndPoint[] }) {
   return <><div className={styles.sessionEndChart}>{shown.map((end) => <div key={end.endNumber} className={styles.sessionEndColumn}><div className={styles.sessionEndTrack}><div className={`${styles.sessionEndBar} ${end.complete ? "" : styles.sessionEndPartial}`} style={{ height: `${Math.max(4, end.average! / 10 * 100)}%` }}/></div><strong>{end.average!.toFixed(2)}</strong><span>End {end.endNumber}</span><small>{end.complete ? `Completed / ${end.arrowCount}` : `Partial / ${end.arrowCount}/${end.expectedArrowCount}`}</small></div>)}</div><p className={styles.insightNote}>Partial Ends are shown for context and excluded from the summary.</p></>;
 }
 
-function GroupingTarget({ round, grouping }: { round: RoundDraft; grouping: RoundGroupingInsights }) {
+export function GroupingTarget({ round, grouping }: { round: RoundDraft; grouping: RoundGroupingInsights }) {
   if (grouping.arrows.length === 0) return <div className={styles.insightEmpty}>No plotted Arrows yet.</div>;
   const metrics = grouping.metrics!;
   const groups = round.faceType === "triple_face"
