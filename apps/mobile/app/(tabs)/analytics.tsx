@@ -9,6 +9,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import Svg, { Circle, Line, Polyline, Text as SvgText } from "react-native-svg";
 import { AnalysisTarget } from "../../src/analysis-target";
 import { ANALYTICS_AXIS_LABELS, verticalBarHeight } from "../../src/analytics-chart-model";
+import { chartAxis, chartTick } from "@arc-track/core/chart-axis";
 import { useAuth } from "../../src/auth";
 import {
   DEFAULT_ANALYTICS_FILTERS, mobileAnalyticsView, singaporeToday,
@@ -74,7 +75,8 @@ export default function AnalyticsScreen() {
 
     <Section title="Overview">
       <View style={styles.grid}>
-        <Metric label="Saved Arrows" value={String(view.overview.totalArrows)} />
+        <Metric label="Total Arrows" value={String(view.volume.reduce((sum, point) => sum + point.arrowCount, 0))} />
+        <Metric label="Scored Arrows" value={String(view.overview.totalArrows)} />
         <Metric label="Avg / Arrow" value={average(view.overview.averagePerArrow)} />
         <Metric label="X" value={String(view.overview.xCount)} />
         <Metric label="X rate" value={percentage(view.overview.xPercentage)} />
@@ -85,7 +87,7 @@ export default function AnalyticsScreen() {
         {view.overview.bestRound ? <>
           <Text style={styles.cardTitle}>{view.overview.bestRound.name}</Text>
           <Text style={styles.muted}>{formatAnalyticsDate(view.overview.bestRound.date)} · {view.overview.bestRound.average.toFixed(2)} avg / Arrow</Text>
-          <Text style={styles.muted}>{view.overview.bestRound.total} pts · {view.overview.bestRound.arrowCount} Arrows</Text>
+          <Text style={styles.muted}>{view.overview.bestRound.total} pts · {view.overview.bestRound.arrowCount} scored Arrows</Text>
         </> : <Text style={styles.muted}>No completed Round in this view.</Text>}
       </View>
     </Section>
@@ -95,7 +97,7 @@ export default function AnalyticsScreen() {
         <TrendChart points={view.trend} />
         {view.trend.map((point) => <View key={point.id} style={styles.row}>
           <Text style={styles.rowMain}>{formatAnalyticsDate(point.date)} · {point.roundName}</Text>
-          <Text style={styles.rowDetail}>{point.average.toFixed(2)} avg · {point.arrowCount} Arrows</Text>
+          <Text style={styles.rowDetail}>{point.average.toFixed(2)} avg · {point.arrowCount} scored Arrows</Text>
         </View>)}
       </> : <Text style={styles.muted}>No scored Rounds in this view.</Text>}
     </Section>
@@ -103,7 +105,7 @@ export default function AnalyticsScreen() {
     <Section title="Performance by Distance">
       {view.distances.length ? view.distances.map((item) => <View key={item.distance} style={styles.row}>
         <Text style={styles.rowMain}>{item.distance} m · {item.average.toFixed(2)} avg / Arrow</Text>
-        <Text style={styles.rowDetail}>{item.arrowCount} Arrows · {item.roundCount} Rounds</Text>
+        <Text style={styles.rowDetail}>{item.arrowCount} scored Arrows · {item.roundCount} Rounds</Text>
       </View>) : <Text style={styles.muted}>No distance results yet.</Text>}
     </Section>
 
@@ -158,42 +160,47 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Metric({ label, value }: { label: string; value: string }) {
   return <View style={styles.metric}><Text style={styles.label}>{label.toUpperCase()}</Text><Text style={styles.metricValue}>{value}</Text></View>;
 }
-function TrendChart({ points }: { points: { id: string; date: string; average: number }[] }) {
-  const left = 50, right = 362, top = 18, bottom = 160;
+function TrendChart({ points }: { points: { id: string; date: string; roundName: string; average: number; arrowCount: number }[] }) {
+  const width = Math.max(380, points.length * 34 + 68);
+  const left = 50, right = width - 18, top = 18, bottom = 160;
+  const [selected, setSelected] = useState<string | null>(null);
+  const { min, max, ticks } = chartAxis(points.map((point) => point.average), "score");
   const x = (index: number) => points.length === 1 ? (left + right) / 2 : left + index / (points.length - 1) * (right - left);
-  const y = (score: number) => bottom - score / 10 * (bottom - top);
+  const y = (score: number) => bottom - (score - min) / (max - min) * (bottom - top);
   const dateTicks = Array.from(new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]));
-  return <View accessible accessibilityLabel="Average score per Arrow by Round over time">
-    <Svg width="100%" height={222} viewBox="0 0 380 222">
-      {[0, 5, 10].map((score) => <Fragment key={score}>
+  return <View accessibilityLabel="Average score per Arrow by Round over time">
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}><Svg width={width} height={222} viewBox={`0 0 ${width} 222`}>
+      {ticks.map((score) => <Fragment key={score}>
         <Line x1={left} x2={right} y1={y(score)} y2={y(score)} stroke={colors.border} strokeWidth={1} />
-        <SvgText x={left - 9} y={y(score) + 4} fill={colors.muted} fontSize={10} textAnchor="end">{score}</SvgText>
+        <SvgText x={left - 9} y={y(score) + 4} fill={colors.muted} fontSize={10} textAnchor="end">{chartTick(score, "score")}</SvgText>
       </Fragment>)}
       <SvgText x={13} y={(top + bottom) / 2} fill={colors.muted} fontSize={10} textAnchor="middle" rotation="-90" originX={13} originY={(top + bottom) / 2}>{ANALYTICS_AXIS_LABELS.trendY}</SvgText>
       {points.length > 1 ? <Polyline points={points.map((point, index) => `${x(index)},${y(point.average)}`).join(" ")} fill="none" stroke={colors.accent} strokeWidth={2.5} /> : null}
-      {points.map((point, index) => <Circle key={point.id} cx={x(index)} cy={y(point.average)} r={4} fill={colors.accent} />)}
+      {points.map((point, index) => { const detail = `${formatAnalyticsDate(point.date)} · ${point.roundName}: ${point.average.toFixed(2)} avg/Arrow · ${point.arrowCount} scored Arrows`; return <Circle key={point.id} cx={x(index)} cy={y(point.average)} r={8} fill={colors.accent} onPress={() => setSelected(detail)} accessibilityLabel={detail} />; })}
       {dateTicks.map((index) => <SvgText key={points[index].id} x={x(index)} y={180} fill={colors.muted} fontSize={10} textAnchor="middle">{formatAnalyticsDate(points[index].date).replace(/ \d{4}$/, "")}</SvgText>)}
       <SvgText x={(left + right) / 2} y={211} fill={colors.muted} fontSize={10} textAnchor="middle">{ANALYTICS_AXIS_LABELS.trendX}</SvgText>
-    </Svg>
+    </Svg></ScrollView>{selected ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss chart detail" onPress={() => setSelected(null)}><Text style={styles.context}>{selected} · Tap to dismiss</Text></Pressable> : null}
   </View>;
 }
 function VolumeBars({ points, interval }: { points: { key: string; startDate: string; endDate: string; arrowCount: number }[]; interval: VolumeInterval }) {
-  const max = Math.max(1, ...points.map((point) => point.arrowCount));
+  const [selected, setSelected] = useState<string | null>(null);
+  const { max, ticks } = chartAxis(points.map((point) => point.arrowCount), "count", true);
   const dateLabel = (point: (typeof points)[number]) => interval === "daily"
     ? formatAnalyticsDate(point.startDate).replace(/ \d{4}$/, "")
     : formatAnalyticsWeekRange(point.startDate, point.endDate).replace(/,? \d{4}/g, "");
   return <View>
     <Text style={styles.chartAxisY}>{ANALYTICS_AXIS_LABELS.volumeY}</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.volumeChart}>
-      {points.map((point) => <View key={point.key} style={styles.volumeColumn}>
+      {points.map((point) => { const date = interval === "daily" ? formatAnalyticsDate(point.startDate) : formatAnalyticsWeekRange(point.startDate, point.endDate); const detail = `${date}: ${point.arrowCount} Session Arrows`; return <Pressable key={point.key} accessibilityRole="button" accessibilityLabel={detail} onPress={() => setSelected(detail)} style={styles.volumeColumn}>
         <View style={styles.volumePlot}>
           <Text style={styles.volumeValue}>{point.arrowCount}</Text>
           <View style={[styles.bar, { height: verticalBarHeight(point.arrowCount, max, 102) }]} />
         </View>
         <Text style={styles.volumeDate} numberOfLines={2}>{dateLabel(point)}</Text>
-      </View>)}
+      </Pressable>; })}
     </ScrollView>
-    <Text style={styles.chartAxisX}>{ANALYTICS_AXIS_LABELS.volumeX[interval]}</Text>
+    <Text style={styles.chartAxisX}>{ANALYTICS_AXIS_LABELS.volumeX[interval]} · 0–{chartTick(max, "count")} · ticks {ticks.map((tick) => chartTick(tick, "count")).join(" / ")}</Text>
+    {selected ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss chart detail" onPress={() => setSelected(null)}><Text style={styles.context}>{selected} · Tap to dismiss</Text></Pressable> : null}
   </View>;
 }
 

@@ -54,6 +54,8 @@ export default function CoachRoundScreen() {
       </View>;
     })}
 
+    <RoundInsights round={round} showTarget={false} coach />
+
     <Text style={styles.heading}>Score distribution</Text>
     <CoachBars axis="Arrows" points={summary.distribution.map((item) => ({ label: item.score, value: item.count, detail: `${item.score}: ${item.count} Arrows Â· ${summary.arrowCount ? (item.count / summary.arrowCount * 100).toFixed(1) : "0.0"}%` }))}/>
 
@@ -65,16 +67,15 @@ export default function CoachRoundScreen() {
     <Text style={styles.heading}>Round progression</Text>
     <CoachLine axis="Running avg / Arrow" maxValue={10} points={summary.arrowProgression.map((item) => ({ label: String(item.sequence), value: item.average, detail: `Arrow ${item.sequence}: ${item.average.toFixed(2)} running avg Â· ${item.cumulative} pts` }))}/>
 
-    <RoundInsights round={round} showTarget={false} coach />
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: coachPalette.background }, content: { padding: 18, paddingTop: 18 + PAGE_TOP_SPACING, paddingBottom: 36, gap: 10 },
+  page: { flex: 1, backgroundColor: coachPalette.background }, content: { padding: 20, paddingTop: 20 + PAGE_TOP_SPACING, paddingBottom: 48, gap: 12 },
   state: { flex: 1, backgroundColor: coachPalette.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
-  eyebrow: { color: coachPalette.accent, fontSize: 12, fontWeight: "700" }, title: { color: coachPalette.text, fontSize: 26, fontWeight: "800" },
+  eyebrow: { color: coachPalette.accent, fontSize: 12, fontWeight: "700" }, title: { color: coachPalette.text, fontSize: 34, lineHeight: 39, fontWeight: "700", letterSpacing: -1 },
   muted: { color: coachPalette.muted, fontSize: 13, lineHeight: 19 }, link: { color: coachPalette.accent, fontWeight: "700", padding: 10 },
-  score: { color: coachPalette.text, fontSize: 30, fontWeight: "800", marginTop: 7 }, heading: { color: coachPalette.text, fontSize: 19, fontWeight: "700", marginTop: 15 },
+  score: { color: coachPalette.text, fontSize: 48, fontWeight: "500", letterSpacing: -1.5, fontVariant: ["tabular-nums"], marginTop: 12 }, heading: { color: coachPalette.text, fontSize: 22, fontWeight: "700", letterSpacing: -.5, marginTop: 24 },
   endRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center", borderBottomWidth: 1, borderColor: coachPalette.border, paddingVertical: 8 },
   endLabel: { color: coachPalette.text, fontSize: 12, fontWeight: "800", minWidth: 48 }, endTotal: { color: coachPalette.text, fontSize: 13, fontWeight: "700" },
   endArrows: { color: coachPalette.muted, fontSize: 13, flexShrink: 1 },

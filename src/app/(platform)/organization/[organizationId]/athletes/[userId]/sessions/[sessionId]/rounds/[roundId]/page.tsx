@@ -22,15 +22,15 @@ export default async function CoachRoundPage({ params }: {
   const score = summarizeCoachRound(round);
   const base = `/organization/${organizationId}/athletes/${userId}/sessions/${sessionId}`;
   return <div className={styles.workspace}>
-    <header className={styles.heading}>
+    <header className={`${styles.heading} ${styles.roundHeading}`}>
       <nav className={styles.breadcrumbs} aria-label="Breadcrumb"><Link href={`/organization/${organizationId}`}>Organisation</Link><span>/</span><Link href={`/organization/${organizationId}/athletes/${userId}`}>Athlete</Link><span>/</span><Link href={base}>{detail.session.title}</Link><span>/</span><span>{round.name}</span></nav>
       <p className={styles.eyebrow}>Read only · {formatDateOnly(detail.session.date)}</p>
       <h1>{round.name}</h1>
       <p>Round {round.roundNumber} · {round.division} · {round.distanceMetres} m · {targetFaceLabel(round)}</p>
       <p>{round.ends} Ends × {round.arrowsPerEnd} Arrows/End</p>
     </header>
-    <section className={styles.overview} aria-label="Round score">
-      <div><strong>{score.total}</strong><span>Points</span></div>
+    <section className={styles.supportingMetrics} aria-label="Round score">
+      <div><strong className={styles.headlineMetric}>{score.total}</strong><span className={styles.headlineLabel}>Points</span></div>
       <div><strong>{score.average?.toFixed(2) ?? "—"}</strong><span>Average / Arrow</span></div>
       <div><strong>{score.arrowCount}/{score.expectedArrows}</strong><span>Recorded Arrows</span></div>
       <div><strong>{score.xCount}X</strong><span>X count</span></div>

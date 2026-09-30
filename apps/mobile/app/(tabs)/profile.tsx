@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { useAuth } from "../../src/auth";
 import { safeAuthMessage } from "../../src/auth-flow";
 import { changeMobilePassword, DIVISIONS, EMPTY_PROFILE, EXPERIENCE_LEVELS, readMobileProfile, saveMobileProfile, SHOOTING_HANDS, type MobileProfile } from "../../src/profile";
+import { PasswordField } from "../../src/password-field";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
 
 export default function ProfileScreen() {
@@ -70,8 +71,8 @@ export default function ProfileScreen() {
     </>}
     <Pressable accessibilityRole="button" onPress={() => setChangingPassword(!changingPassword)}><Text style={styles.link}>Change password</Text></Pressable>
     {changingPassword ? <>
-      <TextInput accessibilityLabel="New password" placeholder="New password" secureTextEntry autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
-      <TextInput accessibilityLabel="Confirm new password" placeholder="Confirm new password" secureTextEntry autoCapitalize="none" value={confirmPassword} onChangeText={setConfirmPassword} style={styles.input} />
+      <PasswordField accessibilityLabel="New password" placeholder="New password" autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
+      <PasswordField accessibilityLabel="Confirm new password" placeholder="Confirm new password" autoCapitalize="none" value={confirmPassword} onChangeText={setConfirmPassword} style={styles.input} />
       <Pressable accessibilityRole="button" disabled={busy} onPress={() => void updatePassword()} style={styles.button}><Text style={styles.buttonText}>Update password</Text></Pressable>
     </> : null}
     {error ? <Text style={styles.error}>{error}</Text> : null}

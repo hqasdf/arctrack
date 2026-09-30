@@ -71,12 +71,12 @@ export default function CoachSessionScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: coachPalette.background }, content: { padding: 18, paddingTop: 18 + PAGE_TOP_SPACING, paddingBottom: 36, gap: 10 },
+  page: { flex: 1, backgroundColor: coachPalette.background }, content: { padding: 20, paddingTop: 20 + PAGE_TOP_SPACING, paddingBottom: 48, gap: 12 },
   state: { flex: 1, backgroundColor: coachPalette.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
-  eyebrow: { color: coachPalette.accent, fontSize: 12, fontWeight: "700" }, title: { color: coachPalette.text, fontSize: 26, fontWeight: "800" },
-  heading: { color: coachPalette.text, fontSize: 19, fontWeight: "700", marginTop: 15 }, muted: { color: coachPalette.muted, fontSize: 13, lineHeight: 19 },
-  link: { color: coachPalette.accent, fontWeight: "700", padding: 10 }, card: { backgroundColor: coachPalette.surface, borderWidth: 1, borderColor: coachPalette.border, borderRadius: 11, padding: 14, minHeight: 82, gap: 5 },
-  summary: { backgroundColor: coachPalette.surface, borderRadius: 11, padding: 14, borderWidth: 1, borderColor: coachPalette.border, gap: 4 },
+  eyebrow: { color: coachPalette.accent, fontSize: 12, fontWeight: "700" }, title: { color: coachPalette.text, fontSize: 34, lineHeight: 39, fontWeight: "700", letterSpacing: -1 },
+  heading: { color: coachPalette.text, fontSize: 22, fontWeight: "700", letterSpacing: -.5, marginTop: 24 }, muted: { color: coachPalette.muted, fontSize: 13, lineHeight: 19 },
+  link: { color: coachPalette.accent, fontWeight: "700", padding: 10 }, card: { borderBottomWidth: 1, borderColor: coachPalette.border, paddingVertical: 20, minHeight: 82, gap: 7 },
+  summary: { paddingVertical: 24, borderTopWidth: 1, borderBottomWidth: 1, borderColor: coachPalette.border, gap: 8 },
   pager: { flexDirection: "row", justifyContent: "space-between", gap: 8 }, pagerButton: { minHeight: 44, justifyContent: "center" },
-  roundName: { color: coachPalette.text, fontSize: 16, fontWeight: "700" }, score: { color: coachPalette.text, fontSize: 14, fontWeight: "700" },
+  roundName: { color: coachPalette.text, fontSize: 20, fontWeight: "700", letterSpacing: -.4 }, score: { color: coachPalette.text, fontSize: 22, fontWeight: "600", fontVariant: ["tabular-nums"] },
 });

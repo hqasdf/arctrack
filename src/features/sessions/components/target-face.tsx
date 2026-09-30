@@ -90,7 +90,7 @@ export function TargetFace({ arrows, selectedId, currentEnd, faceType, faceDiame
         {orderedArrows.map((item)=>{ const cy=faceType==="triple_face"?tripleCentres[item.plot!.faceIndex??1]:0; const selected=item.id===selectedId,current=item.end===currentEnd,flyer=flyerIds.has(item.id); return <g key={item.id} transform={`translate(${item.plot!.x*100} ${cy+item.plot!.y*100})`}><circle r={selected?2.2:current?1.8:1.15} className={selected?styles.markerSelected:current?styles.markerCurrent:styles.markerPrevious}/>{flyer&&<circle r="3.4" className={styles.markerFlyer}/>} {selected&&<circle r="4.5" className={styles.markerSelectedHalo}/>}</g>; })}
       </g>
     </svg>
-    {mainGroup.metrics&&<GroupPositionSummary metrics={mainGroup.metrics} faceDiameterCm={faceDiameterCm} sightCheck={sightCheck}/>}
+    {mainGroup.metrics&&grouping.metrics&&<GroupPositionSummary metrics={mainGroup.metrics} spreadMetrics={grouping.metrics} faceDiameterCm={faceDiameterCm} sightCheck={sightCheck}/>}
   </div>;
 }
 
@@ -101,10 +101,11 @@ function LiveGroupingOverlay({allArrows,mainArrows,hasFlyers,centreX,centreY,fac
   return <g className={styles.liveGroupingOverlay}>{fullHull.length>=3?<polygon points={points(fullHull)} className={styles.fullGroupHull}/>:null}{mainHull.length>=3?<polygon points={points(mainHull)} className={styles.mainGroupHull}/>:null}<line x1="0" y1={faceCentreY} x2={centreX*100} y2={faceCentreY+centreY*100} className={styles.groupCentreLine} markerEnd="url(#live-group-centre-arrow)"/><g transform={`translate(${centreX*100} ${faceCentreY+centreY*100})`} className={styles.mainGroupCentre}><circle r="3.6"/><line x1="-5" y1="0" x2="5" y2="0"/><line x1="0" y1="-5" x2="0" y2="5"/></g></g>;
 }
 
-function GroupPositionSummary({metrics,faceDiameterCm,sightCheck}:{metrics:GroupingMetrics;faceDiameterCm:number;sightCheck:string|null}) {
-  return <div className={styles.liveGroupSummary}><span>Group position</span><strong>{formatGroupPosition(metrics,faceDiameterCm)}</strong>{sightCheck&&<div className={styles.sightCheck}><span>Sight check</span><p>{sightCheck}</p></div>}</div>;
+function GroupPositionSummary({metrics,spreadMetrics,faceDiameterCm,sightCheck}:{metrics:GroupingMetrics;spreadMetrics:GroupingMetrics;faceDiameterCm:number;sightCheck:string|null}) {
+  return <div className={styles.liveGroupSummary}><span>Group position</span><strong>{formatGroupPosition(metrics,faceDiameterCm)}</strong><div className={styles.liveSpreadMetrics}><div><span>Horizontal Spread</span><strong>{formatSpread(spreadMetrics.horizontalSpreadCm)}</strong></div><div><span>Vertical Spread</span><strong>{formatSpread(spreadMetrics.verticalSpreadCm)}</strong></div></div>{sightCheck&&<div className={styles.sightCheck}><span>Sight check</span><p>{sightCheck}</p></div>}</div>;
 }
 
 function clientPointToSvg(point:TargetPoint,svg:SVGSVGElement) { const box=svg.viewBox.baseVal; return clientToSvg(point,svg.getBoundingClientRect(),{x:box.x,y:box.y,width:box.width,height:box.height}); }
 function Face({cy,radii}:{cy:number;radii:number[]}) { return <g>{radii.map((radius)=><circle key={radius} cx="0" cy={cy} r={radius*100} fill={ringColours[radius]} stroke="#4b443e" strokeWidth=".7"/>)}<circle cx="0" cy={cy} r="5" fill="none" stroke="#4b443e" strokeWidth=".7"/><circle cx="0" cy={cy} r="1.5" fill="none" stroke="#4b443e" strokeWidth=".6"/></g>; }
 function formatGroupPosition(metrics:GroupingMetrics,faceDiameterCm:number) { const radius=faceDiameterCm/2,x=metrics.centreX*radius,y=metrics.centreY*radius; if(Math.abs(x)<.05&&Math.abs(y)<.05) return "Centred"; return `${Math.abs(x).toFixed(1)} cm ${x>=0?"right":"left"} \u00b7 ${Math.abs(y).toFixed(1)} cm ${y>=0?"low":"high"}`; }
+function formatSpread(value:number|null) { return value===null?"—":`${value.toFixed(1)} cm`; }

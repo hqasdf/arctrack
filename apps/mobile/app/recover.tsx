@@ -6,6 +6,7 @@ import { useAuth } from "../src/auth";
 import { cancelRecovery, completeRecovery, safeAuthMessage } from "../src/auth-flow";
 import { configError, supabase } from "../src/supabase";
 import { colors, PAGE_TOP_SPACING } from "../src/theme";
+import { PasswordField } from "../src/password-field";
 
 export default function RecoverScreen() {
   const { recovery, recoveryRequired, setRecovery, signOut } = useAuth();
@@ -79,8 +80,8 @@ export default function RecoverScreen() {
       <Action label="Verify code" busy={busy} onPress={() => void verify()} />
       <Action label={cooldown > 0 ? `Resend code in ${cooldown}s` : "Request new code"} busy={busy || cooldown > 0} onPress={() => void request()} secondary />
     </> : <>
-      <TextInput accessibilityLabel="New password" placeholder="New password (12–128 characters)" secureTextEntry autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
-      <TextInput accessibilityLabel="Confirm new password" placeholder="Confirm new password" secureTextEntry autoCapitalize="none" value={confirm} onChangeText={setConfirm} style={styles.input} />
+      <PasswordField accessibilityLabel="New password" placeholder="New password (12–128 characters)" autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
+      <PasswordField accessibilityLabel="Confirm new password" placeholder="Confirm new password" autoCapitalize="none" value={confirm} onChangeText={setConfirm} style={styles.input} />
       <Action label="Update password" busy={busy} onPress={() => void updatePassword()} />
     </>}
     {configError ? <Text style={styles.error}>{configError}</Text> : null}

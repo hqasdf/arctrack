@@ -4,10 +4,10 @@ import { points } from "@arc-track/core/scoring";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { athleteLabel } from "../../src/organizations";
-import { CoachBars, CoachChoices, CoachLine, CoachMetric, CoachNav, CoachSection, CoachState, coachPalette, coachStyles } from "../../src/coach-ui";
-import { useCoachWorkspace } from "../../src/coach-workspace";
-import { singaporeToday } from "../../src/mobile-analytics";
+import { athleteLabel } from "../../../src/organizations";
+import { CoachAccuracyTarget, CoachHeadline, CoachBars, CoachChoices, CoachLine, CoachMetric, CoachNav, CoachSection, CoachState, coachStyles } from "../../../src/coach-ui";
+import { useCoachWorkspace } from "../../../src/coach-workspace";
+import { singaporeToday } from "../../../src/mobile-analytics";
 
 export default function CoachOverviewScreen() {
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
@@ -22,9 +22,9 @@ export default function CoachOverviewScreen() {
   const scoredTotal = result.distribution.reduce((sum, item) => sum + item.count * points(item.score), 0);
   const xCount = result.distribution.find((item) => item.score === "X")?.count ?? 0;
   const tensCount = result.distribution.find((item) => item.score === "10")?.count ?? 0;
-  const average = result.summary.arrowCount ? (scoredTotal / result.summary.arrowCount).toFixed(2) : "—";
-  const tenPlusXRate = result.summary.arrowCount ? ((tensCount + xCount) / result.summary.arrowCount * 100).toFixed(1) : null;
-  const xRate = result.summary.arrowCount ? (xCount / result.summary.arrowCount * 100).toFixed(1) : null;
+  const average = result.summary.scoredArrowCount ? (scoredTotal / result.summary.scoredArrowCount).toFixed(2) : "—";
+  const tenPlusXRate = result.summary.scoredArrowCount ? ((tensCount + xCount) / result.summary.scoredArrowCount * 100).toFixed(1) : null;
+  const xRate = result.summary.scoredArrowCount ? (xCount / result.summary.scoredArrowCount * 100).toFixed(1) : null;
   const recordedTimes = new Map(data.sessions.map((session) => [session.id, session.createdAt]));
   const sessionTime = (id: string) => {
     const recorded = recordedTimes.get(id);
@@ -35,22 +35,19 @@ export default function CoachOverviewScreen() {
     <Text style={coachStyles.eyebrow}>HEAD COACH · OVERVIEW</Text>
     <Text style={coachStyles.title}>{data.organization.name}</Text>
     <CoachChoices label="Period" value={period} choices={[["7","7d"],["30","30d"],["90","90d"],["all","All"]]} change={(value) => setPeriod(value as CoachPeriod)}/>
-    <View style={coachStyles.metrics}>
-      <CoachMetric label="Active Archers" value={result.summary.activeArchers}/><CoachMetric label="Active this period" value={result.summary.activeThisPeriod}/>
-      <CoachMetric label="Sessions" value={result.summary.sessionCount}/><CoachMetric label="Total scored Arrows" value={result.summary.arrowCount}/>
-      <CoachMetric label="Avg / Arrow" value={average}/><CoachMetric label="10+X rate" value={tenPlusXRate === null ? "—" : `${tenPlusXRate}%`}/>
-    </View>
+    <CoachHeadline value={average} label="TEAM AVG / ARROW" context={`${result.summary.scoredArrowCount} scored arrows in this view`}/>
     <CoachSection title="Team Performance">
       <Text style={coachStyles.muted}>Average score per Arrow from saved scores.</Text>
-      <CoachLine axis="Avg / Arrow" maxValue={10} points={result.series.filter((point) => point.scoreAverage !== null).map((point) => ({ label: point.label, value: point.scoreAverage, detail: `${point.label}: ${point.scoreAverage?.toFixed(2)} average from ${point.arrowCount} Arrows` }))}/>
+      <CoachLine axis="Avg / Arrow" maxValue={10} points={result.series.filter((point) => point.scoreAverage !== null).map((point) => ({ label: point.label, value: point.scoreAverage, detail: `${point.label}: ${point.scoreAverage?.toFixed(2)} average from ${point.scoredArrowCount} scored Arrows` }))}/>
     </CoachSection>
+    <View style={coachStyles.metrics}>
+      <CoachMetric label="Active Archers" value={result.summary.activeArchers}/><CoachMetric label="Active this period" value={result.summary.activeThisPeriod}/>
+      <CoachMetric label="Sessions" value={result.summary.sessionCount}/><CoachMetric label="Total Arrows" value={result.summary.arrowCount}/><CoachMetric label="Scored Arrows" value={result.summary.scoredArrowCount}/>
+      <CoachMetric label="Avg / Arrow" value={average}/><CoachMetric label="10+X rate" value={tenPlusXRate === null ? "—" : `${tenPlusXRate}%`}/>
+    </View>
     <CoachSection title="Team Accuracy">
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-        <View accessible accessibilityLabel={`10 plus X rate ${tenPlusXRate ?? "unavailable"} percent`} style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 1, borderColor: coachPalette.border, justifyContent: "center", alignItems: "center" }}>
-          <View style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 1, borderColor: coachPalette.accent, justifyContent: "center", alignItems: "center" }}><Text style={{ color: coachPalette.accent, fontWeight: "800", fontSize: 19 }}>{tenPlusXRate ?? "—"}%</Text></View>
-        </View>
-        <View style={{ flex: 1, gap: 6 }}><Text style={coachStyles.muted}>10+X rate</Text><Text style={coachStyles.cardTitle}>{xRate ?? "—"}% X rate</Text><Text style={coachStyles.muted}>{result.summary.trainingSessions} Training · {result.summary.competitionSessions} Competition Sessions</Text></View>
-      </View>
+      <CoachAccuracyTarget tenPlusX={tenPlusXRate} xRate={xRate}/>
+      <Text style={coachStyles.muted}>{result.summary.trainingSessions} Training · {result.summary.competitionSessions} Competition Sessions</Text>
     </CoachSection>
     <CoachSection title="Team Arrow Volume">
       <Text style={coachStyles.muted}>Saved scored Arrows across active Archers.</Text>
@@ -74,7 +71,7 @@ export default function CoachOverviewScreen() {
           <Text style={coachStyles.muted}>{athlete.latestSession?.rounds.at(-1)?.division ?? "No division yet"} · Last Session {athlete.latestSession ? formatDateOnly(athlete.latestSession.date) : "—"}</Text>
           <Text style={coachStyles.muted}>{athlete.average?.toFixed(2) ?? "—"} avg/Arrow{change === null ? "" : ` · ${change >= 0 ? "+" : ""}${change.toFixed(2)} vs prior period`}</Text>
           <Text style={coachStyles.muted}>{athlete.tenPlusXRate?.toFixed(1) ?? "—"}% 10+X · {athlete.xRate?.toFixed(1) ?? "—"}% X</Text>
-          <Text style={coachStyles.muted}>{athlete.arrowCount} scored Arrows · {athlete.sessionCount} Sessions</Text>
+          <Text style={coachStyles.muted}>{athlete.arrowCount} Session Arrows · {athlete.sessionCount} Sessions</Text>
         </Pressable>;
       }) : <Text style={coachStyles.muted}>No active Archer members yet.</Text>}
     </CoachSection>

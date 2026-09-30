@@ -1,4 +1,4 @@
-import OrganizationScreen from "../(tabs)/organization";
+import OrganizationScreen from "./index";
 
 export default function ManageMembershipsScreen() {
   return <OrganizationScreen manageMode />;

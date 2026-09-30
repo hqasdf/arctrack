@@ -35,6 +35,8 @@ export function RoundInsights({ round, showTarget = true, coach = false }: { rou
         <Metric label="Group position" value={`${axis(metrics.centreX, "right", "left", round.faceDiameterCm / 2)} · ${axis(metrics.centreY, "low", "high", round.faceDiameterCm / 2)}`} skin={skin} />
         <Metric label="Group size" value={metrics.groupSizeCm === null ? "Need 3 plots" : `${metrics.groupSizeCm.toFixed(1)} cm`} skin={skin} />
         <Metric label="RMS spread" value={metrics.spreadCm === null ? "Need 3 plots" : `${metrics.spreadCm.toFixed(1)} cm`} skin={skin} />
+        <Metric label="Horizontal Spread" value={formatSpread(metrics.horizontalSpreadCm)} skin={skin} />
+        <Metric label="Vertical Spread" value={formatSpread(metrics.verticalSpreadCm)} skin={skin} />
       </View> : null}
     </> : <Text style={skin.note}>No plotted Arrows yet.</Text>}
 
@@ -53,6 +55,8 @@ export function RoundInsights({ round, showTarget = true, coach = false }: { rou
 function Metric({ label, value, skin }: { label: string; value: string; skin: typeof styles }) {
   return <View style={skin.metric}><Text style={skin.label}>{label}</Text><Text style={skin.value}>{value}</Text></View>;
 }
+
+function formatSpread(value: number | null) { return value === null ? "—" : `${value.toFixed(1)} cm`; }
 
 function makeStyles(palette: { border: string; text: string; surface: string; muted: string }) { return StyleSheet.create({
   section: { gap: 10, borderTopWidth: 1, borderColor: palette.border, paddingTop: 16, marginTop: 8 },

@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { useAuth } from "../../src/auth";
 import { safeAuthMessage } from "../../src/auth-flow";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PasswordField } from "../../src/password-field";
 
 export default function SignInScreen() {
   const { configError, signIn } = useAuth();
@@ -30,7 +31,7 @@ export default function SignInScreen() {
     <Text style={styles.title}>Welcome back</Text>
     <Text style={styles.subtitle}>Sign in to view your Sessions.</Text>
     <TextInput accessibilityLabel="Email" style={styles.input} placeholder="Email" placeholderTextColor={colors.muted} keyboardType="email-address" autoCapitalize="none" autoComplete="email" returnKeyType="next" value={email} onChangeText={setEmail} editable={!busy} />
-    <TextInput accessibilityLabel="Password" style={styles.input} placeholder="Password" placeholderTextColor={colors.muted} secureTextEntry autoComplete="current-password" returnKeyType="go" onSubmitEditing={() => void submit()} value={password} onChangeText={setPassword} editable={!busy} />
+    <PasswordField accessibilityLabel="Password" style={styles.input} placeholder="Password" placeholderTextColor={colors.muted} autoComplete="current-password" returnKeyType="go" onSubmitEditing={() => void submit()} value={password} onChangeText={setPassword} editable={!busy} />
     {configError ? <Text style={styles.error}>{configError}</Text> : null}
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Pressable accessibilityRole="button" onPress={submit} disabled={busy || !!configError || !email.trim() || !password} style={({ pressed }) => [styles.button, (busy || pressed) && styles.buttonDim]}>

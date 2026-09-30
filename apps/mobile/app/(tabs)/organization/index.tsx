@@ -2,12 +2,12 @@ import { router, useFocusEffect } from "expo-router";
 import { organizationEntry } from "@arc-track/core/organization-entry";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useAuth } from "../../src/auth";
+import { useAuth } from "../../../src/auth";
 import {
   createOrganization, joinOrganization, readOwnOrganizations,
   type OwnOrganization,
-} from "../../src/organizations";
-import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+} from "../../../src/organizations";
+import { colors, PAGE_TOP_SPACING } from "../../../src/theme";
 
 export default function OrganizationScreen({ manageMode = false }: { manageMode?: boolean }) {
   const { user } = useAuth();

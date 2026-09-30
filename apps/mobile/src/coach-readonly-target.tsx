@@ -62,10 +62,10 @@ export function CoachReadonlyTarget({ round }: { round: RoundDraft }) {
 }
 
 const styles = StyleSheet.create({
-  section: { backgroundColor: coachPalette.surface, borderColor: coachPalette.border, borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  section: { backgroundColor: coachPalette.surface, borderRadius: 20, padding: 12, gap: 10, marginVertical: 12 },
   heading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   title: { color: coachPalette.text, fontSize: 18, fontWeight: "800", flexShrink: 1 },
-  reset: { minHeight: 40, justifyContent: "center", paddingHorizontal: 10, borderRadius: 8, borderColor: coachPalette.border, borderWidth: 1 },
+  reset: { minHeight: 44, justifyContent: "center", paddingHorizontal: 10, borderRadius: 8, borderColor: coachPalette.border, borderWidth: 1 },
   resetText: { color: coachPalette.accent, fontSize: 13, fontWeight: "700" },
   note: { color: coachPalette.muted, fontSize: 12 },
   viewport: { overflow: "hidden", borderRadius: 8 },

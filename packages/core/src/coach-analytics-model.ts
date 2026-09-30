@@ -7,8 +7,8 @@ export type CoachAnalyticsAthlete = { userId: string; name: string };
 export type CoachPeriod = "7" | "30" | "90" | "all";
 export type CoachFilters = { period: CoachPeriod; sessionType: SessionType | "all"; distance: number | "all"; division: string; targetFace: string };
 export const DEFAULT_COACH_FILTERS: CoachFilters = { period: "30", sessionType: "all", distance: "all", division: "all", targetFace: "all" };
-export type CoachSeriesPoint = { key: string; label: string; startDate: string; arrowCount: number; sessionCount: number; scoreAverage: number | null; xRate: number | null; tenPlusXRate: number | null };
-type Bucket = { key: string; startDate: string; arrowCount: number; sessionIds: Set<string>; scoreTotal: number; xCount: number; tenPlusXCount: number };
+export type CoachSeriesPoint = { key: string; label: string; startDate: string; arrowCount: number; scoredArrowCount: number; sessionCount: number; scoreAverage: number | null; xRate: number | null; tenPlusXRate: number | null };
+type Bucket = { key: string; startDate: string; arrowCount: number; scoredArrowCount: number; sessionIds: Set<string>; scoreTotal: number; xCount: number; tenPlusXCount: number };
 
 function dateShift(value: string, days: number) { const date = new Date(`${value}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10); }
 function monday(value: string) { const date = new Date(`${value}T00:00:00Z`); return dateShift(value, -(date.getUTCDay() + 6) % 7); }
@@ -56,19 +56,23 @@ export function buildCoachTeamAnalytics(athletes: CoachAnalyticsAthlete[], sessi
   const records = primary.flatMap((session) => session.rounds.filter(matches).map((round) => ({ session, round })));
   const allArrows = records.flatMap(({ round }) => round.arrows);
   const scoredArrowCount = allArrows.length;
-  const interval = coachChartInterval(filters.period, matchingSessions.map((session) => session.date));
+  const interval = coachChartInterval(filters.period, primary.map((session) => session.date));
   const buckets = new Map<string, Bucket>();
   const bucketFor = (date: string) => {
     const key = bucketKey(date, interval);
-    const bucket = buckets.get(key) ?? { key, startDate: key, arrowCount: 0, sessionIds: new Set<string>(), scoreTotal: 0, xCount: 0, tenPlusXCount: 0 };
+    const bucket = buckets.get(key) ?? { key, startDate: key, arrowCount: 0, scoredArrowCount: 0, sessionIds: new Set<string>(), scoreTotal: 0, xCount: 0, tenPlusXCount: 0 };
     buckets.set(key, bucket);
     return bucket;
   };
+  for (const session of primary) {
+    const bucket = bucketFor(session.date);
+    bucket.arrowCount += session.arrowCount;
+  }
   for (const session of matchingSessions) bucketFor(session.date).sessionIds.add(session.id);
   for (const { session, round } of records) {
     const bucket = bucketFor(session.date);
     for (const arrow of round.arrows) {
-      bucket.arrowCount++;
+      bucket.scoredArrowCount++;
       bucket.scoreTotal += points(arrow.score);
       bucket.xCount += Number(arrow.score === "X");
       bucket.tenPlusXCount += Number(points(arrow.score) === 10);
@@ -76,17 +80,17 @@ export function buildCoachTeamAnalytics(athletes: CoachAnalyticsAthlete[], sessi
   }
   const series: CoachSeriesPoint[] = [...buckets.values()].sort((a, b) => a.key.localeCompare(b.key)).map((bucket) => ({
     key: bucket.key, label: bucketLabel(bucket.key, interval), startDate: bucket.startDate,
-    arrowCount: bucket.arrowCount, sessionCount: bucket.sessionIds.size,
-    scoreAverage: bucket.arrowCount ? bucket.scoreTotal / bucket.arrowCount : null,
-    xRate: bucket.arrowCount ? bucket.xCount / bucket.arrowCount * 100 : null,
-    tenPlusXRate: bucket.arrowCount ? bucket.tenPlusXCount / bucket.arrowCount * 100 : null,
+    arrowCount: bucket.arrowCount, scoredArrowCount: bucket.scoredArrowCount, sessionCount: bucket.sessionIds.size,
+    scoreAverage: bucket.scoredArrowCount ? bucket.scoreTotal / bucket.scoredArrowCount : null,
+    xRate: bucket.scoredArrowCount ? bucket.xCount / bucket.scoredArrowCount * 100 : null,
+    tenPlusXRate: bucket.scoredArrowCount ? bucket.tenPlusXCount / bucket.scoredArrowCount * 100 : null,
   }));
   const perAthlete = athletes.map((athlete) => {
     const ownSessions = matchingSessions.filter((session) => session.userId === athlete.userId);
     const ownArrows = records.filter(({ session }) => session.userId === athlete.userId).flatMap(({ round }) => round.arrows);
     const xCount = ownArrows.filter((arrow) => arrow.score === "X").length;
     const tenPlusXCount = ownArrows.filter((arrow) => points(arrow.score) === 10).length;
-    return { ...athlete, sessionCount: ownSessions.length, arrowCount: ownArrows.length,
+    return { ...athlete, sessionCount: ownSessions.length, arrowCount: primary.filter((session) => session.userId === athlete.userId).reduce((sum, session) => sum + session.arrowCount, 0), scoredArrowCount: ownArrows.length,
       average: ownArrows.length ? ownArrows.reduce((sum, arrow) => sum + points(arrow.score), 0) / ownArrows.length : null,
       xRate: ownArrows.length ? xCount / ownArrows.length * 100 : null,
       tenPlusXRate: ownArrows.length ? tenPlusXCount / ownArrows.length * 100 : null,
@@ -95,7 +99,7 @@ export function buildCoachTeamAnalytics(athletes: CoachAnalyticsAthlete[], sessi
   const byType = (["training", "competition"] as SessionType[]).map((type) => {
     const typeSessions = matchingSessions.filter((session) => session.sessionType === type);
     const arrows = records.filter(({ session }) => session.sessionType === type).flatMap(({ round }) => round.arrows);
-    return { type, sessionCount: typeSessions.length, arrowCount: arrows.length, average: arrows.length ? arrows.reduce((sum, arrow) => sum + points(arrow.score), 0) / arrows.length : null,
+    return { type, sessionCount: typeSessions.length, arrowCount: primary.filter((session) => session.sessionType === type).reduce((sum, session) => sum + session.arrowCount, 0), scoredArrowCount: arrows.length, average: arrows.length ? arrows.reduce((sum, arrow) => sum + points(arrow.score), 0) / arrows.length : null,
       xRate: arrows.length ? arrows.filter((arrow) => arrow.score === "X").length / arrows.length * 100 : null,
       tenPlusXRate: arrows.length ? arrows.filter((arrow) => points(arrow.score) === 10).length / arrows.length * 100 : null };
   });
@@ -120,7 +124,7 @@ export function buildCoachTeamAnalytics(athletes: CoachAnalyticsAthlete[], sessi
       return { session, arrowCount: arrows.length, average: arrows.length ? arrows.reduce((sum, arrow) => sum + points(arrow.score), 0) / arrows.length : null };
     }),
     summary: { activeArchers: athletes.length, activeThisPeriod: perAthlete.filter((athlete) => athlete.sessionCount > 0).length,
-      sessionCount: matchingSessions.length, arrowCount: scoredArrowCount,
+      sessionCount: matchingSessions.length, arrowCount: primary.reduce((sum, session) => sum + session.arrowCount, 0), scoredArrowCount,
       trainingSessions: byType[0].sessionCount, competitionSessions: byType[1].sessionCount },
   };
 }

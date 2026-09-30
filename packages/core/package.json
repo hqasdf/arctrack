@@ -12,6 +12,7 @@
     "./analytics": "./src/analytics-model.ts",
     "./coach-round": "./src/coach-round-model.ts",
     "./coach-analytics": "./src/coach-analytics-model.ts",
+    "./chart-axis": "./src/chart-axis.ts",
     "./organization-entry": "./src/organization-entry.ts"
   },
   "scripts": {

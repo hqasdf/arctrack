@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { configError, supabase } from "../../src/supabase";
 import { SIGNUP_STORAGE_KEY, parseSignupContext, safeAuthMessage, serializeSignupContext } from "../../src/auth-flow";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PasswordField } from "../../src/password-field";
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState("");
@@ -75,8 +76,8 @@ export default function SignUpScreen() {
       <Pressable accessibilityRole="button" disabled={busy} onPress={() => { void AsyncStorage.removeItem(SIGNUP_STORAGE_KEY).catch(() => {}); setSent(false); setEmail(""); setCode(""); setCooldown(0); setError(null); }} style={styles.back}><Text style={styles.link}>Use a different email</Text></Pressable>
     </> : <>
       <TextInput accessibilityLabel="Email" placeholder="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} style={styles.input} />
-      <TextInput accessibilityLabel="Password" placeholder="Password (12–128 characters)" secureTextEntry autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
-      <TextInput accessibilityLabel="Confirm password" placeholder="Confirm password" secureTextEntry autoCapitalize="none" value={confirm} onChangeText={setConfirm} style={styles.input} />
+      <PasswordField accessibilityLabel="Password" placeholder="Password (12–128 characters)" autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
+      <PasswordField accessibilityLabel="Confirm password" placeholder="Confirm password" autoCapitalize="none" value={confirm} onChangeText={setConfirm} style={styles.input} />
       <Action label="Create account" busy={busy} onPress={() => void signUp()} />
     </>}
     {configError ? <Text style={styles.error}>{configError}</Text> : null}

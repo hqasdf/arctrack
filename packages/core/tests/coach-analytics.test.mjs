@@ -20,25 +20,51 @@ const sessions = [
 const today = "2026-09-27";
 const data = (filters = DEFAULT_COACH_FILTERS) => buildCoachTeamAnalytics(athletes, sessions, filters, today);
 
-test("summary includes only active roster, selected period, and saved Arrow counts", () => {
+test("summary keeps keyed Session Arrow volume separate from scored Arrows", () => {
   const result = data();
-  assert.deepEqual(result.summary, { activeArchers: 2, activeThisPeriod: 2, sessionCount: 3, arrowCount: 8, trainingSessions: 2, competitionSessions: 1 });
-  assert.equal(result.perAthlete[0].arrowCount, 6);
-  assert.equal(result.perAthlete[1].arrowCount, 2);
+  assert.deepEqual(result.summary, { activeArchers: 2, activeThisPeriod: 2, sessionCount: 3, arrowCount: 600, scoredArrowCount: 8, trainingSessions: 2, competitionSessions: 1 });
+  assert.equal(result.perAthlete[0].arrowCount, 400);
+  assert.equal(result.perAthlete[0].scoredArrowCount, 6);
+  assert.equal(result.perAthlete[1].arrowCount, 200);
   assert.equal(result.recent.some(({ session }) => session.id === "former" || session.id === "other-org" || session.id === "old"), false);
 });
 
 test("daily team volume and Session activity sum multiple Sessions and use normalized score", () => {
   const result = data();
-  assert.deepEqual(result.series.map((point) => [point.startDate, point.arrowCount, point.sessionCount]), [["2026-09-25", 6, 2], ["2026-09-26", 2, 1]]);
+  assert.deepEqual(result.series.map((point) => [point.startDate, point.arrowCount, point.scoredArrowCount, point.sessionCount]), [["2026-09-25", 400, 6, 2], ["2026-09-26", 200, 2, 1]]);
   assert.equal(result.series[0].scoreAverage, 47 / 6);
   assert.ok(Math.abs(result.series[0].xRate - 100 / 6) < 0.000001);
   assert.equal(result.series[0].tenPlusXRate, 50);
 });
 
+test("120 keyed Session Arrows remain 120 with only 36 scored records", () => {
+  const scored = round("mismatch-round", 70, Array.from({ length: 36 }, () => "9"));
+  const result = buildCoachTeamAnalytics([{ userId: "a", name: "Ada" }],
+    [session("mismatch", "a", "2026-09-26", "training", [scored], 120)], DEFAULT_COACH_FILTERS, today);
+  assert.equal(result.summary.arrowCount, 120);
+  assert.equal(result.summary.scoredArrowCount, 36);
+  assert.equal(result.series[0].arrowCount, 120);
+  assert.equal(result.series[0].scoredArrowCount, 36);
+  assert.equal(result.series[0].scoreAverage, 9);
+  const athlete = buildCoachAthleteInsights({ userId: "a", name: "Ada" },
+    [session("mismatch", "a", "2026-09-26", "training", [scored], 120)], DEFAULT_COACH_FILTERS, today);
+  assert.equal(athlete.summary.arrowCount, 120);
+  assert.equal(athlete.summary.scoredArrowCount, 36);
+  assert.equal(athlete.overview.totalArrows, 36);
+  assert.equal(athlete.overview.averagePerArrow, 9);
+});
+
+test("zero keyed Session count never falls back to saved scoring rows", () => {
+  const result = buildCoachTeamAnalytics([{ userId: "a", name: "Ada" }],
+    [session("unkeyed", "a", "2026-09-26", "training", [round("r", 70, ["X", "10"])], 0)], DEFAULT_COACH_FILTERS, today);
+  assert.equal(result.summary.arrowCount, 0);
+  assert.equal(result.summary.scoredArrowCount, 2);
+  assert.equal(result.series[0].scoreAverage, 10);
+});
+
 test("athlete comparisons, type split, distance and X distribution use the same filtered Arrows", () => {
   const result = data({ ...DEFAULT_COACH_FILTERS, distance: 70, sessionType: "training" });
-  assert.deepEqual(result.summary, { activeArchers: 2, activeThisPeriod: 2, sessionCount: 2, arrowCount: 6, trainingSessions: 2, competitionSessions: 0 });
+  assert.deepEqual(result.summary, { activeArchers: 2, activeThisPeriod: 2, sessionCount: 2, arrowCount: 400, scoredArrowCount: 6, trainingSessions: 2, competitionSessions: 0 });
   assert.deepEqual(result.byDistance.map((item) => [item.distance, item.arrowCount, item.athleteCount]), [[70, 6, 2]]);
   assert.deepEqual(result.distribution.filter((item) => item.count).map((item) => [item.score, item.count]), [["X", 2], ["10", 1], ["9", 2], ["M", 1]]);
   assert.equal(result.perAthlete[0].tenPlusXRate, 50);
@@ -51,8 +77,9 @@ test("division and face filters are dynamic and do not attribute unmatched Round
   assert.equal(options.targetFaces.length, 1);
   const result = data({ ...DEFAULT_COACH_FILTERS, targetFace: "40:triple_face" });
   assert.equal(result.summary.sessionCount, 0);
-  assert.equal(result.summary.arrowCount, 0);
-  assert.equal(result.series.length, 0);
+  assert.equal(result.summary.arrowCount, 600);
+  assert.equal(result.summary.scoredArrowCount, 0);
+  assert.equal(result.series.reduce((sum, point) => sum + point.arrowCount, 0), 600);
 });
 
 test("90-day and all-time buckets use weekly/monthly periods without fake empty buckets", () => {

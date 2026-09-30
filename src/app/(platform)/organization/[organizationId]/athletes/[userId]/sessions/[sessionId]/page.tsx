@@ -28,16 +28,16 @@ export default async function CoachSessionPage({ params }: {
   const older = currentIndex >= 0 ? index[currentIndex + 1] : null;
   const athleteBase = `/organization/${organizationId}/athletes/${userId}`;
   return <div className={styles.workspace}>
-    <header className={styles.heading}>
+    <header className={`${styles.heading} ${styles.sessionHeading}`}>
       <nav className={styles.breadcrumbs} aria-label="Breadcrumb"><Link href={`/organization/${organizationId}`}>{organization.name}</Link><span>/</span><Link href={athleteBase}>{athleteName(athlete)}</Link><span>/</span><span>{session.title}</span></nav>
-      <p className={styles.eyebrow}>{organization.name} · Read only</p>
+      <p className={styles.eyebrow}>{athleteName(athlete)} · {organization.name} · Read only</p>
       <h1>{session.title}</h1>
       <p>{formatDateOnly(session.date)} · {session.sessionType === "competition" ? "Competition" : "Training"} · {session.arrowCount} Session arrows</p>
       <p>Recorded {detail.createdAt.slice(0, 16).replace("T", " ")} UTC</p>
     </header>
-    <section className={styles.overview} aria-label="Session summary"><div><strong>{overview.totalArrows}</strong><span>Scored Arrows</span></div><div><strong>{overview.averagePerArrow?.toFixed(2) ?? "—"}</strong><span>Avg / Arrow</span></div><div><strong>{overview.tenPlusXPercentage === null ? "—" : `${overview.tenPlusXPercentage.toFixed(1)}%`}</strong><span>10+X rate</span></div><div><strong>{overview.xCount}</strong><span>X count</span></div><div><strong>{rounds.length}</strong><span>Rounds</span></div></section>
+    <section className={styles.supportingMetrics} aria-label="Session summary"><div><strong>{overview.totalArrows}</strong><span>Scored Arrows</span></div><div><strong>{overview.averagePerArrow?.toFixed(2) ?? "—"}</strong><span>Avg / Arrow</span></div><div><strong>{overview.tenPlusXPercentage === null ? "—" : `${overview.tenPlusXPercentage.toFixed(1)}%`}</strong><span>10+X rate</span></div><div><strong>{overview.xCount}</strong><span>X count</span></div><div><strong>{rounds.length}</strong><span>Rounds</span></div></section>
     <nav className={styles.sessionPager} aria-label="Athlete Sessions">{older ? <Link href={`${athleteBase}/sessions/${older.id}`}>← Previous Session</Link> : <span/>}{newer ? <Link href={`${athleteBase}/sessions/${newer.id}`}>Next Session →</Link> : <span/>}</nav>
-    <section className={styles.section}>
+    <section className={`${styles.section} ${styles.leadSection}`}>
       <h2>Rounds</h2>
       {rounds.length === 0 ? <p className={styles.empty}>No Rounds in this Session yet.</p> :
         <ul className={styles.recordList}>{rounds.map(({ round, ends }) => {

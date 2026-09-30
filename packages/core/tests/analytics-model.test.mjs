@@ -17,6 +17,17 @@ const sessions = [
 ];
 const allFilters = { sessionType: "all", dateRange: "all", distance: "all", division: "all", targetFace: "all" };
 
+test("Session volume 120 stays separate from 36 scored Arrows", () => {
+  const saved = session("mismatch", "training", "2026-09-23", [round("scored", {
+    ends: 6, arrowsPerEnd: 6,
+    arrows: Array.from({ length: 36 }, (_, index) => arrow(`m${index + 1}`, "9")),
+  })], 120);
+  assert.equal(calculateArrowVolume([saved], allFilters, "2026-09-23", "daily")[0].arrowCount, 120);
+  const overview = calculateOverview(filterAnalyticsRounds([saved], allFilters, "2026-09-23"));
+  assert.equal(overview.totalArrows, 36);
+  assert.equal(overview.averagePerArrow, 9);
+});
+
 test("Training, Competition and All filters select the expected Rounds", () => {
   assert.equal(filterAnalyticsRounds(sessions, { ...allFilters, sessionType: "training" }, "2026-09-23").length, 3);
   assert.equal(filterAnalyticsRounds(sessions, { ...allFilters, sessionType: "competition" }, "2026-09-23").length, 1);

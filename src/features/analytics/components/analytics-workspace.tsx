@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { chartAxis, chartTick } from "@arc-track/core/chart-axis";
 import type { SessionDraft } from "@/features/sessions/scoring-model";
 import { calculateArrowVolume, calculateDistancePerformance, calculateOverview, calculateTargetGroupings, calculateTrend, DEFAULT_ANALYTICS_FILTERS, filterAnalyticsRounds, formatAnalyticsDate, formatAnalyticsWeekRange, getAvailableFilters, type AnalyticsDateRange, type AnalyticsFilters, type AnalyticsSessionType, type ArrowVolumePoint, type TrendPoint, type VolumeInterval } from "../analytics-model";
 import { AnalyticsTargetGrouping } from "./analytics-target-grouping";
@@ -42,7 +43,8 @@ export function AnalyticsWorkspace({ sessions, today }: { sessions: SessionDraft
 
     <section aria-labelledby="overview-heading"><SectionHeading eyebrow="Saved performance" heading="Overview" id="overview-heading"/>
       <div className={styles.metricGrid}>
-        <Metric label="Total saved Arrows" value={String(overview.totalArrows)}/>
+        <Metric label="Total Arrows" value={String(volume.reduce((sum, point) => sum + point.arrowCount, 0))}/>
+        <Metric label="Scored Arrows" value={String(overview.totalArrows)}/>
         <Metric label="Average / Arrow" value={formatAverage(overview.averagePerArrow)}/>
         <Metric label="X count" value={String(overview.xCount)}/>
         <Metric label="X percentage" value={formatPercentage(overview.xPercentage)}/>
@@ -50,13 +52,13 @@ export function AnalyticsWorkspace({ sessions, today }: { sessions: SessionDraft
       </div>
       <div className={styles.bestRound}>
         <div><p className={styles.kicker}>Best completed Round</p>{overview.bestRound ? <><h3>{overview.bestRound.name}</h3><p>{formatAnalyticsDate(overview.bestRound.date)}</p></> : <><h3>No completed Round in this view</h3><p>A Round qualifies after every planned Arrow has been saved.</p></>}</div>
-        {overview.bestRound ? <div className={styles.bestRoundStats}><span><strong>{overview.bestRound.average.toFixed(2)}</strong> avg / Arrow</span><span><strong>{overview.bestRound.total}</strong> total score</span><span><strong>{overview.bestRound.arrowCount}</strong> Arrows</span></div> : null}
+        {overview.bestRound ? <div className={styles.bestRoundStats}><span><strong>{overview.bestRound.average.toFixed(2)}</strong> avg / Arrow</span><span><strong>{overview.bestRound.total}</strong> total score</span><span><strong>{overview.bestRound.arrowCount}</strong> scored Arrows</span></div> : null}
       </div>
     </section>
 
-    <section aria-labelledby="trend-heading"><SectionHeading eyebrow="Normalized comparison" heading="Performance trend" id="trend-heading"/><div className={styles.panel}>{trend.length === 0 ? <EmptyState title="No scored Rounds in this view" body="Change the filters or score a Round to build your trend."/> : <><TrendChart points={trend}/><div className={styles.trendList}>{trend.map((point) => <div key={point.id}><span>{formatAnalyticsDate(point.date)} · {point.roundName}</span><strong>{point.average.toFixed(2)} avg · {point.arrowCount} {point.arrowCount === 1 ? "Arrow" : "Arrows"}</strong></div>)}</div></>}</div></section>
+    <section aria-labelledby="trend-heading"><SectionHeading eyebrow="Normalized comparison" heading="Performance trend" id="trend-heading"/><div className={styles.panel}>{trend.length === 0 ? <EmptyState title="No scored Rounds in this view" body="Change the filters or score a Round to build your trend."/> : <><TrendChart points={trend}/><div className={styles.trendList}>{trend.map((point) => <div key={point.id}><span>{formatAnalyticsDate(point.date)} · {point.roundName}</span><strong>{point.average.toFixed(2)} avg · {point.arrowCount} scored {point.arrowCount === 1 ? "Arrow" : "Arrows"}</strong></div>)}</div></>}</div></section>
 
-    <section aria-labelledby="distance-heading"><SectionHeading eyebrow="Comparable context" heading="Performance by distance" id="distance-heading"/><div className={styles.panel}>{distances.length === 0 ? <EmptyState title="No distance results yet" body="Saved scored Arrows will be grouped by Round distance."/> : <div className={styles.distanceList}>{distances.map((item) => <div key={item.distance}><strong>{item.distance} m</strong><span>Avg / Arrow: <b>{item.average.toFixed(2)}</b></span><small>{item.arrowCount} {item.arrowCount === 1 ? "Arrow" : "Arrows"} · {item.roundCount} {item.roundCount === 1 ? "Round" : "Rounds"}</small></div>)}</div>}</div></section>
+    <section aria-labelledby="distance-heading"><SectionHeading eyebrow="Comparable context" heading="Performance by distance" id="distance-heading"/><div className={styles.panel}>{distances.length === 0 ? <EmptyState title="No distance results yet" body="Saved scored Arrows will be grouped by Round distance."/> : <div className={styles.distanceList}>{distances.map((item) => <div key={item.distance}><strong>{item.distance} m</strong><span>Avg / Arrow: <b>{item.average.toFixed(2)}</b></span><small>{item.arrowCount} scored {item.arrowCount === 1 ? "Arrow" : "Arrows"} · {item.roundCount} {item.roundCount === 1 ? "Round" : "Rounds"}</small></div>)}</div>}</div></section>
 
     <section aria-labelledby="grouping-heading"><SectionHeading eyebrow="Saved coordinates" heading="Target grouping" id="grouping-heading"/><div className={styles.panel}><AnalyticsTargetGrouping groups={groupings}/></div></section>
 
@@ -77,28 +79,31 @@ function EmptyState({ title, body }: { title: string; body: string }) { return <
 function formatAverage(value: number | null) { return value === null ? "—" : value.toFixed(2); }
 function formatPercentage(value: number | null) { return value === null ? "—" : `${value.toFixed(1)}%`; }
 function TrendChart({ points }: { points: TrendPoint[] }) {
+  const [selected, setSelected] = useState<string | null>(null);
   const left = 54, right = 774, top = 18, bottom = 210;
+  const { min, max, ticks } = chartAxis(points.map((point) => point.average), "score");
   const x = (index: number) => points.length === 1 ? (left + right) / 2 : left + index / (points.length - 1) * (right - left);
-  const y = (average: number) => bottom - average / 10 * (bottom - top);
+  const y = (average: number) => bottom - (average - min) / (max - min) * (bottom - top);
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index).toFixed(1)} ${y(point.average).toFixed(1)}`).join(" ");
   return <div className={styles.chartWrap}><svg viewBox="0 0 800 244" role="img" aria-label="Average score per Arrow by Round over time">
-    {[0, 2, 4, 6, 8, 10].map((value) => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} className={styles.gridLine}/><text x="43" y={y(value) + 4} textAnchor="end" className={styles.axisLabel}>{value}</text></g>)}
+    {ticks.map((value) => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} className={styles.gridLine}/><text x="43" y={y(value) + 4} textAnchor="end" className={styles.axisLabel}>{chartTick(value, "score")}</text></g>)}
     <path d={path} className={styles.trendLine}/>
-    {points.map((point, index) => <circle key={point.id} cx={x(index)} cy={y(point.average)} r="5" className={styles.trendPoint}/>)}
-  </svg></div>;
+    {points.map((point, index) => { const detail = `${formatAnalyticsDate(point.date)} · ${point.roundName}: ${point.average.toFixed(2)} avg/Arrow · ${point.arrowCount} scored Arrows`; return <circle key={point.id} cx={x(index)} cy={y(point.average)} r="6" className={styles.trendPoint} tabIndex={0} aria-label={detail} onMouseEnter={() => setSelected(detail)} onMouseLeave={() => setSelected(null)} onFocus={() => setSelected(detail)} onBlur={() => setSelected(null)}><title>{detail}</title></circle>; })}
+  </svg>{selected ? <p className={styles.chartDetail} role="status">{selected}</p> : null}</div>;
 }
 
 function VolumeChart({ points, interval }: { points: ArrowVolumePoint[]; interval: VolumeInterval }) {
+  const [selected, setSelected] = useState<string | null>(null);
   const width = Math.max(560, points.length * 76 + 80), left = 52, right = width - 20, top = 18, bottom = 196;
-  const maximum = Math.max(...points.map((point) => point.arrowCount));
+  const { max: maximum, ticks } = chartAxis(points.map((point) => point.arrowCount), "count", true);
   const x = (index: number) => left + (index + .5) / points.length * (right - left);
   const y = (value: number) => bottom - value / maximum * (bottom - top);
   const slotWidth = (right - left) / points.length;
   const barWidth = Math.min(48, Math.max(18, slotWidth * .58));
   return <><div className={styles.volumeChart}><svg viewBox={`0 0 ${width} 238`} style={{ minWidth: `${width}px` }} role="img" aria-label={`${interval === "daily" ? "Daily" : "Weekly"} Session Arrow volume`}>
-    {[0, .25, .5, .75, 1].map((ratio) => { const value = Math.round(maximum * ratio); return <g key={ratio}><line x1={left} x2={right} y1={y(maximum * ratio)} y2={y(maximum * ratio)} className={styles.gridLine}/><text x="43" y={y(maximum * ratio) + 4} textAnchor="end" className={styles.axisLabel}>{value}</text></g>; })}
-    {points.map((point, index) => { const barTop = y(point.arrowCount); return <g key={point.key}><rect x={x(index) - barWidth / 2} y={barTop} width={barWidth} height={bottom - barTop} rx="5" className={styles.volumeBar}/><text x={x(index)} y={barTop - 7} textAnchor="middle" className={styles.barValue}>{point.arrowCount}</text><text x={x(index)} y="218" textAnchor="middle" className={styles.axisLabel}>{formatVolumeAxisLabel(point, interval)}</text></g>; })}
-  </svg></div><div className={styles.volumeList}>{points.map((point) => <div key={point.key}><span>{formatVolumeRange(point, interval)}</span><strong>{point.arrowCount} {point.arrowCount === 1 ? "Arrow" : "Arrows"}</strong></div>)}</div></>;
+    {ticks.map((value) => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} className={styles.gridLine}/><text x="43" y={y(value) + 4} textAnchor="end" className={styles.axisLabel}>{chartTick(value, "count")}</text></g>)}
+    {points.map((point, index) => { const barTop = y(point.arrowCount); const detail = `${formatVolumeRange(point, interval)}: ${point.arrowCount} Session Arrows`; return <g key={point.key}><rect x={x(index) - barWidth / 2} y={barTop} width={barWidth} height={bottom - barTop} rx="5" className={styles.volumeBar} tabIndex={0} aria-label={detail} onMouseEnter={() => setSelected(detail)} onMouseLeave={() => setSelected(null)} onFocus={() => setSelected(detail)} onBlur={() => setSelected(null)}><title>{detail}</title></rect><text x={x(index)} y={barTop - 7} textAnchor="middle" className={styles.barValue}>{point.arrowCount}</text><text x={x(index)} y="218" textAnchor="middle" className={styles.axisLabel}>{formatVolumeAxisLabel(point, interval)}</text></g>; })}
+  </svg></div>{selected ? <p className={styles.chartDetail} role="status">{selected}</p> : null}<div className={styles.volumeList}>{points.map((point) => <div key={point.key}><span>{formatVolumeRange(point, interval)}</span><strong>{point.arrowCount} {point.arrowCount === 1 ? "Arrow" : "Arrows"}</strong></div>)}</div></>;
 }
 
 function formatVolumeAxisLabel(point: ArrowVolumePoint, interval: VolumeInterval) {

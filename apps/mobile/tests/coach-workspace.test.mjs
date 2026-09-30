@@ -21,12 +21,13 @@ test("mobile Overview uses shared active-roster metrics, saved scores and sugges
   const result = view();
   assert.equal(result.summary.activeArchers, 2);
   assert.equal(result.summary.sessionCount, 3);
-  assert.equal(result.summary.arrowCount, 4);
+  assert.equal(result.summary.arrowCount, 308);
+  assert.equal(result.summary.scoredArrowCount, 4);
   assert.equal(result.summary.trainingSessions, 2);
   assert.equal(result.summary.competitionSessions, 1);
   assert.deepEqual(result.reviewQueue.map((item) => item.session.id), ["s2","s1"]);
   assert.equal(result.recent[0].session.id, "s2");
-  assert.equal(result.perAthlete.find((item) => item.userId === "a").arrowCount, 4);
+  assert.equal(result.perAthlete.find((item) => item.userId === "a").arrowCount, 272);
 });
 
 test("mobile directory search, division and recent-activity filters stay scoped to active roster", () => {
@@ -38,9 +39,10 @@ test("mobile directory search, division and recent-activity filters stay scoped 
 });
 
 test("mobile analytics and athlete calculations match shared filters", () => {
-  assert.equal(view({ ...DEFAULT_COACH_FILTERS, sessionType: "competition" }).summary.arrowCount, 2);
+  assert.equal(view({ ...DEFAULT_COACH_FILTERS, sessionType: "competition" }).summary.arrowCount, 72);
   assert.equal(view({ ...DEFAULT_COACH_FILTERS, period: "7" }).summary.sessionCount, 3);
-  assert.equal(view({ ...DEFAULT_COACH_FILTERS, distance: 18 }).summary.arrowCount, 0);
+  assert.equal(view({ ...DEFAULT_COACH_FILTERS, distance: 18 }).summary.arrowCount, 308);
+  assert.equal(view({ ...DEFAULT_COACH_FILTERS, distance: 18 }).summary.scoredArrowCount, 0);
   const athlete = buildCoachAthleteInsights(athletes[0], sessions, DEFAULT_COACH_FILTERS, "2026-09-26");
   assert.equal(athlete.overview.totalArrows, 4);
   assert.equal(athlete.overview.bestRound.name, "70 m");
@@ -59,7 +61,7 @@ test("Session navigation and Round summaries are read-only derivations", () => {
 });
 
 test("Coach Round screen and target expose no athlete scoring mutations", () => {
-  const screen = readFileSync(new URL("../app/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]/rounds/[roundId].tsx", import.meta.url), "utf8");
+  const screen = readFileSync(new URL("../app/(tabs)/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]/rounds/[roundId].tsx", import.meta.url), "utf8");
   const target = readFileSync(new URL("../src/coach-readonly-target.tsx", import.meta.url), "utf8");
   assert.match(screen, /CoachReadonlyTarget/);
   assert.doesNotMatch(screen + target, /saveArrow|deleteArrow|createRound|onPlot|correctScore/);

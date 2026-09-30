@@ -116,11 +116,14 @@ test("live grouping safely represents one, two, and removed plotted Arrows", () 
 });
 
 test("sight check uses physical group diameter rather than an RMS spread threshold", () => {
-  assert.ok(Math.abs(groupSizeThresholdCm(122) - 40.26) < 1e-12);
-  assert.ok(Math.abs(groupSizeThresholdCm(80) - 26.4) < 1e-12);
-  assert.ok(Math.abs(groupSizeThresholdCm(40) - 13.2) < 1e-12);
+  assert.ok(Math.abs(groupSizeThresholdCm(122) - 48.8) < 1e-12);
+  assert.equal(groupSizeThresholdCm(80), 32);
+  assert.equal(groupSizeThresholdCm(40), 16);
   assert.equal(calculateSightCheck({ centreX: .2, centreY: 0, arrowCount: 3, groupSizeNormalized: .1, spreadNormalized: .04, groupSizeCm: 6.1, spreadCm: 2.4 }, 122), null);
-  assert.equal(calculateSightCheck({ centreX: .2, centreY: 0, arrowCount: 6, groupSizeNormalized: .68, spreadNormalized: .05, groupSizeCm: 41.5, spreadCm: 3.1 }, 122), "Group too spread out to judge sight position yet.");
+  const threshold = groupSizeThresholdCm(122);
+  const thresholdMetrics = { centreX: .2, centreY: 0, arrowCount: 6, groupSizeNormalized: .8, spreadNormalized: .05, groupSizeCm: threshold, spreadCm: 3.05 };
+  assert.equal(calculateSightCheck(thresholdMetrics, 122), "Your group is consistently right of centre. It may be worth checking your sight.");
+  assert.equal(calculateSightCheck({ ...thresholdMetrics, groupSizeCm: threshold + .0001 }, 122), "Group too spread out to judge sight position yet.");
   assert.equal(calculateSightCheck({ centreX: .03, centreY: .02, arrowCount: 6, groupSizeNormalized: .1, spreadNormalized: .04, groupSizeCm: 6.1, spreadCm: 2.4 }, 122), null);
   assert.equal(calculateSightCheck({ centreX: .3, centreY: -.1, arrowCount: 6, groupSizeNormalized: .1, spreadNormalized: .16, groupSizeCm: 30, spreadCm: 9.8 }, 122), "Your group is consistently right and high of centre. It may be worth checking your sight.");
 });

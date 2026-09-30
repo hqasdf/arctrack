@@ -1,10 +1,10 @@
-import { colors } from "./theme";
+import { colors } from "./theme.ts";
 
-// One tonal step deeper than the athlete app, with the same text and teal accent.
+// A deeper warm-neutral Coach workspace with the same text and teal accent.
 export const coachPalette = {
-  background: "#e9e7df", surface: "#f1f0e9", raised: "#e0e4dc",
+  background: "#e2ded5", surface: "#efebe3", raised: "#d5cfc4",
   text: colors.text, muted: colors.muted, accent: colors.accent,
-  border: "#c3ccc2", secondary: "#789083",
-  kpiSurface: "#425a4e", kpiBorder: "#536e62", kpiDivider: "#637b6e",
+  border: "#c8cbc2", secondary: "#6f8678",
+  kpiSurface: "#394f45", kpiBorder: "#53695e", kpiDivider: "#64796e",
   kpiText: colors.background, kpiMuted: "#e0e7df",
 } as const;

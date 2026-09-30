@@ -31,6 +31,10 @@ export type GroupingMetrics = {
   centreX: number;
   centreY: number;
   arrowCount: number;
+  horizontalSpreadNormalized: number;
+  verticalSpreadNormalized: number;
+  horizontalSpreadCm: number | null;
+  verticalSpreadCm: number | null;
   groupSizeNormalized: number | null;
   spreadNormalized: number | null;
   groupSizeCm: number | null;
@@ -53,7 +57,7 @@ export type RobustMainGroup = {
 /** A change smaller than one tenth of a point per Arrow per End is shown as steady. */
 export const MOSTLY_STEADY_TREND_SLOPE = 0.1;
 export const SIGHT_CHECK_MIN_PLOTTED_ARROWS = 6;
-export const SIGHT_CHECK_GROUP_SIZE_FACE_RATIO = 0.33;
+export const SIGHT_CHECK_GROUP_SIZE_FACE_RATIO = 0.40;
 export const SIGHT_CHECK_MIN_OFFSET_NORMALIZED = 0.08;
 
 export function calculateEndAnalysis(round: RoundDraft): EndAnalysis {
@@ -90,6 +94,13 @@ export function calculateGroupingMetrics(
   if (arrows.length === 0) return null;
   const centreX = arrows.reduce((sum, arrow) => sum + arrow.x, 0) / arrows.length;
   const centreY = arrows.reduce((sum, arrow) => sum + arrow.y, 0) / arrows.length;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const arrow of arrows) {
+    minX = Math.min(minX, arrow.x); maxX = Math.max(maxX, arrow.x);
+    minY = Math.min(minY, arrow.y); maxY = Math.max(maxY, arrow.y);
+  }
+  const horizontalSpreadNormalized = maxX - minX;
+  const verticalSpreadNormalized = maxY - minY;
   const enoughArrows = arrows.length >= 3;
   const spreadNormalized = enoughArrows
     ? Math.sqrt(arrows.reduce((sum, arrow) => sum + (arrow.x - centreX) ** 2 + (arrow.y - centreY) ** 2, 0) / arrows.length)
@@ -100,6 +111,10 @@ export function calculateGroupingMetrics(
     centreX,
     centreY,
     arrowCount: arrows.length,
+    horizontalSpreadNormalized,
+    verticalSpreadNormalized,
+    horizontalSpreadCm: faceRadiusCm === null ? null : horizontalSpreadNormalized * faceRadiusCm,
+    verticalSpreadCm: faceRadiusCm === null ? null : verticalSpreadNormalized * faceRadiusCm,
     groupSizeNormalized,
     spreadNormalized,
     groupSizeCm: groupSizeNormalized === null || faceRadiusCm === null ? null : groupSizeNormalized * faceRadiusCm,
@@ -184,7 +199,11 @@ export function calculateGroupingForArrows(arrowsToAnalyse: ArrowEntry[], faceTy
       missingPlotCount += 1;
       continue;
     }
-    if (faceType === "triple_face" && arrow.plot.faceIndex === undefined) {
+    if (!Number.isFinite(arrow.plot.x) || !Number.isFinite(arrow.plot.y)) {
+      missingPlotCount += 1;
+      continue;
+    }
+    if (faceType === "triple_face" && (arrow.plot.faceIndex === undefined || ![0, 1, 2].includes(arrow.plot.faceIndex))) {
       unassignedTripleCount += 1;
       continue;
     }

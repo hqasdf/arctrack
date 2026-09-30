@@ -70,6 +70,10 @@
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
+.passwordInput{position:relative}
+.passwordInput input{padding-right:56px}
+.passwordInput button{position:absolute;right:2px;top:2px;min-width:44px;min-height:44px;display:grid;place-items:center;border:0;background:transparent;color:var(--color-text);cursor:pointer}
+.passwordInput button:focus-visible{outline:3px solid var(--color-focus);outline-offset:1px;border-radius:var(--radius-sm)}
 .hint {
   color: var(--color-muted);
   font-size: 0.78rem;

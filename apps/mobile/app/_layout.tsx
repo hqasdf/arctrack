@@ -28,16 +28,6 @@ function Routes() {
       <Stack.Screen name="sessions/[sessionId]/configure-round" options={{ headerShown: true, title: "Round Configuration", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
       <Stack.Screen name="rounds/[roundId]" options={{ headerShown: true, title: "Round", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
       <Stack.Screen name="rounds/[roundId]/score" options={{ headerShown: true, title: "Score Round", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/[organizationId]" options={{ headerShown: true, title: "Coach's Workspace", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/member/[organizationId]" options={{ headerShown: true, title: "Membership", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/manage" options={{ headerShown: true, title: "Manage memberships", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/[organizationId]/athletes/index" options={{ headerShown: true, title: "Athletes", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/[organizationId]/reviews" options={{ headerShown: true, title: "Reviews", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/[organizationId]/analytics" options={{ headerShown: true, title: "Team Analytics", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/[organizationId]/settings" options={{ headerShown: true, title: "Settings", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/[organizationId]/athletes/[userId]" options={{ headerShown: true, title: "Athlete", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/[organizationId]/athletes/[userId]/sessions/[sessionId]" options={{ headerShown: true, title: "Athlete Session", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
-      <Stack.Screen name="organization/[organizationId]/athletes/[userId]/sessions/[sessionId]/rounds/[roundId]" options={{ headerShown: true, title: "Athlete Round", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
     </Stack.Protected>
     <Stack.Protected guard={!user}><Stack.Screen name="(auth)" /></Stack.Protected>
     <Stack.Protected guard={!user || recoveryRequired}>

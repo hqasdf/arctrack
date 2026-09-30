@@ -115,12 +115,88 @@ test("live grouping safely represents one, two, and removed plotted Arrows", () 
   assert.equal(afterRemoval.metrics?.groupSizeCm, null);
 });
 
+test("horizontal and vertical spans use the full plotted extent and the target radius", () => {
+  const points = [
+    arrow("a1", "M", 1, { x: -0.2, y: -0.1 }),
+    arrow("a2", "10", 1, { x: 0.3, y: 0.25 }),
+  ];
+  const metrics = calculateGroupingForArrows(points, "full_face", 80).metrics;
+  assert.equal(metrics?.horizontalSpreadNormalized, 0.5);
+  assert.equal(metrics?.verticalSpreadNormalized, 0.35);
+  assert.equal(metrics?.horizontalSpreadCm, 20);
+  assert.equal(metrics?.verticalSpreadCm, 14);
+  // Score-only corrections do not affect position-derived measurements.
+  const corrected = calculateGroupingForArrows(points.map((item) => ({ ...item, score: "X" })), "full_face", 80).metrics;
+  assert.equal(corrected?.horizontalSpreadCm, metrics?.horizontalSpreadCm);
+  assert.equal(corrected?.verticalSpreadCm, metrics?.verticalSpreadCm);
+});
+
+test("single plotted Arrow has zero extent and no plotted Arrows have unavailable extent", () => {
+  const only = arrow("a1", "9", 1, { x: -0.4, y: 0.7 });
+  const one = calculateGroupingForArrows([only], "full_face", 122).metrics;
+  assert.equal(one?.horizontalSpreadNormalized, 0);
+  assert.equal(one?.verticalSpreadNormalized, 0);
+  assert.equal(one?.horizontalSpreadCm, 0);
+  assert.equal(one?.verticalSpreadCm, 0);
+  assert.equal(calculateGroupingForArrows([], "full_face", 122).metrics, null);
+});
+
+test("multi-Arrow extents are order-independent and include flyers", () => {
+  const points = [
+    arrow("a1", "9", 1, { x: -0.4, y: 0.1 }),
+    arrow("a2", "9", 1, { x: 0.2, y: -0.5 }),
+    arrow("a3", "9", 1, { x: 0.6, y: 0.3 }),
+    arrow("a4", "9", 1, { x: -0.1, y: 0.7 }),
+    arrow("flyer", "M", 1, { x: 0.9, y: 0.95 }),
+  ];
+  const forward = calculateGroupingForArrows(points, "full_face", 40).metrics;
+  const reverse = calculateGroupingForArrows([...points].reverse(), "full_face", 40).metrics;
+  assert.equal(forward?.horizontalSpreadNormalized, 1.3);
+  assert.equal(forward?.verticalSpreadNormalized, 1.45);
+  assert.equal(forward?.horizontalSpreadCm, 26);
+  assert.equal(forward?.verticalSpreadCm, 29);
+  assert.equal(reverse?.horizontalSpreadCm, forward?.horizontalSpreadCm);
+  assert.equal(reverse?.verticalSpreadCm, forward?.verticalSpreadCm);
+});
+
+test("unplotted and invalid coordinates are excluded using grouping eligibility", () => {
+  const result = calculateGroupingForArrows([
+    arrow("valid1", "9", 1, { x: -0.2, y: -0.1 }),
+    arrow("score-only", "10", 1),
+    arrow("invalid", "8", 1, { x: Number.NaN, y: 0.4 }),
+  ], "full_face", 80);
+  assert.deepEqual(result.arrows.map((item) => item.id), ["valid1"]);
+  assert.equal(result.missingPlotCount, 2);
+  const triple = calculateGroupingForArrows([
+    arrow("valid-triple", "9", 1, { x: 0.1, y: 0.2, faceIndex: 2 }),
+    arrow("missing-face", "9", 1, { x: 0.2, y: 0.3 }),
+    arrow("invalid-face", "9", 1, { x: 0.2, y: 0.3, faceIndex: 3 }),
+  ], "triple_face", 40);
+  assert.deepEqual(triple.arrows.map((item) => item.id), ["valid-triple"]);
+  assert.equal(triple.unassignedTripleCount, 2);
+});
+
+test("triple-face extents combine existing local face coordinates without spot separation", () => {
+  const result = calculateGroupingForArrows([
+    arrow("top", "9", 1, { x: -0.2, y: -0.1, faceIndex: 0 }),
+    arrow("middle", "9", 1, { x: 0.3, y: 0.25, faceIndex: 1 }),
+    arrow("bottom", "9", 1, { x: 0.1, y: -0.2, faceIndex: 2 }),
+  ], "triple_face", 40).metrics;
+  assert.equal(result?.horizontalSpreadNormalized, 0.5);
+  assert.equal(result?.verticalSpreadNormalized, 0.45);
+  assert.equal(result?.horizontalSpreadCm, 10);
+  assert.equal(result?.verticalSpreadCm, 9);
+});
+
 test("sight check uses physical group diameter rather than an RMS spread threshold", () => {
-  assert.ok(Math.abs(groupSizeThresholdCm(122) - 40.26) < 1e-12);
-  assert.ok(Math.abs(groupSizeThresholdCm(80) - 26.4) < 1e-12);
-  assert.ok(Math.abs(groupSizeThresholdCm(40) - 13.2) < 1e-12);
+  assert.ok(Math.abs(groupSizeThresholdCm(122) - 48.8) < 1e-12);
+  assert.equal(groupSizeThresholdCm(80), 32);
+  assert.equal(groupSizeThresholdCm(40), 16);
   assert.equal(calculateSightCheck({ centreX: .2, centreY: 0, arrowCount: 3, groupSizeNormalized: .1, spreadNormalized: .04, groupSizeCm: 6.1, spreadCm: 2.4 }, 122), null);
-  assert.equal(calculateSightCheck({ centreX: .2, centreY: 0, arrowCount: 6, groupSizeNormalized: .68, spreadNormalized: .05, groupSizeCm: 41.5, spreadCm: 3.1 }, 122), "Group too spread out to judge sight position yet.");
+  const threshold = groupSizeThresholdCm(122);
+  const thresholdMetrics = { centreX: .2, centreY: 0, arrowCount: 6, groupSizeNormalized: .8, spreadNormalized: .05, groupSizeCm: threshold, spreadCm: 3.05 };
+  assert.equal(calculateSightCheck(thresholdMetrics, 122), "Your group is consistently right of centre. It may be worth checking your sight.");
+  assert.equal(calculateSightCheck({ ...thresholdMetrics, groupSizeCm: threshold + .0001 }, 122), "Group too spread out to judge sight position yet.");
   assert.equal(calculateSightCheck({ centreX: .03, centreY: .02, arrowCount: 6, groupSizeNormalized: .1, spreadNormalized: .04, groupSizeCm: 6.1, spreadCm: 2.4 }, 122), null);
   assert.equal(calculateSightCheck({ centreX: .3, centreY: -.1, arrowCount: 6, groupSizeNormalized: .1, spreadNormalized: .16, groupSizeCm: 30, spreadCm: 9.8 }, 122), "Your group is consistently right and high of centre. It may be worth checking your sight.");
 });

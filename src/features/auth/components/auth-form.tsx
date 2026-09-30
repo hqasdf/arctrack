@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { Icon } from "@/components/ui/icon";
 import {
   signIn,
   signUp,
@@ -40,6 +41,7 @@ export function AuthForm({
     INITIAL_AUTH_STATE,
   );
   const newPassword = mode === "sign-up" || mode === "update-password";
+  const [visible, setVisible] = useState({ password: false, confirmPassword: false });
   return (
     <form action={action} className={styles.form}>
       <fieldset disabled={pending || !configured}>
@@ -62,16 +64,16 @@ export function AuthForm({
             <label htmlFor="password">
               {newPassword ? "New password" : "Password"}
             </label>
-            <input
+            <div className={styles.passwordInput}><input
               id="password"
               name="password"
-              type="password"
+              type={visible.password ? "text" : "password"}
               autoComplete={newPassword ? "new-password" : "current-password"}
               minLength={newPassword ? PASSWORD_MIN_LENGTH : 1}
               maxLength={PASSWORD_MAX_LENGTH}
               aria-describedby={newPassword ? "password-hint" : undefined}
               required
-            />
+            /><button type="button" aria-label={visible.password ? "Hide password" : "Show password"} onClick={() => setVisible((current) => ({ ...current, password: !current.password }))}><Icon name={visible.password ? "eyeOff" : "eye"} size={20}/></button></div>
             {newPassword && (
               <p id="password-hint" className={styles.hint}>
                 Use 12–128 characters. A long, unique passphrase works well.
@@ -82,15 +84,15 @@ export function AuthForm({
         {newPassword && (
           <div className={styles.field}>
             <label htmlFor="confirmPassword">Confirm password</label>
-            <input
+            <div className={styles.passwordInput}><input
               id="confirmPassword"
               name="confirmPassword"
-              type="password"
+              type={visible.confirmPassword ? "text" : "password"}
               autoComplete="new-password"
               minLength={PASSWORD_MIN_LENGTH}
               maxLength={PASSWORD_MAX_LENGTH}
               required
-            />
+            /><button type="button" aria-label={visible.confirmPassword ? "Hide confirm password" : "Show confirm password"} onClick={() => setVisible((current) => ({ ...current, confirmPassword: !current.confirmPassword }))}><Icon name={visible.confirmPassword ? "eyeOff" : "eye"} size={20}/></button></div>
           </div>
         )}
         <button className={styles.submit} type="submit">
