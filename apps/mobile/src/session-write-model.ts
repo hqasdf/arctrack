@@ -7,11 +7,10 @@ export type NewMobileSessionInput = {
   sessionType: SessionType;
 };
 
-export type SessionInsertPayload = {
-  user_id: string;
-  title: string;
-  session_date: string;
-  session_type: SessionType;
+export type SessionRpcArgs = {
+  p_title: string;
+  p_session_date: string;
+  p_session_type: SessionType;
 };
 
 export type CreatedMobileSession = {
@@ -24,7 +23,7 @@ export type CreatedMobileSession = {
 
 export type RoundCreationResult = { roundId: string; roundNumber: number };
 
-export function buildSessionInsertPayload(userId: string, input: NewMobileSessionInput): SessionInsertPayload {
+export function buildSessionRpcArgs(userId: string, input: NewMobileSessionInput): SessionRpcArgs {
   const title = input.title.trim() || "Practice session";
   if (!userId) throw new Error("Sign in again before creating a Session.");
   if (Array.from(title).length > 80) throw new Error("Session titles must be 80 characters or fewer.");
@@ -35,7 +34,7 @@ export function buildSessionInsertPayload(userId: string, input: NewMobileSessio
     throw new Error("Choose a valid Session type.");
   }
 
-  return { user_id: userId, title, session_date: input.date, session_type: input.sessionType };
+  return { p_title: title, p_session_date: input.date, p_session_type: input.sessionType };
 }
 
 export function buildDefaultRoundRpcArgs(sessionId: string) {

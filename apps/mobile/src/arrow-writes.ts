@@ -18,30 +18,23 @@ export async function readRoundEndIds(roundId: string): Promise<Map<number, stri
 
 export async function saveArrowRecord(entry: ArrowEntry, endId: string, savedId?: string): Promise<string> {
   const fields = arrowWriteFields(entry);
-  if (savedId) {
-    const { data, error } = await client().from("arrows")
-      .update(fields)
-      .eq("id", savedId)
-      .eq("session_end_id", endId)
-      .select("id")
-      .maybeSingle();
-    if (error || !data) throw new Error("The Arrow could not be saved. Select it and retry.");
-    return data.id;
-  }
-  const { data, error } = await client().from("arrows")
-    .insert({ session_end_id: endId, arrow_number: entry.arrow, ...fields })
-    .select("id")
-    .single();
+  const { data, error } = await client().rpc("save_owned_arrow", {
+    p_session_end_id: endId,
+    p_arrow_number: entry.arrow,
+    p_score_points: fields.score_points,
+    p_is_x: fields.is_x,
+    p_plot_x: fields.plot_x,
+    p_plot_y: fields.plot_y,
+    p_face_index: fields.face_index,
+    p_arrow_id: savedId ?? null,
+  }).single<{ id: string }>();
   if (error || !data) throw new Error("The Arrow could not be saved. Select it and retry.");
   return data.id;
 }
 
 export async function deleteArrowRecord(savedId: string, endId: string): Promise<void> {
-  const { data, error } = await client().from("arrows")
-    .delete()
-    .eq("id", savedId)
-    .eq("session_end_id", endId)
-    .select("id")
-    .maybeSingle();
-  if (error || !data) throw new Error("The Arrow could not be deleted. Try again.");
+  const { data, error } = await client().rpc("delete_owned_arrow", {
+    p_session_end_id: endId, p_arrow_number: null, p_arrow_id: savedId,
+  });
+  if (error || data !== true) throw new Error("The Arrow could not be deleted. Try again.");
 }

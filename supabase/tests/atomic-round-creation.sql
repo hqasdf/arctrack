@@ -1,5 +1,5 @@
--- Run only after the atomic Round-creation migration is applied.
--- Requires the existing Stage 6 organisation model. All fixture writes roll back.
+-- Disposable database only. Requires atomic-round-creation and guarded-scoring-mutations migrations.
+-- Requires the existing Stage 6 organisation model. Data and failure trigger roll back.
 begin;
 
 select set_config('d2.owner', gen_random_uuid()::text, true);
@@ -20,8 +20,8 @@ select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('d2.owner'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 
-insert into public.sessions (id, user_id, title, session_date)
-values (current_setting('d2.session')::uuid, auth.uid(), 'Atomic Round fixture', current_date);
+select set_config('d2.session', created.id::text, true)
+from public.create_owned_session('Atomic Round fixture', current_date, 'training') created;
 
 -- An empty Session gets Round 1, and all planned Ends are created in the same RPC.
 do $$
@@ -69,7 +69,7 @@ begin
   ) as created;
   if v_round_number <> 3 then raise exception 'FAIL: third Round did not get number 3'; end if;
 
-  delete from public.session_rounds where id = v_gap_round_id;
+  perform public.delete_owned_round(v_gap_round_id);
   if exists (select 1 from public.session_rounds where id = v_gap_round_id)
     or exists (select 1 from public.session_ends where session_round_id = v_gap_round_id) then
     raise exception 'FAIL: deleting Round 2 did not remove its Ends';
@@ -92,27 +92,25 @@ begin
 end;
 $$;
 
--- Owner Arrow INSERT/SELECT/UPDATE/DELETE remains available; retain one Arrow for coach reads.
+-- Owner guarded Arrow save/update/delete remains available; retain one for coach reads.
 do $$
 declare v_end_id uuid; v_arrow_id uuid;
 begin
   select id into v_end_id from public.session_ends
     where session_round_id = current_setting('d2.round')::uuid and end_number = 1;
-  insert into public.arrows (session_end_id, arrow_number, score_points, is_x)
-    values (v_end_id, 1, 9, false) returning id into v_arrow_id;
+  select id into v_arrow_id from public.save_owned_arrow(v_end_id, 1, 9, false, null, null, null);
   if not exists (select 1 from public.arrows where id = v_arrow_id and score_points = 9) then
     raise exception 'FAIL: owner cannot read their Arrow';
   end if;
-  update public.arrows set score_points = 10 where id = v_arrow_id;
+  perform public.save_owned_arrow(v_end_id, 1, 10, false, null, null, null, v_arrow_id);
   if not exists (select 1 from public.arrows where id = v_arrow_id and score_points = 10) then
     raise exception 'FAIL: owner cannot update their Arrow';
   end if;
-  delete from public.arrows where id = v_arrow_id;
+  perform public.delete_owned_arrow(v_end_id, null, v_arrow_id);
   if exists (select 1 from public.arrows where id = v_arrow_id) then
     raise exception 'FAIL: owner cannot delete their Arrow';
   end if;
-  insert into public.arrows (session_end_id, arrow_number, score_points, is_x)
-    values (v_end_id, 1, 9, false) returning id into v_arrow_id;
+  select id into v_arrow_id from public.save_owned_arrow(v_end_id, 1, 9, false, null, null, null);
   perform set_config('d2.arrow', v_arrow_id::text, true);
 end;
 $$;
@@ -196,7 +194,6 @@ select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('d2.coach'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 do $$
-declare v_updated integer;
 begin
   if not exists (select 1 from public.sessions where id = current_setting('d2.session')::uuid) then
     raise exception 'FAIL: coach cannot read the Archer Session';
@@ -213,12 +210,11 @@ begin
     raise exception 'FAIL: coach created an Archer Round';
   exception when insufficient_privilege then null;
   end;
-  update public.arrows set score_points = 8
-    where id = current_setting('d2.arrow')::uuid;
-  get diagnostics v_updated = row_count;
-  if v_updated <> 0 then
-    raise exception 'FAIL: coach updated the Archer Arrow';
-  end if;
+  begin
+    update public.arrows set score_points = 8 where id = current_setting('d2.arrow')::uuid;
+    raise exception 'FAIL: coach directly updated the Archer Arrow';
+  exception when insufficient_privilege then null;
+  end;
 end;
 $$;
 

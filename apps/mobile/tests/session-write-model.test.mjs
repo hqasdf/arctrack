@@ -3,27 +3,27 @@ import assert from "node:assert/strict";
 import { ROUND_PRESETS } from "@arc-track/core/presets";
 import {
   buildDefaultRoundRpcArgs,
-  buildSessionInsertPayload,
+  buildSessionRpcArgs,
   mapSessionInsertResult,
   mapRoundCreationResult,
 } from "../src/session-write-model.ts";
 
-test("Session insert uses the authenticated owner and the current Session fields", () => {
-  assert.deepEqual(buildSessionInsertPayload("user-123", {
+test("Session RPC uses current fields without trusting a client owner", () => {
+  assert.deepEqual(buildSessionRpcArgs("user-123", {
     title: "  Evening practice  ", date: "2026-09-26", sessionType: "training",
   }), {
-    user_id: "user-123", title: "Evening practice", session_date: "2026-09-26", session_type: "training",
+    p_title: "Evening practice", p_session_date: "2026-09-26", p_session_type: "training",
   });
 });
 
 test("blank Session title uses the web default; invalid date and type are rejected", () => {
-  assert.equal(buildSessionInsertPayload("user-123", {
+  assert.equal(buildSessionRpcArgs("user-123", {
     title: "", date: "2026-09-26", sessionType: "competition",
-  }).title, "Practice session");
-  assert.throws(() => buildSessionInsertPayload("user-123", {
+  }).p_title, "Practice session");
+  assert.throws(() => buildSessionRpcArgs("user-123", {
     title: "Practice", date: "not-a-date", sessionType: "training",
   }), /valid Session date/);
-  assert.throws(() => buildSessionInsertPayload("user-123", {
+  assert.throws(() => buildSessionRpcArgs("user-123", {
     title: "Practice", date: "2026-09-26", sessionType: "other",
   }), /valid Session type/);
 });

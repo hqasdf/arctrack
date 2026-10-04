@@ -9,12 +9,13 @@ import { saveArrowRecord } from "./arrow-save.server";
 type Result<T>={ok:true;data:T}|{ok:false;message:string};
 
 export async function createSession(input:SessionInput):Promise<Result<SessionDraft>> {
-  const user=await requireUser();
+  await requireUser();
   const valid=validateSessionInput(input);
   if (!valid.ok) return valid;
   try {
     const supabase=await createAuthClient({writable:true});
-    const {data,error}=await supabase.from("sessions").insert({user_id:user.id,title:valid.value.title,session_date:valid.value.date,session_type:valid.value.sessionType}).select("id,title,session_date,session_type,arrow_count").single();
+    const {data:result,error}=await supabase.rpc("create_owned_session",{p_title:valid.value.title,p_session_date:valid.value.date,p_session_type:valid.value.sessionType}).single();
+    const data=result as {id:string;title:string;session_date:string;session_type:SessionDraft["sessionType"];arrow_count:number}|null;
     if (error||!data) return failure("The Session could not be created.");
     revalidatePath("/sessions");
     return {ok:true,data:{id:data.id,title:data.title,date:data.session_date,sessionType:data.session_type,arrowCount:data.arrow_count,rounds:[]}};
@@ -27,7 +28,8 @@ export async function updateSessionArrowCount(input:SessionArrowCountInput):Prom
   if (!valid.ok) return valid;
   try {
     const supabase=await createAuthClient({writable:true});
-    const {data,error}=await supabase.from("sessions").update({arrow_count:valid.value.arrowCount}).eq("id",valid.value.sessionId).select("arrow_count").maybeSingle();
+    const {data:result,error}=await supabase.rpc("update_owned_session_arrow_count",{p_session_id:valid.value.sessionId,p_arrow_count:valid.value.arrowCount}).single();
+    const data=result as {arrow_count:number}|null;
     if (error||!data) return failure("The Session Arrow count could not be saved.");
     revalidatePath("/sessions");
     return {ok:true,data:data.arrow_count};
@@ -69,7 +71,7 @@ export async function removeArrow(input:{roundId:string;endNumber:number;arrowNu
     const supabase=await createAuthClient({writable:true});
     const {data:end,error:endError}=await supabase.from("session_ends").select("id").eq("session_round_id",input.roundId).eq("end_number",input.endNumber).maybeSingle();
     if (endError||!end) return failure("The planned End could not be found.");
-    const {error}=await supabase.from("arrows").delete().eq("session_end_id",end.id).eq("arrow_number",input.arrowNumber);
+    const {error}=await supabase.rpc("delete_owned_arrow",{p_session_end_id:end.id,p_arrow_number:input.arrowNumber});
     if (error) return failure("The Arrow could not be removed.");
     revalidatePath("/sessions");
     return {ok:true,data:null};
@@ -84,8 +86,8 @@ async function deleteOwned(table:"sessions"|"session_rounds",id:string):Promise<
   if (!isUuid(id)) return failure(`The ${table==="sessions"?"Session":"Round"} could not be identified.`);
   try {
     const supabase=await createAuthClient({writable:true});
-    const {error}=await supabase.from(table).delete().eq("id",id);
-    if (error) return failure(`${table==="sessions"?"Session":"Round"} deletion failed.`);
+    const {data,error}=await supabase.rpc(table==="sessions"?"delete_owned_session":"delete_owned_round",table==="sessions"?{p_session_id:id}:{p_round_id:id});
+    if (error||data!==true) return failure(`${table==="sessions"?"Session":"Round"} deletion failed.`);
     revalidatePath("/sessions");
     return {ok:true,data:null};
   } catch { return failure("Deletion is temporarily unavailable."); }

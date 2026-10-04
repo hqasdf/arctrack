@@ -17,12 +17,12 @@ export async function saveArrowRecord(input: ArrowInput): Promise<Result> {
       .eq("end_number", valid.value.endNumber).maybeSingle();
     if (endError || !end) return { ok: false, message: "The planned End could not be found." };
     const plot = valid.value.plot;
-    const { data, error } = await supabase.from("arrows").upsert({
-      session_end_id: end.id, arrow_number: valid.value.arrowNumber,
-      score_points: valid.value.scorePoints, is_x: valid.value.isX,
-      plot_x: plot?.x ?? null, plot_y: plot?.y ?? null, face_index: plot?.faceIndex ?? null,
-    }, { onConflict: "session_end_id,arrow_number" })
-      .select("id,arrow_number,score_points,is_x,plot_x,plot_y,face_index").single();
+    const { data: result, error } = await supabase.rpc("save_owned_arrow", {
+      p_session_end_id: end.id, p_arrow_number: valid.value.arrowNumber,
+      p_score_points: valid.value.scorePoints, p_is_x: valid.value.isX,
+      p_plot_x: plot?.x ?? null, p_plot_y: plot?.y ?? null, p_face_index: plot?.faceIndex ?? null,
+    }).single();
+    const data = result as { id: string; arrow_number: number; score_points: number; is_x: boolean; plot_x: number | null; plot_y: number | null; face_index: number | null } | null;
     if (error || !data) return { ok: false, message: "The Arrow was not saved." };
     return { ok: true, data: {
       id: data.id, end: valid.value.endNumber, arrow: data.arrow_number,

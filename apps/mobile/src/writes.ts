@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import {
-  buildSessionInsertPayload,
+  buildSessionRpcArgs,
   mapSessionInsertResult,
   mapRoundCreationResult,
   type NewMobileSessionInput,
@@ -11,11 +11,7 @@ import { buildRoundUpdateArgs, mapRoundUpdateResult, type RoundSettingsInput } f
 
 export async function createMobileSession(userId: string, input: NewMobileSessionInput): Promise<MobileSession> {
   if (!supabase) throw new Error("Arc Track could not connect to Supabase. Check your connection and try again.");
-  const payload = buildSessionInsertPayload(userId, input);
-  const { data, error } = await supabase.from("sessions")
-    .insert(payload)
-    .select("id,title,session_date,session_type,arrow_count")
-    .single();
+  const { data, error } = await supabase.rpc("create_owned_session", buildSessionRpcArgs(userId, input)).single();
   return mapSessionInsertResult(data, !!error);
 }
 
@@ -34,25 +30,26 @@ export async function updateMobileRoundSettings(roundId: string, previousEnds: n
   return mapRoundUpdateResult(roundId, input.plannedEnds, data, error);
 }
 
-export async function saveMobileSessionArrowCount(userId: string, sessionId: string, count: number) {
+export async function saveMobileSessionArrowCount(_userId: string, sessionId: string, count: number) {
   if (!supabase) throw new Error("Session saving is unavailable.");
   if (!Number.isInteger(count) || count < 0 || count > 2147483647) throw new Error("Arrow count must be a non-negative whole number.");
-  const { data, error } = await supabase.from("sessions").update({ arrow_count: count })
-    .eq("id", sessionId).eq("user_id", userId).select("arrow_count").maybeSingle();
+  const { data, error } = await supabase.rpc("update_owned_session_arrow_count", {
+    p_session_id: sessionId, p_arrow_count: count,
+  }).single<{ arrow_count: number }>();
   if (error || !data) throw new Error("The Session Arrow count could not be saved.");
   return data.arrow_count;
 }
 
-export async function deleteMobileSession(userId: string, sessionId: string) {
+export async function deleteMobileSession(_userId: string, sessionId: string) {
   if (!supabase) throw new Error("Session deletion is unavailable.");
-  const { data, error } = await supabase.from("sessions").delete()
-    .eq("id", sessionId).eq("user_id", userId).select("id").maybeSingle();
-  if (error || !data) throw new Error("The Session could not be deleted.");
+  const { data, error } = await supabase.rpc("delete_owned_session", { p_session_id: sessionId });
+  if (error || data !== true) throw new Error("The Session could not be deleted.");
 }
 
 export async function deleteMobileRound(sessionId: string, roundId: string) {
   if (!supabase) throw new Error("Round deletion is unavailable.");
-  const { data, error } = await supabase.from("session_rounds").delete()
-    .eq("id", roundId).eq("session_id", sessionId).select("id").maybeSingle();
-  if (error || !data) throw new Error("The Round could not be deleted.");
+  const { data, error } = await supabase.rpc("delete_owned_round", {
+    p_round_id: roundId, p_session_id: sessionId,
+  });
+  if (error || data !== true) throw new Error("The Round could not be deleted.");
 }

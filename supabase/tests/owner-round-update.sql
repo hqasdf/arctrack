@@ -1,4 +1,5 @@
--- REVIEW ONLY. Run after approved migration; all fixture data rolls back.
+-- Disposable database only. Requires owner-round-update and guarded-scoring-mutations migrations.
+-- All fixture data and the simulated failure trigger roll back.
 begin;
 
 select set_config('d6.owner', gen_random_uuid()::text, true);
@@ -14,11 +15,8 @@ select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('d6.owner'), 'role', 'authenticated')::text, true);
 set local role authenticated;
 
-insert into public.sessions (user_id, title, session_date)
-values (auth.uid(), 'D6 Round update fixture', current_date)
-returning id;
-select set_config('d6.session', id::text, true)
-from public.sessions where user_id = auth.uid() and title = 'D6 Round update fixture';
+select set_config('d6.session', created.id::text, true)
+from public.create_owned_session('D6 Round update fixture', current_date, 'training') created;
 
 select set_config('d6.round', created.round_id::text, true)
 from public.create_round_with_ends(
@@ -47,8 +45,7 @@ begin
 end;
 $$;
 
-insert into public.arrows (session_end_id, arrow_number, score_points, is_x, plot_x, plot_y, face_index)
-select id, 1, 9, false, 0.2, 0.1, 1 from public.session_ends
+select public.save_owned_arrow(id, 1, 9, false, 0.2, 0.1, 1) from public.session_ends
 where session_round_id = current_setting('d6.round')::uuid and end_number = 1;
 
 select * from public.update_owned_round_settings(
