@@ -1,10 +1,11 @@
 "use client";
 import { useRef, useState } from "react";
 import { removeArrow as removeArrowAction } from "../actions";
-import { SCORE_LABELS, arrowKey, endTotal, formatArrowAverage, latestPlottedArrow, nextPlottedArrowSlot, roundTotal, scoreFromPlot, summarizeRoundScores, xCount, type ArrowEntry, type Plot, type RoundDraft, type ScoreLabel } from "../scoring-model";
+import { SCORE_LABELS, arrowKey, endTotal, formatArrowAverage, latestPlottedArrow, nextPlottedArrowSlot, roundTotal, scoreFromPlot, xCount, type ArrowEntry, type Plot, type RoundDraft, type ScoreLabel } from "../scoring-model";
 import { WebArrowQueue, type ArrowSaveResult } from "../web-arrow-queue";
 import { TargetFace } from "./target-face";
 import { RoundInsights } from "./session-insights";
+import { GroupingExportButton } from "./grouping-export";
 import styles from "./sessions.module.css";
 
 export function ScoringWorkspace({sessionTitle,sessionDate,round,onChange,onBack,onConfigure}:{sessionTitle:string;sessionDate:string;round:RoundDraft;onChange:(update:(round:RoundDraft)=>RoundDraft)=>void;onBack:()=>void;onConfigure:()=>void}) {
@@ -40,7 +41,6 @@ export function ScoringWorkspace({sessionTitle,sessionDate,round,onChange,onBack
   const latestScore=latestPlottedArrow(round.arrows,latestPlotKey)?.score??null;
   const endHistory=Map.groupBy([...round.arrows].sort((a,b)=>a.end-b.end||a.arrow-b.arrow),(item)=>item.end);
   const newestEnd=Math.max(0,...endHistory.keys());
-  const scoreSummary=summarizeRoundScores(round.arrows,round.ends);
 
   function chooseSlot(next:{end:number;arrow:number}) { slotRef.current=next; setCorrectionOpen(false); setSlot(next); }
   function selectNext(arrows:ArrowEntry[]) {
@@ -86,9 +86,10 @@ export function ScoringWorkspace({sessionTitle,sessionDate,round,onChange,onBack
     {queue.hasUnconfirmed()&&<p className={styles.entryHint} role="status">Unsaved edits are shown on the target and included in totals.</p>}
     <div className={styles.totals}><div><span>End {slot.end}</span><strong>{endTotal(round.arrows,slot.end)}</strong></div><div><span>Round</span><strong>{roundTotal(round.arrows)}</strong></div><div><span>Arrow avg.</span><strong>{formatArrowAverage(round.arrows)}</strong></div><div><span>X count</span><strong>{xCount(round.arrows)}</strong></div><div><span>Entered</span><strong>{round.arrows.length}/{round.ends*round.arrowsPerEnd}</strong></div></div>
     <div className={styles.scoringGrid}>
-      <TargetFace arrows={round.arrows} selectedId={selected?.id??null} currentEnd={slot.end} faceType={round.faceType} faceDiameterCm={round.faceDiameterCm} onPlot={handleTarget}>
-        <RoundScoreCard summary={scoreSummary}/>
-      </TargetFace>
+      <div className={styles.targetColumn}>
+        <TargetFace arrows={round.arrows} selectedId={selected?.id??null} currentEnd={slot.end} faceType={round.faceType} faceDiameterCm={round.faceDiameterCm} onPlot={handleTarget}/>
+        <GroupingExportButton round={round} context={`${sessionTitle} · ${sessionDate}`}/>
+      </div>
       <div className={styles.entryPanel}>
         <div className={styles.entryHeading}><div><p className={styles.kicker}>{selected?"Selected arrow":"Ready to score"}</p><h3>End {slot.end} · Arrow {slot.arrow}</h3></div><div className={styles.latestScoreDisplay}><strong className={styles.selectedScore} aria-live="polite">{latestScore===null?"—":latestScore==="X"?"10X":latestScore}</strong><span>Latest score</span></div></div>
         {selected&&<p className={styles.entryHint}>Move its marker on the target, or correct only its recorded score.</p>}
@@ -99,13 +100,6 @@ export function ScoringWorkspace({sessionTitle,sessionDate,round,onChange,onBack
     </div>
     <div className={styles.roundLog}><h3>End history</h3>{endHistory.size===0?<p>No arrows yet. Tap the target to score the first arrow.</p>:<div className={styles.endHistory}>{[...endHistory].map(([end,arrows])=><div key={end} className={`${styles.endHistoryRow} ${slot.end===end||slot.end>newestEnd&&end===newestEnd?styles.endHistoryCurrent:""}`}><strong className={styles.endHistoryNumber}>END {end}</strong><strong className={styles.endHistoryTotal}>{endTotal(round.arrows,end)} pts</strong>{xCount(round.arrows.filter((item)=>item.end===end))>0&&<strong className={styles.endHistoryX}>{xCount(round.arrows.filter((item)=>item.end===end))}X</strong>}<div className={styles.endHistoryScores}>{arrows.map((item)=><button type="button" key={item.arrow} className={`${styles.endHistoryScore} ${selected?.end===item.end&&selected.arrow===item.arrow?styles.endHistoryScoreSelected:""} ${item.syncState==="failed"?styles.endHistoryScoreFailed:""}`} aria-label={`End ${item.end}, Arrow ${item.arrow}: ${item.score}${item.syncState==="failed"?", not saved; select to retry":item.syncState==="saving"?", saving":""}`} aria-pressed={selected?.end===item.end&&selected.arrow===item.arrow} title={item.syncState==="failed"?"Not saved · select to retry":item.syncState==="saving"?"Saving…":`End ${item.end} · Arrow ${item.arrow}`} onClick={()=>chooseSlot({end:item.end,arrow:item.arrow})}>{item.score==="X"?"10X":item.score}</button>)}</div></div>)}</div>}</div>
     <RoundInsights round={round}/>
-  </section>;
-}
-function RoundScoreCard({summary}:{summary:ReturnType<typeof summarizeRoundScores>}) {
-  return <section className={styles.scoreSummary} aria-label="Round score summary">
-    <h3 className={styles.scoreSummaryTitle}>End scores</h3>
-    <div className={styles.scoreSummaryEnds}>{summary.ends.map(({end,score})=><div className={styles.scoreSummaryRow} key={end}><span>End {end}</span><strong>{score===null?"—":score}</strong></div>)}</div>
-    <div className={styles.scoreSummaryTotal}><span>Total</span><strong>{summary.total}</strong></div>
   </section>;
 }
 function faceLabel(faceType:RoundDraft["faceType"],diameter:number) { return faceType==="triple_face"?`${diameter} cm triple face`:faceType==="six_ring"?`${diameter} cm 6-ring face`:`${diameter} cm full face`; }

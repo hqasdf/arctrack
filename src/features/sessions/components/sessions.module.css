@@ -90,12 +90,5 @@
 .arrowChipActive.scoreX,.arrowChipActive.score10,.arrowChipActive.score9,.arrowChipActive.score8,.arrowChipActive.score7,.arrowChipActive.score6,.arrowChipActive.score5,.arrowChipActive.score4,.arrowChipActive.score3,.arrowChipActive.score2,.arrowChipActive.score1,.arrowChipActive.scoreMiss{outline:2px solid var(--color-primary);outline-offset:-2px}
 .backIcon{display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text);cursor:pointer}.backIcon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.backIcon:focus-visible{outline:3px solid var(--color-primary);outline-offset:2px}
 
-.scoreSummary{width:min(100%,620px);margin:8px auto 0;padding:10px 12px;text-align:left;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface)}
-.scoreSummaryTitle{margin:0 0 5px;color:var(--color-muted);font-size:.67rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
-.scoreSummaryEnds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px 14px}
-.scoreSummaryRow,.scoreSummaryTotal{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 1px;font-variant-numeric:tabular-nums}
-.scoreSummaryRow span{color:var(--color-muted);font-size:.76rem}
-.scoreSummaryRow strong{font-size:.83rem}
-.scoreSummaryTotal{margin-top:5px;padding-top:7px;border-top:1px solid var(--color-border);font-weight:700}
-.scoreSummaryTotal strong{font-size:1.05rem}
-@media(max-width:360px){.scoreSummary{padding:8px 9px}.scoreSummaryEnds{column-gap:8px}}
+
+.targetColumn{min-width:0;display:grid;gap:10px}.targetColumn .liveGroupSummary{width:100%;margin:0;border:1px solid var(--color-border);background:var(--color-surface);padding:14px}.liveSpreadMetrics{flex-wrap:wrap}.groupingExportButton{width:100%;white-space:normal}.groupingExportDialog{width:min(900px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:16px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface);color:var(--color-text)}.groupingExportDialog::backdrop{background:#17241c99}.groupingExportToolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.groupingExportToolbar h2{margin:0;flex:1;min-width:0;font-size:1.15rem}.groupingExportImage{display:block;width:100%;height:auto}.groupingExportToolbar button{min-height:44px}@media(max-width:430px){.groupingExportToolbar h2{flex-basis:100%}.groupingExportDialog{padding:10px}}

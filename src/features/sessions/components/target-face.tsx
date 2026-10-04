@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type PointerEvent } from "react";
 import type { ArrowEntry, Plot, TargetFaceType } from "../scoring-model";
 import { calculateGroupingForArrows, calculateRobustMainGroup, calculateSightCheck, convexHull, type GroupingMetrics, type GroupingPoint } from "../session-insights-model";
 import { calculatePinchTransform, clientToSvg, distanceBetween, IDENTITY_TARGET_TRANSFORM, inverseTargetTransform, midpoint, plotFromSvg, shouldPlotTargetSurface, type TargetPoint, type TargetTransform } from "../target-gesture";
@@ -13,7 +13,7 @@ const tripleRings=[.5,.4,.3,.2,.1];
 const tripleCentres=[-110,0,110] as const;
 const views={full_face:{x:-105,y:-105,width:210,height:210},six_ring:{x:-65,y:-65,width:130,height:130},triple_face:{x:-58,y:-168,width:116,height:336}} as const;
 
-export function TargetFace({ arrows, selectedId, currentEnd, faceType, faceDiameterCm, onPlot, children }: { arrows: ArrowEntry[]; selectedId: string|null; currentEnd: number; faceType: TargetFaceType; faceDiameterCm: number; onPlot: (plot: Plot) => void; children?: ReactNode }) {
+export function TargetFace({ arrows, selectedId, currentEnd, faceType, faceDiameterCm, onPlot }: { arrows: ArrowEntry[]; selectedId: string|null; currentEnd: number; faceType: TargetFaceType; faceDiameterCm: number; onPlot: (plot: Plot) => void }) {
   const view=views[faceType];
   const [transform,setTransform]=useState<TargetTransform>(IDENTITY_TARGET_TRANSFORM);
   const transformRef=useRef(transform);
@@ -78,7 +78,7 @@ export function TargetFace({ arrows, selectedId, currentEnd, faceType, faceDiame
     : [{centre:0,allArrows:grouping.arrows,mainArrows:mainGroup.mainArrows}];
   const plottedArrows=arrows.filter((item)=>item.plot);
   const orderedArrows=[...plottedArrows.filter((item)=>item.end!==currentEnd&&item.id!==selectedId),...plottedArrows.filter((item)=>item.end===currentEnd&&item.id!==selectedId),...plottedArrows.filter((item)=>item.id===selectedId)];
-  return <div className={`${styles.targetWrap} ${faceType==="triple_face"?styles.tripleTargetWrap:""}`}>
+  return <><div className={`${styles.targetWrap} ${faceType==="triple_face"?styles.tripleTargetWrap:""}`}>
     <svg className={`${styles.target} ${faceType==="triple_face"?styles.tripleTarget:""}`} viewBox={viewBox} role="img" aria-label={`${label} scoring surface`} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerCancel}>
       <defs><marker id="live-group-centre-arrow" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="4" markerHeight="4" orient="auto"><path d="M 0 0 L 8 4 L 0 8 z" className={styles.groupCentreArrowHead}/></marker></defs>
       <g transform={`translate(${transform.panX} ${transform.panY}) scale(${transform.scale})`}>
@@ -90,9 +90,9 @@ export function TargetFace({ arrows, selectedId, currentEnd, faceType, faceDiame
         {orderedArrows.map((item)=>{ const cy=faceType==="triple_face"?tripleCentres[item.plot!.faceIndex??1]:0; const selected=item.id===selectedId,current=item.end===currentEnd,flyer=flyerIds.has(item.id); return <g key={item.id} transform={`translate(${item.plot!.x*100} ${cy+item.plot!.y*100})`}><circle r={selected?2.2:current?1.8:1.15} className={selected?styles.markerSelected:current?styles.markerCurrent:styles.markerPrevious}/>{flyer&&<circle r="3.4" className={styles.markerFlyer}/>} {selected&&<circle r="4.5" className={styles.markerSelectedHalo}/>}</g>; })}
       </g>
     </svg>
-    {children}
+  </div>
     {mainGroup.metrics&&grouping.metrics&&<GroupPositionSummary metrics={mainGroup.metrics} spreadMetrics={grouping.metrics} faceDiameterCm={faceDiameterCm} sightCheck={sightCheck}/>}
-  </div>;
+  </>;
 }
 
 function LiveGroupingOverlay({allArrows,mainArrows,hasFlyers,centreX,centreY,faceCentreY}:{allArrows:GroupingPoint[];mainArrows:GroupingPoint[];hasFlyers:boolean;centreX:number;centreY:number;faceCentreY:number}) {

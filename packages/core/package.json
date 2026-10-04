@@ -16,7 +16,8 @@
     "./organization-entry": "./src/organization-entry.ts",
     "./training-plan": "./src/training-plan-model.ts",
     "./training-plan-input": "./src/training-plan-input.ts",
-    "./round-order": "./src/round-order-model.ts"
+    "./round-order": "./src/round-order-model.ts",
+    "./grouping-export": "./src/grouping-export.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.mjs",

@@ -11,7 +11,7 @@ function axis(value: number, positive: string, negative: string, radiusCm: numbe
   return `${(Math.abs(value) * radiusCm).toFixed(1)} cm ${value >= 0 ? positive : negative}`;
 }
 
-export function RoundInsights({ round, showTarget = true, coach = false }: { round: RoundDraft; showTarget?: boolean; coach?: boolean }) {
+export function RoundInsights({ round, showTarget = true, showGroupPosition = true, coach = false }: { round: RoundDraft; showTarget?: boolean; showGroupPosition?: boolean; coach?: boolean }) {
   const insight = mobileRoundInsights(round);
   const skin = coach ? coachStyles : styles;
   const metrics = insight.grouping.metrics;
@@ -32,7 +32,7 @@ export function RoundInsights({ round, showTarget = true, coach = false }: { rou
       {showTarget ? <AnalysisTarget faceType={round.faceType} arrows={insight.grouping.arrows} centre={metrics ? { x: metrics.centreX, y: metrics.centreY } : null} flyerIds={flyerIds} /> : null}
       <Text style={skin.note}>{insight.grouping.arrows.length} plotted Arrows{flyerIds.size ? ` · ${flyerIds.size} possible ${flyerIds.size === 1 ? "flyer" : "flyers"}` : ""}</Text>
       {metrics ? <View style={skin.grid}>
-        <Metric label="Group position" value={`${axis(metrics.centreX, "right", "left", round.faceDiameterCm / 2)} · ${axis(metrics.centreY, "low", "high", round.faceDiameterCm / 2)}`} skin={skin} />
+        {showGroupPosition && <Metric label="Group position" value={`${axis(metrics.centreX, "right", "left", round.faceDiameterCm / 2)} · ${axis(metrics.centreY, "low", "high", round.faceDiameterCm / 2)}`} skin={skin} />}
         <Metric label="Group size" value={metrics.groupSizeCm === null ? "Need 3 plots" : `${metrics.groupSizeCm.toFixed(1)} cm`} skin={skin} />
         <Metric label="RMS spread" value={metrics.spreadCm === null ? "Need 3 plots" : `${metrics.spreadCm.toFixed(1)} cm`} skin={skin} />
         <Metric label="Horizontal Spread" value={formatSpread(metrics.horizontalSpreadCm)} skin={skin} />
@@ -51,6 +51,19 @@ export function RoundInsights({ round, showTarget = true, coach = false }: { rou
     <Text style={skin.note}>Consistency: {insight.ends.consistency === null ? "Need at least two completed Ends" : `${insight.ends.consistency.toFixed(2)} points/Arrow`}</Text>
   </View>;
 }
+
+/** Ordinary page content, outside NativeTarget's gesture responder. */
+export function RoundGroupPosition({ round }: { round: RoundDraft }) {
+  const metrics = mobileRoundInsights(round).grouping.metrics;
+  return <View style={positionStyles.card} accessibilityLabel="Group Position">
+    <Text style={styles.label}>GROUP POSITION</Text>
+    <Text style={styles.value}>{metrics ? `${axis(metrics.centreX, "right", "left", round.faceDiameterCm / 2)} · ${axis(metrics.centreY, "low", "high", round.faceDiameterCm / 2)}` : "No plotted Arrows yet."}</Text>
+  </View>;
+}
+
+const positionStyles = StyleSheet.create({
+  card: { padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.surface },
+});
 
 function Metric({ label, value, skin }: { label: string; value: string; skin: typeof styles }) {
   return <View style={skin.metric}><Text style={skin.label}>{label}</Text><Text style={skin.value}>{value}</Text></View>;
