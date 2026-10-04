@@ -11,7 +11,8 @@ export function CoachNavigation({ organizationId, name, workspaces }: { organiza
   const base = `/organization/${organizationId}`;
   const items = [
     { label: "Overview", href: base, icon: "target" }, { label: "Athletes", href: `${base}/athletes`, icon: "profile" },
-    { label: "Reviews", href: `${base}/reviews`, icon: "sessions" }, { label: "Analytics", href: `${base}/analytics`, icon: "analytics" },
+    { label: "Reviews", href: `${base}/reviews`, icon: "sessions" }, { label: "Training Plans", href: `${base}/training-plans`, icon: "target" },
+    { label: "Analytics", href: `${base}/analytics`, icon: "analytics" },
     { label: "Settings", href: `${base}/settings`, icon: "organization" },
   ] as const;
   return <><header className={styles.workspaceHeader}><div><span>Coach&apos;s Workspace</span><strong>{name}</strong></div>

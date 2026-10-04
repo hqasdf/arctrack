@@ -1,7 +1,7 @@
 import { targetFaceLabel } from "@arc-track/core/analytics";
 import { DIVISIONS, type Division } from "@arc-track/core/presets";
 import {
-  arrowKey, endTotal, roundTotal, xCount,
+  arrowKey, endTotal, roundTotal, summarizeRoundScores, xCount,
   type ArrowEntry, type Plot, type RoundDraft, type ScoreLabel, type SessionDraft,
 } from "@arc-track/core/scoring";
 import { useLocalSearchParams } from "expo-router";
@@ -215,6 +215,7 @@ export default function ScoreRoundScreen() {
   const failedCount = arrows.filter((item) => item.syncState === "failed").length;
   const plottedCount = arrows.filter((item) => item.plot !== null).length;
   const enteredEnds = Array.from(new Set(arrows.map((item) => item.end))).sort((a, b) => a - b);
+  const scoreSummary = summarizeRoundScores(arrows, round.ends);
 
   return <ScrollView style={styles.page} contentContainerStyle={styles.content}>
     <Text style={styles.eyebrow}>{loaded.session.title} · ROUND {round.roundNumber}</Text>
@@ -227,6 +228,14 @@ export default function ScoreRoundScreen() {
 
     <NativeTarget arrows={arrows} selectedId={selected?.id ?? null} currentEnd={slot.end}
       faceType={round.faceType} faceDiameterCm={round.faceDiameterCm} onPlot={handlePlot} />
+
+    <View style={styles.scoreSummary} accessibilityLabel="Round score summary">
+      <Text style={styles.scoreSummaryTitle}>END SCORES</Text>
+      <View style={styles.scoreSummaryEnds}>{scoreSummary.ends.map(({ end, score }) => <View key={end} style={styles.scoreSummaryRow}>
+        <Text style={styles.scoreSummaryLabel}>End {end}</Text><Text style={styles.scoreSummaryValue}>{score === null ? "—" : score}</Text>
+      </View>)}</View>
+      <View style={styles.scoreSummaryTotal}><Text style={styles.scoreSummaryTotalLabel}>TOTAL</Text><Text style={styles.scoreSummaryTotalValue}>{scoreSummary.total}</Text></View>
+    </View>
 
     <View style={styles.currentRow}>
       <View><Text style={styles.smallLabel}>CURRENT</Text><Text style={styles.currentText}>End {slot.end} · Arrow {slot.arrow}</Text></View>
@@ -343,6 +352,15 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   configureButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   meta: { color: colors.muted, fontSize: 13, marginBottom: 4 },
+  scoreSummary: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 9, padding: 10, gap: 4 },
+  scoreSummaryTitle: { color: colors.muted, fontSize: 10, fontWeight: "800", letterSpacing: .8 },
+  scoreSummaryEnds: { flexDirection: "row", flexWrap: "wrap", columnGap: 14 },
+  scoreSummaryRow: { width: "47%", minHeight: 25, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
+  scoreSummaryLabel: { color: colors.muted, fontSize: 12 },
+  scoreSummaryValue: { color: colors.text, fontSize: 13, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  scoreSummaryTotal: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 3, paddingTop: 6, borderTopWidth: 1, borderColor: colors.border },
+  scoreSummaryTotalLabel: { color: colors.text, fontSize: 12, fontWeight: "800", letterSpacing: .4 },
+  scoreSummaryTotalValue: { color: colors.text, fontSize: 19, fontWeight: "900", fontVariant: ["tabular-nums"] },
   currentRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   smallLabel: { color: colors.muted, fontSize: 10, fontWeight: "700", letterSpacing: 1 },
   currentText: { color: colors.text, fontSize: 17, fontWeight: "700", marginTop: 3 },

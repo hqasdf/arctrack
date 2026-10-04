@@ -8,21 +8,19 @@ export type ArrowEntry = { id: string; end: number; arrow: number; score: ScoreL
 export type RoundDraft = { id: string; roundNumber: number; name: string; division: Division; distanceMetres: number; ends: number; arrowsPerEnd: number; faceDiameterCm: number; faceType: TargetFaceType; arrows: ArrowEntry[] };
 export type SessionDraft = { id: string; title: string; date: string; sessionType: SessionType; arrowCount: number; rounds: RoundDraft[] };
 export const SCORE_LABELS: ScoreLabel[] = ["X","10","9","8","7","6","5","4","3","2","1","M"];
+export const SCORING_BOUNDARY_ALLOWANCE = 0.01;
+const SCORING_BOUNDARIES: ReadonlyArray<{ score: ScoreLabel; radius: number }> = [
+  { score: "X", radius: 0.05 }, { score: "10", radius: 0.10 }, { score: "9", radius: 0.20 },
+  { score: "8", radius: 0.30 }, { score: "7", radius: 0.40 }, { score: "6", radius: 0.50 },
+  { score: "5", radius: 0.60 }, { score: "4", radius: 0.70 }, { score: "3", radius: 0.80 },
+  { score: "2", radius: 0.90 }, { score: "1", radius: 1.00 },
+];
+const boundaryCountByFace: Record<TargetFaceType, number> = { full_face: 11, six_ring: 7, triple_face: 6 };
 export function scoreFromPlot({ x, y }: Plot, faceType: TargetFaceType = "full_face"): ScoreLabel {
   const distance = Math.hypot(x, y);
-  if (faceType === "six_ring" && distance > 0.60) return "M";
-  if (faceType === "triple_face" && distance > 0.50) return "M";
-  if (distance <= 0.05) return "X";
-  if (distance <= 0.10) return "10";
-  if (distance <= 0.20) return "9";
-  if (distance <= 0.30) return "8";
-  if (distance <= 0.40) return "7";
-  if (distance <= 0.50) return "6";
-  if (distance <= 0.60) return "5";
-  if (distance <= 0.70) return "4";
-  if (distance <= 0.80) return "3";
-  if (distance <= 0.90) return "2";
-  if (distance <= 1.00) return "1";
+  for (const boundary of SCORING_BOUNDARIES.slice(0, boundaryCountByFace[faceType])) {
+    if (distance <= boundary.radius + SCORING_BOUNDARY_ALLOWANCE) return boundary.score;
+  }
   return "M";
 }
 export function points(score: ScoreLabel) { return score === "X" ? 10 : score === "M" ? 0 : Number(score); }
@@ -30,6 +28,14 @@ export function roundTotal(arrows: ArrowEntry[]) { return arrows.reduce((sum, it
 export function arrowAverage(arrows: ArrowEntry[]) { return arrows.length === 0 ? null : roundTotal(arrows) / arrows.length; }
 export function formatArrowAverage(arrows: ArrowEntry[]) { const average = arrowAverage(arrows); return average === null ? "—" : average.toFixed(1); }
 export function endTotal(arrows: ArrowEntry[], end: number) { return roundTotal(arrows.filter((item) => item.end === end)); }
+export function summarizeRoundScores(arrows: ArrowEntry[], plannedEnds: number) {
+  const ends = Array.from({ length: Math.max(0, Math.trunc(plannedEnds)) }, (_, index) => {
+    const end = index + 1;
+    const endArrows = arrows.filter((item) => item.end === end);
+    return { end, score: endArrows.length === 0 ? null : roundTotal(endArrows) };
+  });
+  return { ends, total: roundTotal(arrows) };
+}
 export function xCount(arrows: ArrowEntry[]) { return arrows.filter((item) => item.score === "X").length; }
 export function arrowKey(end: number, arrow: number) { return `${end}-${arrow}`; }
 export function latestPlottedArrow(arrows: ArrowEntry[], preferredKey: string | null): ArrowEntry | null {

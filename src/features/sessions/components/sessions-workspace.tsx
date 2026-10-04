@@ -1,5 +1,7 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { newestRoundsFirst } from "@arc-track/core/round-order";
 import { createRoundWithEnds, createSession, deleteRound, deleteSession, updateSessionArrowCount } from "../actions";
 import { DIVISIONS, ROUND_PRESETS, TARGET_FACE_OPTIONS, type Division, type RoundPreset } from "../round-presets";
 import { formatArrowAverage, roundTotal, type RoundDraft, type SessionDraft, type SessionType, type TargetFaceType } from "../scoring-model";
@@ -13,6 +15,7 @@ const today=new Date().toISOString().slice(0,10);
 const base=ROUND_PRESETS[3];
 
 export function SessionsWorkspace({initialSessions}:{initialSessions:SessionDraft[]}) {
+  const router=useRouter();
   const [view,setView]=useState<View>("sessions");
   const [sessions,setSessions]=useState(initialSessions);
   const [arrowCountDrafts,setArrowCountDrafts]=useState<Record<string,string>>(()=>Object.fromEntries(initialSessions.map((item)=>[item.id,String(item.arrowCount)])));
@@ -76,7 +79,7 @@ export function SessionsWorkspace({initialSessions}:{initialSessions:SessionDraf
       }
       setMessage(result.message); return;
     }
-    setSessions((current)=>current.map((item)=>item.id===session.id?{...item,rounds:oldRound?item.rounds.map((round)=>round.id===oldRound.id?result.data:round):[...item.rounds,result.data]}:item));
+    setSessions((current)=>current.map((item)=>item.id===session.id?{...item,rounds:newestRoundsFirst(oldRound?item.rounds.map((round)=>round.id===oldRound.id?result.data:round):[...item.rounds,result.data])}:item));
     setActiveRoundId(result.data.id); setConfiguringRoundId(null); setView("scoring");
   }
   async function startRound() { setConfiguringRoundId(null); await createRound(); }
@@ -110,11 +113,11 @@ export function SessionsWorkspace({initialSessions}:{initialSessions:SessionDraf
   const trainingSessions=sessions.filter((item)=>item.sessionType==="training");
   const competitionSessions=sessions.filter((item)=>item.sessionType==="competition");
 
-  if (view==="scoring"&&session&&activeRound) return <ScoringWorkspace sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>setView("session")} onConfigure={()=>configureRound(activeRound)}/>;
+  if (view==="scoring"&&session&&activeRound) return <ScoringWorkspace key={activeRound.id} sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>{setView("session");router.refresh();}} onConfigure={()=>configureRound(activeRound)}/>;
   return <section className={styles.workspace}>
     {message&&<p className={styles.saveError} role="alert">{message}</p>}
     {view==="sessions"&&<div>
-      <div className={styles.sessionHeading}><div><p className={styles.kicker}>Training history</p><h2>{sessions.length?"Your saved Sessions":"Start today’s scorecard"}</h2><p>{sessions.length?"Open a Session or start another scorecard.":"Create a Session, then add as many Rounds as you need."}</p></div><button className={styles.primary} type="button" onClick={()=>setView("new-session")}>New Session</button></div>
+      <div className={styles.sessionHeading}><div><h2>{sessions.length?"Your saved Sessions":"Start today’s scorecard"}</h2><p>{sessions.length?"Open a Session or start another scorecard.":"Create a Session, then add as many Rounds as you need."}</p></div><button className={styles.primary} type="button" onClick={()=>setView("new-session")}>New Session</button></div>
       {sessions.length>0&&<div className={styles.sessionSections}><SessionSection heading="Training" emptyMessage="No Training Sessions yet." sessions={trainingSessions} onOpen={openSession} onDelete={removeSession}/><SessionSection heading="Competitions" emptyMessage="No Competitions yet." sessions={competitionSessions} onOpen={openSession} onDelete={removeSession}/></div>}
     </div>}
     {view==="new-session"&&<form className={styles.formCard} onSubmit={submitSession}>
@@ -127,7 +130,7 @@ export function SessionsWorkspace({initialSessions}:{initialSessions:SessionDraf
       <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>setView("sessions")}>← Sessions</button><p>{session.date}</p></div>
       <div className={styles.sessionHeading}><div><p className={styles.kicker}>{session.sessionType==="competition"?"Competition":"Training Session"}</p><h2>{session.title}</h2></div><button className={styles.primary} type="button" disabled={pending} onClick={()=>void startRound()}>{pending?"Starting…":"Start Round"}</button></div>
       <div className={styles.sessionArrowCount}><label htmlFor={`session-arrow-count-${session.id}`}><span>Arrow count</span><input id={`session-arrow-count-${session.id}`} required type="text" inputMode="numeric" pattern="[0-9]*" value={arrowCountDrafts[session.id]??String(session.arrowCount)} onChange={(event)=>{if (/^\d*$/.test(event.target.value)) setArrowCountDrafts((current)=>({...current,[session.id]:event.target.value}));}}/></label><button type="button" disabled={arrowCountSaving} onClick={saveSessionArrowCount}>{arrowCountSaving?"Saving…":"Save"}</button></div>
-      {session.rounds.length===0?<div className={styles.emptyRounds}><h3>Ready to shoot?</h3><p>Start a Round with the current settings. You can configure an empty Round from the scoring screen.</p></div>:<div className={styles.roundCards}>{session.rounds.map((round)=>{const savedArrows=round.arrows.filter((arrow)=>arrow.syncState==="saved"); return <article key={round.id} className={styles.roundCard}><div><p className={styles.kicker}>{round.division}</p><h3>{round.name}</h3><p>{round.distanceMetres} m · {round.ends} ends × {round.arrowsPerEnd} arrows</p><p className={styles.roundScore}>Score: <strong>{roundTotal(savedArrows)}</strong> <span>· Arrow avg. <strong>{formatArrowAverage(savedArrows)}</strong></span></p></div><div className={styles.cardActions}><button type="button" onClick={()=>{setActiveRoundId(round.id);setView("scoring");}}>Open</button><button type="button" className={styles.dangerText} onClick={()=>removeRound(round.id)}>Delete</button></div></article>;})}</div>}
+      {session.rounds.length===0?<div className={styles.emptyRounds}><h3>Ready to shoot?</h3><p>Start a Round with the current settings. You can configure an empty Round from the scoring screen.</p></div>:<div className={styles.roundCards}>{session.rounds.map((round)=><article key={round.id} className={styles.roundCard}><div><p className={styles.kicker}>{round.division}</p><h3>{round.name}</h3><p>{round.distanceMetres} m · {round.ends} ends × {round.arrowsPerEnd} arrows</p><p className={styles.roundScore}>Score: <strong>{roundTotal(round.arrows)}</strong> <span>· Arrow avg. <strong>{formatArrowAverage(round.arrows)}</strong></span></p></div><div className={styles.cardActions}><button type="button" onClick={()=>{setActiveRoundId(round.id);setView("scoring");}}>Open</button><button type="button" className={styles.dangerText} onClick={()=>removeRound(round.id)}>Delete</button></div></article>)}</div>}
     </div>}
     {view==="setup"&&session&&<form className={styles.formCard} onSubmit={submitRound}>
       <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>{setConfiguringRoundId(null);setView(activeRoundId?"scoring":"session");}}>← {activeRoundId?"Scoring":"Session"}</button><p>Round setup</p></div><h2>Configure Round</h2><p className={styles.formIntro}>Presets are starting points. Adjust anything to match what you are shooting.</p><RoundPresetsPanel selectedId={selectedPreset} onSelect={choosePreset}/>

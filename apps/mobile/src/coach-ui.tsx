@@ -59,7 +59,7 @@ export function CoachState({ loading, error, unavailable, retry }: { loading: bo
   </View>;
 }
 
-export function CoachNav({ organizationId, current }: { organizationId: string; current: "overview" | "athletes" | "reviews" | "analytics" | "settings" }) {
+export function CoachNav({ organizationId, current }: { organizationId: string; current: "overview" | "athletes" | "reviews" | "training-plans" | "analytics" | "settings" }) {
   const { user } = useAuth();
   const [workspaces, setWorkspaces] = useState<OwnOrganization[]>([]);
   const [switching, setSwitching] = useState(false);
@@ -70,12 +70,13 @@ export function CoachNav({ organizationId, current }: { organizationId: string; 
     }).catch(() => { if (active) setWorkspaces([]); });
     return () => { active = false; };
   }, [user]));
-  const choices = (["overview", "athletes", "reviews", "analytics", "settings"] as const);
+  const choices = (["overview", "athletes", "reviews", "training-plans", "analytics", "settings"] as const);
   function navigate(section: typeof choices[number]) {
     if (section === current) return;
     if (section === "overview") router.push({ pathname: "/organization/[organizationId]", params: { organizationId } });
     else if (section === "athletes") router.push({ pathname: "/organization/[organizationId]/athletes", params: { organizationId } });
     else if (section === "reviews") router.push({ pathname: "/organization/[organizationId]/reviews", params: { organizationId } });
+    else if (section === "training-plans") router.push({ pathname: "/organization/[organizationId]/training-plans", params: { organizationId } });
     else if (section === "analytics") router.push({ pathname: "/organization/[organizationId]/analytics", params: { organizationId } });
     else router.push({ pathname: "/organization/[organizationId]/settings", params: { organizationId } });
   }
@@ -93,7 +94,7 @@ export function CoachNav({ organizationId, current }: { organizationId: string; 
     </View> : null}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={coachStyles.chips} accessibilityLabel="Coach workspace sections">
     {choices.map((section) => <Pressable key={section} accessibilityRole="button" accessibilityState={{ selected: current === section }} onPress={() => navigate(section)} style={[coachStyles.navTab, current === section && coachStyles.navTabActive]}>
-      <Text style={[coachStyles.chipText, current === section && { color: coachPalette.accent }]}>{section[0].toUpperCase() + section.slice(1)}</Text>
+      <Text style={[coachStyles.chipText, current === section && { color: coachPalette.accent }]}>{section === "training-plans" ? "Training Plans" : section[0].toUpperCase() + section.slice(1)}</Text>
     </Pressable>)}
     </ScrollView>
   </View>;

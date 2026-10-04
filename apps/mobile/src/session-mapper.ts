@@ -1,4 +1,5 @@
 import type { ArrowEntry, RoundDraft, ScoreLabel, SessionDraft, TargetFaceType } from "@arc-track/core/scoring";
+import { newestRoundsFirst } from "@arc-track/core/round-order";
 import type { Division } from "@arc-track/core/presets";
 
 type DbArrow = { id: string; arrow_number: number; score_points: number; is_x: boolean; plot_x: number | null; plot_y: number | null; face_index: number | null };
@@ -41,6 +42,6 @@ export function mapSessionDetail(row: DbSessionDetail): SessionDraft {
     date: row.session_date,
     sessionType: row.session_type as SessionDraft["sessionType"],
     arrowCount: row.arrow_count,
-    rounds: (row.session_rounds ?? []).map(mapRound).sort((a, b) => a.roundNumber - b.roundNumber),
+    rounds: newestRoundsFirst((row.session_rounds ?? []).map(mapRound)),
   };
 }

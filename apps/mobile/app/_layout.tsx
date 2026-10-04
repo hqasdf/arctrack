@@ -25,6 +25,7 @@ function Routes() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="sessions/new" options={{ headerShown: false }} />
       <Stack.Screen name="sessions/[sessionId]" options={{ headerShown: true, title: "Session", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
+      <Stack.Screen name="sessions/training-plans/[planId]" options={{ headerShown: true, title: "Training Plan", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
       <Stack.Screen name="sessions/[sessionId]/configure-round" options={{ headerShown: true, title: "Round Configuration", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
       <Stack.Screen name="rounds/[roundId]" options={{ headerShown: true, title: "Round", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
       <Stack.Screen name="rounds/[roundId]/score" options={{ headerShown: true, title: "Score Round", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />

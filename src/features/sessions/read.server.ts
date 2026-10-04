@@ -1,6 +1,7 @@
 import "server-only";
 import { requireUser } from "@/lib/auth/session.server";
 import { createAuthClient } from "@/lib/supabase/server";
+import { newestRoundsFirst } from "@arc-track/core/round-order";
 import type { ArrowEntry, RoundDraft, SessionDraft, SessionType, TargetFaceType } from "./scoring-model";
 import type { Division } from "./round-presets";
 
@@ -28,7 +29,8 @@ export async function readSessions(options?:{sessionType?:SessionType}):Promise<
 }
 
 export function mapSession(row:DbSession):SessionDraft {
-  return {id:row.id,title:row.title,date:row.session_date,sessionType:row.session_type as SessionType,arrowCount:row.arrow_count,rounds:(row.session_rounds??[]).sort((a,b)=>a.round_number-b.round_number).map(mapRound)};
+  const rounds=(row.session_rounds??[]).map(mapRound);
+  return {id:row.id,title:row.title,date:row.session_date,sessionType:row.session_type as SessionType,arrowCount:row.arrow_count,rounds:newestRoundsFirst(rounds)};
 }
 
 function mapRound(row:DbRound):RoundDraft {

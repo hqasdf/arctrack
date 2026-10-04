@@ -34,8 +34,29 @@ test("empty Rounds and triple-face plot indexes remain available after reload", 
         session_ends: [{ end_number: 1, arrows: [{ id: "a1", arrow_number: 1, score_points: 10, is_x: false, plot_x: -0.1, plot_y: 0.2, face_index: 2 }] }] },
     ],
   });
-  assert.deepEqual(session.rounds.map((round) => round.name), ["Triple", "Empty"]);
-  assert.deepEqual(session.rounds[0].arrows[0].plot, { x: -0.1, y: 0.2, faceIndex: 2 });
-  assert.equal(session.rounds[1].arrows.length, 0);
-  assert.equal(roundTotal(session.rounds[1].arrows), 0);
+  assert.deepEqual(session.rounds.map((round) => round.name), ["Empty", "Triple"]);
+  assert.deepEqual(session.rounds[1].arrows[0].plot, { x: -0.1, y: 0.2, faceIndex: 2 });
+  assert.equal(session.rounds[0].arrows.length, 0);
+  assert.equal(roundTotal(session.rounds[0].arrows), 0);
+});
+
+test("Session Round display uses descending canonical numbers with gaps and ignores editing", () => {
+  const base = {
+    title: "Practice", session_date: "2026-09-26", session_type: "training", arrow_count: 0,
+    session_rounds: [1, 3, 5].map((round_number) => ({
+      id: `r${round_number}`, round_number, name: `Round ${round_number}`, division: "Recurve",
+      distance_metres: 70, face_diameter_cm: 122, face_type: "full_face", planned_ends: 1,
+      arrows_per_end: 1, session_ends: [],
+    })),
+  };
+  const loaded = mapSessionDetail({ id: "s3", ...base });
+  assert.deepEqual(loaded.rounds.map((round) => [round.name, round.roundNumber]), [
+    ["Round 5", 5], ["Round 3", 3], ["Round 1", 1],
+  ]);
+  loaded.rounds[2].name = "Edited Round 1";
+  assert.deepEqual(loaded.rounds.map((round) => round.roundNumber), [5, 3, 1]);
+  const withNewRound = mapSessionDetail({ id: "s4", ...base,
+    session_rounds: [...base.session_rounds, { ...base.session_rounds[0], id: "r6", round_number: 6, name: "Round 6" }],
+  });
+  assert.deepEqual(withNewRound.rounds.map((round) => round.roundNumber), [6, 5, 3, 1]);
 });

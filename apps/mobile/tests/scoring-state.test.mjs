@@ -67,6 +67,14 @@ test("moving an existing Arrow recalculates its score and keeps the selection", 
   assert.equal(roundTotal(moved.arrows), 10);
 });
 
+test("moving an Arrow into the 0.01 allowance updates its score and keeps its stored position", () => {
+  const first = plotCurrentArrow(round, [], { end: 1, arrow: 1 }, { x: 0.15, y: 0 });
+  const moved = plotCurrentArrow(round, first.arrows, { end: 1, arrow: 1 }, { x: 0.108, y: 0 });
+  assert.equal(moved.entry.score, "10");
+  assert.deepEqual(moved.entry.plot, { x: 0.108, y: 0 });
+  assert.deepEqual(moved.slot, { end: 1, arrow: 1 });
+});
+
 test("delete selects next plotted Arrow repeatedly, then previous, then empty", () => {
   const a1 = { id: "a1", end: 1, arrow: 1, score: "9", plot: { x: 0.15, y: 0 } };
   const a2 = { id: "a2", end: 1, arrow: 2, score: "10", plot: { x: 0.08, y: 0 } };

@@ -10,6 +10,10 @@ export default function OrganizationTabLayout() {
     <Stack.Screen name="[organizationId]" options={{ title: "Coach's Workspace" }} />
     <Stack.Screen name="[organizationId]/athletes/index" options={{ title: "Athletes" }} />
     <Stack.Screen name="[organizationId]/reviews" options={{ title: "Reviews" }} />
+    <Stack.Screen name="[organizationId]/training-plans/index" options={{ title: "Training Plans" }} />
+    <Stack.Screen name="[organizationId]/training-plans/new" options={{ title: "New Training Plan" }} />
+    <Stack.Screen name="[organizationId]/training-plans/[planId]/index" options={{ title: "Training Plan" }} />
+    <Stack.Screen name="[organizationId]/training-plans/[planId]/edit" options={{ title: "Edit Training Plan" }} />
     <Stack.Screen name="[organizationId]/analytics" options={{ title: "Team Analytics" }} />
     <Stack.Screen name="[organizationId]/settings" options={{ title: "Settings" }} />
     <Stack.Screen name="[organizationId]/athletes/[userId]" options={{ title: "Athlete" }} />

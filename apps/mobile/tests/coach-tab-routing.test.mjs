@@ -12,6 +12,10 @@ test("Coach pages are nested under the existing Organization tab stack", () => {
     "(tabs)/organization/[organizationId].tsx",
     "(tabs)/organization/[organizationId]/athletes/index.tsx",
     "(tabs)/organization/[organizationId]/reviews.tsx",
+    "(tabs)/organization/[organizationId]/training-plans/index.tsx",
+    "(tabs)/organization/[organizationId]/training-plans/new.tsx",
+    "(tabs)/organization/[organizationId]/training-plans/[planId]/index.tsx",
+    "(tabs)/organization/[organizationId]/training-plans/[planId]/edit.tsx",
     "(tabs)/organization/[organizationId]/analytics.tsx",
     "(tabs)/organization/[organizationId]/settings.tsx",
     "(tabs)/organization/[organizationId]/athletes/[userId].tsx",
@@ -30,5 +34,5 @@ test("main tabs and Coach sections keep their intended order", () => {
   const names = [...tabs.matchAll(/<Tabs\.Screen name="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(names, ["sessions", "counter", "analytics", "organization", "profile"]);
   const coachNav = readFileSync(join(app, "../src/coach-ui.tsx"), "utf8");
-  assert.match(coachNav, /\["overview", "athletes", "reviews", "analytics", "settings"\]/);
+  assert.match(coachNav, /\["overview", "athletes", "reviews", "training-plans", "analytics", "settings"\]/);
 });

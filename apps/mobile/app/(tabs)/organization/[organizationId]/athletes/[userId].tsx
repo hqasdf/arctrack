@@ -1,5 +1,6 @@
 import { buildCoachAthleteInsights, coachFilterOptions, DEFAULT_COACH_FILTERS, type CoachFilters } from "@arc-track/core/coach-analytics";
 import { formatDateOnly } from "@arc-track/core/dates";
+import { trainingPlanStatus } from "@arc-track/core/training-plan";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
@@ -8,13 +9,22 @@ import { CoachHeadline, CoachBars, CoachFilterPanel, CoachLine, CoachMetric, Coa
 import { singaporeToday } from "@/src/mobile-analytics";
 import { athleteLabel, readCoachAthleteSessions, readCoachAthletes, type CoachAthlete } from "@/src/organizations";
 import { colors } from "@/src/theme";
+import { readMobileCoachAthleteTrainingPlanProgress } from "@/src/training-plans-read";
+import { visibleTrainingWeek } from "@/src/training-plans-ui";
+import { singleTrainingPlanRouteParam } from "@/src/training-plan-route-params";
 import type { CoachAnalyticsSession } from "@arc-track/core/coach-analytics";
 
 export default function CoachAthleteScreen() {
-  const { organizationId, userId } = useLocalSearchParams<{ organizationId: string; userId: string }>();
+  const { organizationId: rawOrganizationId, userId: rawUserId } = useLocalSearchParams<{
+    organizationId?: string | string[]; userId?: string | string[];
+  }>();
+  const organizationId = singleTrainingPlanRouteParam(rawOrganizationId);
+  const userId = singleTrainingPlanRouteParam(rawUserId);
   const { user } = useAuth();
   const [athlete, setAthlete] = useState<CoachAthlete | null>(null);
   const [sessions, setSessions] = useState<CoachAnalyticsSession[]>([]);
+  const [trainingPlans, setTrainingPlans] = useState<Awaited<ReturnType<typeof readMobileCoachAthleteTrainingPlanProgress>>>([]);
+  const [trainingPlansError, setTrainingPlansError] = useState(false);
   const [filters, setFilters] = useState<CoachFilters>(DEFAULT_COACH_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -26,8 +36,12 @@ export default function CoachAthleteScreen() {
       const roster = await readCoachAthletes(user.id, organizationId);
       const match = roster?.find((item) => item.userId === userId) ?? null;
       if (!match) { setAthlete(null); setSessions([]); return; }
-      const loaded = await readCoachAthleteSessions(user.id, organizationId, userId, roster ?? undefined);
+      const [loaded, plans] = await Promise.all([
+        readCoachAthleteSessions(user.id, organizationId, userId, roster ?? undefined),
+        readMobileCoachAthleteTrainingPlanProgress(user.id, organizationId, userId, singaporeToday(new Date())).catch(() => null),
+      ]);
       setAthlete(match); setSessions((loaded ?? []).map((session) => ({ ...session, userId })));
+      setTrainingPlans(plans ?? []); setTrainingPlansError(plans === null);
     } catch { setError("Athlete performance could not be loaded. Try again."); }
     finally { setLoading(false); }
   }, [user, organizationId, userId]);
@@ -36,13 +50,16 @@ export default function CoachAthleteScreen() {
   const options = useMemo(() => coachFilterOptions(sessions, today, filters), [sessions, today, filters]);
   const insights = useMemo(() => athlete ? buildCoachAthleteInsights({ userId: athlete.userId, name: athleteLabel(athlete) }, sessions, filters, today) : null, [athlete, sessions, filters, today]);
   if (loading) return <View style={coachStyles.state}><ActivityIndicator color={colors.accent}/></View>;
-  if (error || !athlete || !insights) return <View style={coachStyles.state}><Text style={coachStyles.muted}>{error ?? "This athlete is not available in your active roster."}</Text>{error ? <Pressable onPress={() => void load()}><Text style={coachStyles.link}>Retry</Text></Pressable> : null}</View>;
+  if (error || !athlete || !insights || !organizationId || !userId) return <View style={coachStyles.state}><Text style={coachStyles.muted}>{error ?? "This athlete is not available in your active roster."}</Text>{error ? <Pressable onPress={() => void load()}><Text style={coachStyles.link}>Retry</Text></Pressable> : null}</View>;
   const openSession = (sessionId: string) => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]", params: { organizationId, userId, sessionId } });
   const openRound = (sessionId: string, roundId: string) => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]/rounds/[roundId]", params: { organizationId, userId, sessionId, roundId } });
   const best = insights.overview.bestRound;
+  const activePlans = trainingPlans.filter(({ plan }) => trainingPlanStatus(plan.startDate, plan.endDate, today) === "Active");
   return <ScrollView style={coachStyles.page} contentContainerStyle={coachStyles.content}>
     <CoachNav organizationId={organizationId} current="athletes"/>
     <Text style={coachStyles.eyebrow}>ATHLETE PERFORMANCE · READ ONLY</Text><Text style={coachStyles.title}>{athleteLabel(athlete)}</Text>
+    {trainingPlansError && <Text style={coachStyles.muted}>Training Plan progress could not be loaded. Reopen this page to retry.</Text>}
+    {activePlans.length === 1 ? (() => { const { plan, progress } = activePlans[0]; const week = visibleTrainingWeek(progress, today); return <CoachSection title="Weekly training"><Text style={coachStyles.cardTitle}>{plan.title}</Text><Text style={coachStyles.muted}>{week?.arrowTarget === null || !week ? "No weekly Arrow target" : `${week.arrowsCompleted} / ${week.arrowTarget} arrows · ${Math.round((week.progressRatio ?? 0) * 100)}% · ${week.goalReached ? week.amountAboveGoal ? `+${week.amountAboveGoal} above target` : "Goal complete" : `${week.arrowsRemaining} remaining`}`}</Text><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/training-plans/[planId]", params: { organizationId, planId: plan.id } })}><Text style={coachStyles.link}>View Plan →</Text></Pressable></CoachSection>; })() : activePlans.length > 1 ? <CoachSection title={`${activePlans.length} Active Training Plans`}>{activePlans.map(({ plan }) => <Pressable key={plan.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/training-plans/[planId]", params: { organizationId, planId: plan.id } })} style={coachStyles.card}><Text style={coachStyles.link}>{plan.title} →</Text></Pressable>)}</CoachSection> : null}
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen((open) => !open)} style={coachStyles.chip}><Text style={coachStyles.chipText}>Filters{[filters.period !== DEFAULT_COACH_FILTERS.period, filters.sessionType !== "all", filters.distance !== "all", filters.division !== "all", filters.targetFace !== "all"].filter(Boolean).length ? ` · ${[filters.period !== DEFAULT_COACH_FILTERS.period, filters.sessionType !== "all", filters.distance !== "all", filters.division !== "all", filters.targetFace !== "all"].filter(Boolean).length} active` : ""}</Text></Pressable>
     {filtersOpen ? <CoachFilterPanel filters={filters} setFilters={setFilters} options={options} expanded/> : null}
     <CoachHeadline value={insights.overview.averagePerArrow?.toFixed(2) ?? "—"} label="AVG / ARROW" context={`${insights.summary.scoredArrowCount} scored Arrows · ${insights.summary.sessionCount} Sessions`}/>

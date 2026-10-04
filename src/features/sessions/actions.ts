@@ -2,8 +2,9 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth/session.server";
 import { createAuthClient } from "@/lib/supabase/server";
-import { isUuid, validateArrowInput, validateRoundInput, validateSessionArrowCount, validateSessionInput, type ArrowInput, type RoundInput, type SessionArrowCountInput, type SessionInput } from "./validation";
+import { isUuid, validateRoundInput, validateSessionArrowCount, validateSessionInput, type ArrowInput, type RoundInput, type SessionArrowCountInput, type SessionInput } from "./validation";
 import type { ArrowEntry, RoundDraft, SessionDraft } from "./scoring-model";
+import { saveArrowRecord } from "./arrow-save.server";
 
 type Result<T>={ok:true;data:T}|{ok:false;message:string};
 
@@ -58,18 +59,7 @@ export async function createRoundWithEnds(input:RoundInput):Promise<Result<Round
 }
 
 export async function saveArrow(input:ArrowInput):Promise<Result<ArrowEntry>> {
-  await requireUser();
-  const valid=validateArrowInput(input);
-  if (!valid.ok) return valid;
-  try {
-    const supabase=await createAuthClient({writable:true});
-    const {data:end,error:endError}=await supabase.from("session_ends").select("id").eq("session_round_id",valid.value.roundId).eq("end_number",valid.value.endNumber).maybeSingle();
-    if (endError||!end) return failure("The planned End could not be found.");
-    const plot=valid.value.plot;
-    const {data,error}=await supabase.from("arrows").upsert({session_end_id:end.id,arrow_number:valid.value.arrowNumber,score_points:valid.value.scorePoints,is_x:valid.value.isX,plot_x:plot?.x??null,plot_y:plot?.y??null,face_index:plot?.faceIndex??null},{onConflict:"session_end_id,arrow_number"}).select("id").single();
-    if (error||!data) return failure("The Arrow was not saved.");
-    return {ok:true,data:{id:data.id,end:valid.value.endNumber,arrow:valid.value.arrowNumber,score:valid.value.score,plot:valid.value.plot,syncState:"saved"}};
-  } catch { return failure("Arrow saving is temporarily unavailable."); }
+  return saveArrowRecord(input);
 }
 
 export async function removeArrow(input:{roundId:string;endNumber:number;arrowNumber:number}):Promise<Result<null>> {
@@ -80,7 +70,9 @@ export async function removeArrow(input:{roundId:string;endNumber:number;arrowNu
     const {data:end,error:endError}=await supabase.from("session_ends").select("id").eq("session_round_id",input.roundId).eq("end_number",input.endNumber).maybeSingle();
     if (endError||!end) return failure("The planned End could not be found.");
     const {error}=await supabase.from("arrows").delete().eq("session_end_id",end.id).eq("arrow_number",input.arrowNumber);
-    return error?failure("The Arrow could not be removed."):{ok:true,data:null};
+    if (error) return failure("The Arrow could not be removed.");
+    revalidatePath("/sessions");
+    return {ok:true,data:null};
   } catch { return failure("Arrow removal is temporarily unavailable."); }
 }
 

@@ -13,7 +13,10 @@
     "./coach-round": "./src/coach-round-model.ts",
     "./coach-analytics": "./src/coach-analytics-model.ts",
     "./chart-axis": "./src/chart-axis.ts",
-    "./organization-entry": "./src/organization-entry.ts"
+    "./organization-entry": "./src/organization-entry.ts",
+    "./training-plan": "./src/training-plan-model.ts",
+    "./training-plan-input": "./src/training-plan-input.ts",
+    "./round-order": "./src/round-order-model.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.mjs",

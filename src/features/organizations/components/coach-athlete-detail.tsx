@@ -6,12 +6,15 @@ import { buildCoachAthleteInsights, coachFilterOptions, DEFAULT_COACH_FILTERS, t
 import { formatDateOnly } from "@arc-track/core/dates";
 import { targetFaceLabel } from "@arc-track/core/analytics";
 import { summarizeCoachRound } from "@arc-track/core/coach-round";
+import { trainingPlanStatus, type TrainingPlanProgress } from "@arc-track/core/training-plan";
+import type { TrainingPlanRecord } from "../training-plans-read.server";
+import { displayedWeek } from "./training-plan-ui";
 import { athleteName, type CoachAthlete } from "../coach-model";
 import type { SessionDraft } from "@/features/sessions/scoring-model";
 import { CoachLineChart, VerticalBarChart } from "./coach-charts";
 import styles from "./coach.module.css";
 
-export function CoachAthleteDetail({ organization, athlete, sessions, today }: { organization: { id: string; name: string }; athlete: CoachAthlete; sessions: SessionDraft[]; today: string }) {
+export function CoachAthleteDetail({ organization, athlete, sessions, today, trainingPlans }: { organization: { id: string; name: string }; athlete: CoachAthlete; sessions: SessionDraft[]; today: string; trainingPlans: Array<{ plan: TrainingPlanRecord; progress: TrainingPlanProgress }> | null }) {
   const [filters, setFilters] = useState<CoachFilters>(DEFAULT_COACH_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const identified = useMemo(() => sessions.map((session) => ({ ...session, userId: athlete.userId })), [sessions, athlete.userId]);
@@ -22,12 +25,14 @@ export function CoachAthleteDetail({ organization, athlete, sessions, today }: {
   const latest = result.filteredSessions.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
   const recentRounds = result.filteredRounds.filter(({ round }) => round.arrows.length > 0 && round.arrows.length === round.ends * round.arrowsPerEnd).sort((a, b) => b.session.date.localeCompare(a.session.date)).slice(0, 5);
   const noArrows = <p className={styles.empty}>No Arrow data available for these filters.</p>;
+  const activePlans = (trainingPlans ?? []).filter(({ plan }) => trainingPlanStatus(plan.startDate, plan.endDate, today) === "Active");
   return <div className={styles.workspace}>
     <header className={`${styles.heading} ${styles.editorialHero}`}><Link href={`/organization/${organization.id}`} className={styles.back}>← {organization.name}</Link><p className={styles.eyebrow}>Head Coach · Athlete performance · Read only</p><h1>{athleteName(athlete)}</h1><p>{latest?.rounds.at(-1)?.division ?? "Division not recorded"} · Latest activity: {latest ? formatDateOnly(latest.date) : "No Session in this period"}</p><div className={styles.heroContext}>
       <div><strong className={styles.headlineMetric}>{result.overview.averagePerArrow?.toFixed(2) ?? "—"}</strong><span className={styles.headlineLabel}>Avg / Arrow</span></div>
       <div><strong>{result.overview.tenPlusXPercentage === null ? "—" : `${result.overview.tenPlusXPercentage.toFixed(1)}%`}</strong><span>10+X rate</span></div>
       <div><strong>{result.summary.arrowCount}</strong><span>Total Arrows</span></div>
     </div></header>
+    {trainingPlans === null ? <p role="status">Training Plan progress could not be loaded. Refresh to retry.</p> : activePlans.length === 1 ? (() => { const { plan, progress } = activePlans[0]; const week = displayedWeek(progress, today); return <section className={styles.section}><p className={styles.chapterHeading}>Weekly training</p><h2>{plan.title}</h2><p>{week?.arrowTarget === null || !week ? "No weekly Arrow target" : `${week.arrowsCompleted} / ${week.arrowTarget} arrows · ${Math.round((week.progressRatio ?? 0) * 100)}% · ${week.goalReached ? week.amountAboveGoal ? `+${week.amountAboveGoal} above target` : "Goal complete" : `${week.arrowsRemaining} remaining`}`}</p><Link href={`/organization/${organization.id}/training-plans/${plan.id}`}>View Plan →</Link></section>; })() : activePlans.length > 1 ? <section className={styles.section}><h2>{activePlans.length} Active Training Plans</h2><ul className={styles.athleteList}>{activePlans.map(({ plan }) => <li key={plan.id}><Link className={styles.athleteLink} href={`/organization/${organization.id}/training-plans/${plan.id}`}>{plan.title} →</Link></li>)}</ul></section> : null}
     <section className={`${styles.section} ${styles.filterSection}`}><button type="button" className={styles.filterToggle} aria-expanded={filtersOpen} aria-controls="athlete-filters" onClick={() => setFiltersOpen((open) => !open)}>Filters{[filters.period !== DEFAULT_COACH_FILTERS.period, filters.sessionType !== "all", filters.distance !== "all", filters.division !== "all", filters.targetFace !== "all"].filter(Boolean).length ? ` · ${[filters.period !== DEFAULT_COACH_FILTERS.period, filters.sessionType !== "all", filters.distance !== "all", filters.division !== "all", filters.targetFace !== "all"].filter(Boolean).length} active` : ""}</button>{filtersOpen && <div id="athlete-filters" className={styles.filterGrid}>
       <label>Period<select value={filters.period} onChange={(event) => set("period", event.target.value as CoachPeriod)}><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="all">All time</option></select></label>
       <label>Session type<select value={filters.sessionType} onChange={(event) => set("sessionType", event.target.value as CoachFilters["sessionType"])}><option value="all">All</option><option value="training">Training</option><option value="competition">Competition</option></select></label>
