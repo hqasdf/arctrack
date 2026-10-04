@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { newestRoundsFirst } from "@arc-track/core/round-order";
 import { createRoundWithEnds, createSession, deleteRound, deleteSession, updateSessionArrowCount } from "../actions";
 import { DIVISIONS, ROUND_PRESETS, TARGET_FACE_OPTIONS, type Division, type RoundPreset } from "../round-presets";
@@ -14,7 +14,7 @@ type RoundForm=Omit<RoundDraft,"id"|"roundNumber"|"arrows">;
 const today=new Date().toISOString().slice(0,10);
 const base=ROUND_PRESETS[3];
 
-export function SessionsWorkspace({initialSessions}:{initialSessions:SessionDraft[]}) {
+export function SessionsWorkspace({initialSessions,trainingPlanContent}:{initialSessions:SessionDraft[];trainingPlanContent?:ReactNode}) {
   const router=useRouter();
   const [view,setView]=useState<View>("sessions");
   const [sessions,setSessions]=useState(initialSessions);
@@ -114,7 +114,7 @@ export function SessionsWorkspace({initialSessions}:{initialSessions:SessionDraf
   const competitionSessions=sessions.filter((item)=>item.sessionType==="competition");
 
   if (view==="scoring"&&session&&activeRound) return <ScoringWorkspace key={activeRound.id} sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>{setView("session");router.refresh();}} onConfigure={()=>configureRound(activeRound)}/>;
-  return <section className={styles.workspace}>
+  return <>{trainingPlanContent}<section className={styles.workspace}>
     {message&&<p className={styles.saveError} role="alert">{message}</p>}
     {view==="sessions"&&<div>
       <div className={styles.sessionHeading}><div><h2>{sessions.length?"Your saved Sessions":"Start today’s scorecard"}</h2><p>{sessions.length?"Open a Session or start another scorecard.":"Create a Session, then add as many Rounds as you need."}</p></div><button className={styles.primary} type="button" onClick={()=>setView("new-session")}>New Session</button></div>
@@ -137,7 +137,7 @@ export function SessionsWorkspace({initialSessions}:{initialSessions:SessionDraf
       <div className={styles.formGrid}><label className={styles.fullField}><span>Round name</span><input required value={roundForm.name} onChange={(e)=>setRoundForm({...roundForm,name:e.target.value})}/></label><label><span>Division</span><select value={roundForm.division} onChange={(e)=>changeDivision(e.target.value as Division)}>{DIVISIONS.map((item)=><option key={item}>{item}</option>)}</select></label><DistanceField value={distanceText} onChange={editDistance}/><DirectNumberField label="Number of Ends" value={roundForm.ends} onChange={(value)=>setRoundForm({...roundForm,ends:value})}/><DirectNumberField label="Arrows per End" value={roundForm.arrowsPerEnd} onChange={(value)=>setRoundForm({...roundForm,arrowsPerEnd:value})}/><label className={styles.fullField}><span>Target face option</span><select value={TARGET_FACE_OPTIONS.find((item)=>item.diameterCm===roundForm.faceDiameterCm&&item.faceType===roundForm.faceType)?.id??"custom"} onChange={(e)=>chooseTargetOption(e.target.value)}><option value="custom" disabled>Custom target settings</option>{TARGET_FACE_OPTIONS.map((item)=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label><NumberField label="Target face diameter (cm)" value={roundForm.faceDiameterCm} onChange={(value)=>setRoundForm({...roundForm,faceDiameterCm:value})}/><label><span>Target face layout</span><select value={roundForm.faceType} onChange={(e)=>setRoundForm({...roundForm,faceType:e.target.value as TargetFaceType})}><option value="full_face">Full face</option><option value="six_ring">6-ring face</option><option value="triple_face">Triple face</option></select></label></div>
       <button className={styles.primary} disabled={pending} type="submit">{pending?"Creating Ends…":configuringRoundId?"Save settings and start scoring":"Start scoring"}</button>
     </form>}
-  </section>;
+  </section></>;
 }
 function SessionSection({heading,emptyMessage,sessions,onOpen,onDelete}:{heading:string;emptyMessage:string;sessions:SessionDraft[];onOpen:(session:SessionDraft)=>void;onDelete:(id:string)=>void}) {
   return <section aria-labelledby={`session-section-${heading.toLowerCase()}`}><h3 id={`session-section-${heading.toLowerCase()}`} className={styles.sessionSectionTitle}>{heading}</h3>{sessions.length===0?<p className={styles.sessionSectionEmpty}>{emptyMessage}</p>:<div className={styles.roundCards}>{sessions.map((item)=><article key={item.id} className={styles.roundCard}><div><p className={styles.kicker}>{item.date}</p><h3>{item.title}</h3><p>{item.rounds.length} {item.rounds.length===1?"Round":"Rounds"}</p><p>Arrow count: <strong>{item.arrowCount}</strong></p></div><div className={styles.cardActions}><button type="button" onClick={()=>onOpen(item)}>Open</button><button type="button" className={styles.dangerText} onClick={()=>onDelete(item.id)}>Delete</button></div></article>)}</div>}</section>;

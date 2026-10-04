@@ -1,12 +1,13 @@
-import { createGroupingExport, renderGroupingExport, type GroupingExport } from "@arc-track/core/grouping-export";
+import { createGroupingExport, type GroupingExport } from "@arc-track/core/grouping-export";
 import type { RoundDraft } from "@arc-track/core/scoring";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import Svg, { SvgXml } from "react-native-svg";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SvgXml, type Svg } from "react-native-svg";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "./theme";
+import { EXPORT_TOP_PADDING, mobileExportPreviewWidth, renderMobileGroupingExport } from "./grouping-export-report";
 
 export function GroupingExportButton({ round, context }: { round: RoundDraft; context: string }) {
   const [report, setReport] = useState<GroupingExport | null>(null);
@@ -20,9 +21,9 @@ export function GroupingExportButton({ round, context }: { round: RoundDraft; co
 
 function GroupingExportPreview({ report, onClose }: { report: GroupingExport; onClose: () => void }) {
   const image = useRef<Svg>(null);
-  const [{ svg, width, height }] = useState(() => renderGroupingExport(report));
+  const [{ svg, width, height }] = useState(() => renderMobileGroupingExport(report));
   const screen = useWindowDimensions();
-  const previewWidth = Math.min(Math.max(1, screen.width - 24), width);
+  const previewWidth = mobileExportPreviewWidth(screen.width);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busyRef = useRef(false);
@@ -42,18 +43,20 @@ function GroupingExportPreview({ report, onClose }: { report: GroupingExport; on
     finally { busyRef.current = false; setBusy(false); }
   }
   return <Modal visible animationType="slide" onRequestClose={() => { if (!busy) onClose(); }}>
-    <SafeAreaView style={styles.page}>
+    <SafeAreaProvider style={styles.page}>
+    <SafeAreaView style={styles.page} edges={["top", "right", "bottom", "left"]}>
       <View style={styles.toolbar}><Pressable accessibilityRole="button" disabled={busy} onPress={onClose} style={styles.back}><Text style={styles.backText}>Back</Text></Pressable>
         <Text style={styles.title}>Grouping Export</Text>
         <Pressable accessibilityRole="button" disabled={busy} onPress={() => void save()} style={styles.button}><Text style={styles.buttonText}>{busy ? "Saving…" : "Save / Share PNG"}</Text></Pressable>
       </View>
       {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-      <ScrollView contentContainerStyle={styles.preview}>
-        <Svg ref={image} width={previewWidth} height={height * previewWidth / width} viewBox={`0 0 ${width} ${height}`} pointerEvents="none" accessibilityLabel={`Static grouping report for ${report.round.name}`}>
-          <SvgXml xml={svg} width={width} height={height}/>
-        </Svg>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.preview} horizontal={false}>
+        <SvgXml xml={svg} override={{ ref: image, width: previewWidth, height: height * previewWidth / width,
+          viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: "xMidYMid meet", pointerEvents: "none",
+          accessibilityLabel: `Static grouping report for ${report.round.name}` }}/>
       </ScrollView>
     </SafeAreaView>
+    </SafeAreaProvider>
   </Modal>;
 }
 
@@ -64,6 +67,7 @@ const styles = StyleSheet.create({
   toolbar: { padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
   back: { minHeight: 44, paddingHorizontal: 8, justifyContent: "center" }, backText: { color: colors.accent, fontWeight: "700" },
   title: { color: colors.text, fontWeight: "800", fontSize: 18, flexGrow: 1 },
-  preview: { alignItems: "center", paddingHorizontal: 12, paddingBottom: 20 },
+  scroll: { flex: 1 },
+  preview: { alignItems: "center", paddingHorizontal: 12, paddingTop: EXPORT_TOP_PADDING, paddingBottom: 32 },
   error: { color: colors.error, padding: 12 },
 });

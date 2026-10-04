@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+  import { supabase } from "./supabase";
 import type { SessionDraft } from "@arc-track/core/scoring";
 import { mapSessionDetail, type DbSessionDetail } from "./session-mapper";
 

@@ -18,7 +18,6 @@ export default async function SessionsPage() {
     <div className={styles.intro}>
       <h1 style={{ overflowWrap: "anywhere" }}>Your sessions, {displayName}</h1>
     </div>
-    {plans === null ? <p role="status">Training Plans could not be loaded. Refresh to try again.</p> : <AthletePlanCard plans={plans} today={today}/>}
-    <SessionsWorkspace initialSessions={sessions}/>
+    <SessionsWorkspace initialSessions={sessions} trainingPlanContent={plans === null ? <p key="training-plan-error" role="status">Training Plans could not be loaded. Refresh to try again.</p> : <AthletePlanCard plans={plans} today={today} key="athlete-plans"/>}/>
   </>;
 }

@@ -20,8 +20,8 @@ test("Expo exports the current Arrow snapshot after Group Position and before in
   assert.match(source, /GroupingExportButton round={{\s*\.\.\.round,\s*arrows\s*}}/);
   const exporter = await readFile(new URL("../src/grouping-export.tsx", import.meta.url), "utf8");
   assert.match(exporter, /createGroupingExport\(round, context\)/);
-  assert.match(exporter, /renderGroupingExport\(report\)/);
+  assert.match(exporter, /renderMobileGroupingExport\(report\)/);
   assert.match(exporter, /Sharing\.shareAsync\(file/);
-  assert.match(exporter, /pointerEvents="none"/);
+  assert.match(exporter, /pointerEvents: "none"/);
   assert.doesNotMatch(exporter, /supabase|scoreFromPlot/);
 });
