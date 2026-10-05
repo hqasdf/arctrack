@@ -1,4 +1,4 @@
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { useAuth } from "@/src/auth";
 import { CoachState } from "@/src/coach-ui";

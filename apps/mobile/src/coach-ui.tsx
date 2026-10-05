@@ -141,7 +141,7 @@ export function CoachBars({ points, axis, secondary }: { points: CoachChartPoint
   </ScrollView><Text style={coachStyles.chartAxis}>0–{chartTick(max, kind)} · {ticks.map((tick) => chartTick(tick, kind)).join(" / ")}</Text>{selected ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}><Pressable accessibilityRole="button" onPress={() => setSelected(null)}><Text style={coachStyles.muted}>{selected.detail} · Dismiss</Text></Pressable>{selected.onPress ? <Pressable accessibilityRole="button" onPress={selected.onPress}><Text style={coachStyles.link}>Open athlete</Text></Pressable> : null}</View> : null}{secondary ? <Text style={coachStyles.chartAxis}>Primary: {axis} · Secondary: {secondary}</Text> : null}</View>;
 }
 
-export function CoachLine({ points, axis, secondary, maxValue }: { points: CoachChartPoint[]; axis: string; secondary?: string; maxValue?: number }) {
+export function CoachLine({ points, axis, secondary }: { points: CoachChartPoint[]; axis: string; secondary?: string; maxValue?: number }) {
   const { width: screenWidth } = useWindowDimensions();
   const [selected, setSelected] = useState<CoachChartPoint | null>(null);
   if (!points.some((point) => point.value !== null)) return <Text style={coachStyles.muted}>No data for these filters.</Text>;

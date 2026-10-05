@@ -16,12 +16,6 @@
 .organizationList strong{overflow-wrap:anywhere}
 .organizationList span{color:var(--color-muted);font-size:.84rem}
 .organizationList button{min-height:44px;padding:8px 13px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-primary);font-weight:600;cursor:pointer}
-.coachCards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0}
-.coachCard{display:flex;flex-direction:column;align-items:flex-start;gap:12px;min-width:0;padding:20px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface)}
-.dashboardCard{background:var(--color-peach-light)}
-.coachCard h3{margin:0;font-size:1.1rem;line-height:1.3}
-.coachCard p{margin:0 0 4px;color:var(--color-muted);font-size:.9rem;line-height:1.5;overflow-wrap:anywhere}
-.dashboardCard p{flex:1}
 .coachCta{min-height:44px;display:inline-flex;align-items:center;width:fit-content;max-width:100%;padding:9px 16px;border-radius:var(--radius-sm);background:var(--color-primary);color:#fff;font-weight:700;text-decoration:none;text-align:center}
 .coachCta:hover{filter:brightness(.93)}
 .coachCta:focus-visible,.organizationList button:focus-visible{outline:2px solid var(--color-primary);outline-offset:3px}
@@ -31,5 +25,5 @@
 .codeActions button:hover,.organizationActions button:hover{background:var(--color-peach-light)}
 .message{margin:0;padding:12px 15px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-peach-light);color:var(--color-primary)}
 .organizationActions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-@media(max-width:640px){.panel{padding:19px}.coachCards{grid-template-columns:minmax(0,1fr)}.coachCard{padding:18px}}
+@media(max-width:640px){.panel{padding:19px}}
 .secondary{min-height:44px;justify-self:start;padding:8px 12px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-primary);font:inherit;font-weight:700;cursor:pointer}.secondary:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px}

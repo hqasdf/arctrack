@@ -45,7 +45,6 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background }, content: { padding: 20, paddingBottom: 48, gap: 13 },
   state: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 12 },
   back: { minHeight: 44, justifyContent: "center" }, link: { color: colors.accent, fontWeight: "700" },
-  eyebrow: { color: colors.accent, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
   title: { color: colors.text, fontSize: 32, fontWeight: "700", letterSpacing: -1 }, heading: { color: colors.text, fontSize: 21, fontWeight: "700" },
   muted: { color: colors.muted, fontSize: 14, lineHeight: 21 }, section: { borderTopWidth: 1, borderColor: colors.border, paddingTop: 18, gap: 10 },
   week: { borderTopWidth: 1, borderColor: colors.border, paddingVertical: 10, gap: 3 },

@@ -1,5 +1,5 @@
 import { calculateArrowVolume, calculateOverview } from "../analytics/analytics-model.ts";
-import { arrowAverage, roundTotal, xCount, type RoundDraft, type SessionDraft } from "../sessions/scoring-model.ts";
+import type { SessionDraft } from "../sessions/scoring-model.ts";
 
 export type CoachAthlete = {
   userId: string;
@@ -28,10 +28,6 @@ export function completedRounds(sessions: SessionDraft[]) {
     [...session.rounds].sort((a, b) => b.roundNumber - a.roundNumber)
       .filter((round) => round.ends * round.arrowsPerEnd > 0 && round.arrows.length === round.ends * round.arrowsPerEnd)
       .map((round) => ({ session, round })));
-}
-
-export function roundSummary(round: RoundDraft) {
-  return { total: roundTotal(round.arrows), average: arrowAverage(round.arrows), xCount: xCount(round.arrows) };
 }
 
 export function athleteAnalytics(sessions: SessionDraft[], today: string) {

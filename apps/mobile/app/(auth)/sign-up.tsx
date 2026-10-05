@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import { configError, supabase } from "../../src/supabase";
 import { SIGNUP_STORAGE_KEY, parseSignupContext, safeAuthMessage, serializeSignupContext } from "../../src/auth-flow";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
