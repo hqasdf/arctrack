@@ -32,6 +32,7 @@ export async function joinOrganization(codeInput: string): Promise<"joined" | "a
   const code = normalizeJoinCode(codeInput);
   if (!code) throw new Error("Enter a valid 8-character join code.");
   const { data, error } = await supabase.rpc("join_organization_by_code", { p_code: code });
+  if (!error && data === "rate_limited") throw new Error("Too many join attempts. Try again shortly.");
   if (error || (data !== "joined" && data !== "already_member")) throw new Error("The join code is invalid or no longer active.");
   return data;
 }

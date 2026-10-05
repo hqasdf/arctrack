@@ -291,44 +291,31 @@ reset role;
 select set_config('request.jwt.claim.sub', current_setting('tp.a'), true);
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('tp.a'), 'role', 'authenticated')::text, true);
 set local role authenticated;
-insert into public.sessions (user_id, title, session_date)
-values (auth.uid(), 'Training Plan fixture scoring', date '2026-09-29');
-select set_config('tp.session', id::text, true) from public.sessions
-where user_id = auth.uid() and title = 'Training Plan fixture scoring';
-insert into public.session_rounds
-  (session_id, round_number, name, division, distance_metres,
-   face_diameter_cm, face_type, planned_ends, arrows_per_end)
-values (current_setting('tp.session')::uuid, 1, 'Fixture Round', 'Recurve',
-  70, 122, 'full_face', 1, 1);
-select set_config('tp.round', id::text, true) from public.session_rounds
-where session_id = current_setting('tp.session')::uuid;
-insert into public.session_ends (session_round_id, end_number)
-values (current_setting('tp.round')::uuid, 1);
+-- Scoring setup follows the current guarded-write API, not revoked table grants.
+select set_config('tp.session', id::text, true)
+from public.create_owned_session('Training Plan fixture scoring', date '2026-09-29', 'training');
+select set_config('tp.round', round_id::text, true)
+from public.create_round_with_ends(current_setting('tp.session')::uuid,
+  'Fixture Round', 'Recurve', 70, 122, 'full_face', 1, 1);
 select set_config('tp.end', id::text, true) from public.session_ends
 where session_round_id = current_setting('tp.round')::uuid;
-insert into public.arrows (session_end_id, arrow_number, score_points, is_x)
-values (current_setting('tp.end')::uuid, 1, 9, false);
+select public.save_owned_arrow(current_setting('tp.end')::uuid, 1, 9, false, null, null, null);
 
 reset role;
 select set_config('request.jwt.claim.sub', current_setting('tp.coach'), true);
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('tp.coach'), 'role', 'authenticated')::text, true);
 set local role authenticated;
-do $$ declare v_changed integer; begin
+do $$ begin
   if (select count(*) from public.sessions where id = current_setting('tp.session')::uuid) <> 1 then
     raise exception 'Fixture Coach cannot read athlete Session';
   end if;
-  update public.sessions set arrow_count = 99
-  where id = current_setting('tp.session')::uuid;
-  get diagnostics v_changed = row_count;
-  if v_changed <> 0 then raise exception 'Coach edited athlete Session'; end if;
-  delete from public.sessions where id = current_setting('tp.session')::uuid;
-  get diagnostics v_changed = row_count;
-  if v_changed <> 0 then raise exception 'Coach deleted athlete Session'; end if;
-  update public.arrows set score_points = 10
-  where session_end_id = current_setting('tp.end')::uuid;
-  get diagnostics v_changed = row_count;
-  if v_changed <> 0 then raise exception 'Coach edited athlete Arrow'; end if;
 end $$;
+select pg_temp.expect_rejection('update public.sessions set arrow_count = 99 where id = current_setting(''tp.session'')::uuid');
+select pg_temp.expect_rejection('delete from public.sessions where id = current_setting(''tp.session'')::uuid');
+select pg_temp.expect_rejection('update public.arrows set score_points = 10 where session_end_id = current_setting(''tp.end'')::uuid');
+select pg_temp.expect_rejection('select public.update_owned_session_arrow_count(current_setting(''tp.session'')::uuid,99)');
+select pg_temp.expect_rejection('select public.delete_owned_session(current_setting(''tp.session'')::uuid)');
+select pg_temp.expect_rejection('select public.save_owned_arrow(current_setting(''tp.end'')::uuid,1,10,false,null,null,null)');
 select pg_temp.expect_rejection(format(
   'insert into public.session_rounds (session_id,round_number,name,division,distance_metres,face_diameter_cm,face_type,planned_ends,arrows_per_end) values (%L::uuid,2,%L,%L,70,122,%L,1,1)',
   current_setting('tp.session'), 'Coach write', 'Recurve', 'full_face'));
@@ -338,14 +325,10 @@ select pg_temp.expect_rejection(format(
 select pg_temp.expect_rejection(format(
   'insert into public.arrows (session_end_id,arrow_number,score_points) values (%L::uuid,2,9)',
   current_setting('tp.end')));
-do $$ declare v_changed integer; begin
-  delete from public.session_rounds where id = current_setting('tp.round')::uuid;
-  get diagnostics v_changed = row_count;
-  if v_changed <> 0 then raise exception 'Coach deleted athlete Round'; end if;
-  delete from public.arrows where session_end_id = current_setting('tp.end')::uuid;
-  get diagnostics v_changed = row_count;
-  if v_changed <> 0 then raise exception 'Coach deleted athlete Arrow'; end if;
-end $$;
+select pg_temp.expect_rejection('delete from public.session_rounds where id = current_setting(''tp.round'')::uuid');
+select pg_temp.expect_rejection('delete from public.arrows where session_end_id = current_setting(''tp.end'')::uuid');
+select pg_temp.expect_rejection('select public.delete_owned_round(current_setting(''tp.round'')::uuid,current_setting(''tp.session'')::uuid)');
+select pg_temp.expect_rejection('select public.delete_owned_arrow(current_setting(''tp.end'')::uuid,1)');
 
 -- The creating Coach leaves. Current active membership, not created_by, grants access.
 select public.leave_organization(current_setting('tp.org')::uuid);

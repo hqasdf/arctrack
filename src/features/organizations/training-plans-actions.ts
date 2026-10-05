@@ -5,6 +5,7 @@ import { prepareTrainingPlanInput, type TrainingPlanEditorInput } from "@arc-tra
 import { requireUser } from "@/lib/auth/session.server";
 import { createAuthClient } from "@/lib/supabase/server";
 import { isUuid } from "@/features/sessions/validation";
+import { trainingPlanWorkloadSupported } from "./training-plan-workload";
 
 type Result<T> = { ok: true; data: T } | { ok: false; message: string };
 
@@ -13,6 +14,8 @@ export async function saveTrainingPlan(organizationId: string, planId: string | 
   await requireUser();
   if (!isUuid(organizationId) || (planId !== null && !isUuid(planId)))
     return { ok: false, message: "Training Plan could not be identified." };
+  if (!trainingPlanWorkloadSupported(input))
+    return { ok: false, message: "Training Plan configuration is outside the supported range." };
   const prepared = prepareTrainingPlanInput(input);
   if (!prepared.ok) return prepared;
   const payload = prepared.data;

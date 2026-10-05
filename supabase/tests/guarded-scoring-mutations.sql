@@ -307,13 +307,15 @@ select set_config('request.jwt.claim.sub',current_setting('guard.owner'),true);
 select set_config('request.jwt.claims',json_build_object('sub',current_setting('guard.owner'),'role','authenticated')::text,true);
 set local role authenticated;
 do $$
-declare v_round uuid; v_end uuid; v_arrow uuid; v_session uuid;
+declare v_round uuid; v_end uuid; v_arrow uuid; v_session uuid; v_deleted boolean;
 begin
   select round_id into v_round from public.create_round_with_ends(
     current_setting('guard.session')::uuid,'Cascade Round','Other',18,40,'full_face',1,6);
   select id into v_end from public.session_ends where session_round_id=v_round;
   select id into v_arrow from public.save_owned_arrow(v_end,1,9,false,null,null,null);
-  if not public.delete_owned_round(v_round,current_setting('guard.session')::uuid)
+  -- Complete the mutation before querying its cascades in a fresh statement.
+  v_deleted := public.delete_owned_round(v_round,current_setting('guard.session')::uuid);
+  if not v_deleted
     or exists (select 1 from public.session_ends where id=v_end)
     or exists (select 1 from public.arrows where id=v_arrow)
     or not exists (select 1 from public.session_rounds where id=current_setting('guard.round')::uuid) then
@@ -324,7 +326,8 @@ begin
     raise exception 'FAIL: Competition creation';
   end if;
   perform public.delete_owned_session(v_session);
-  if not public.delete_owned_session(current_setting('guard.session')::uuid)
+  v_deleted := public.delete_owned_session(current_setting('guard.session')::uuid);
+  if not v_deleted
     or exists(select 1 from public.session_rounds where id=current_setting('guard.round')::uuid)
     or exists(select 1 from public.session_ends where id=current_setting('guard.end')::uuid)
     or exists(select 1 from public.arrows where id=current_setting('guard.arrow')::uuid) then

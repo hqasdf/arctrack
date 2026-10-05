@@ -31,6 +31,8 @@ export async function joinOrganization(codeInput: string): Promise<Result<{ stat
     const { data: before } = await supabase.from("organization_members").select("organization_id")
       .eq("user_id", user.id).eq("status", "active");
     const { data, error } = await supabase.rpc("join_organization_by_code", { p_code: code });
+    if (!error && data === "rate_limited")
+      return { ok: false, message: "Too many join attempts. Try again shortly." };
     if (error || (data !== "joined" && data !== "already_member"))
       return { ok: false, message: "The join code is invalid or no longer active." };
     revalidatePath("/organization");
