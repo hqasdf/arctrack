@@ -292,7 +292,7 @@ export default function ScoreRoundScreen() {
           <Text style={styles.historyLabel}>END {end}</Text>
           <Text style={styles.historyTotal}>{endTotal(endArrows, end)} pts</Text>
           {countX > 0 ? <Text style={styles.historyX}>{countX}X</Text> : null}
-          <View style={styles.historyScores}>{endArrows.map((arrow) => <Pressable key={arrow.arrow}
+          <View style={styles.historyScores}>{endArrows.map((arrow) => <Pressable key={arrow.arrow} style={styles.historyScoreValue}
             accessibilityRole="button" accessibilityLabel={`End ${end}, Arrow ${arrow.arrow}, ${scoreText(arrow.score)}${arrow.syncState === "failed" ? ", save failed" : ""}`}
             onPress={() => selectSlot({ end, arrow: arrow.arrow })}>
             <Text style={[styles.historyScore, selected?.end === end && selected.arrow === arrow.arrow && styles.historySelected]}>{scoreText(arrow.score)}{arrow.syncState === "failed" ? "!" : ""}</Text>
@@ -380,12 +380,13 @@ const styles = StyleSheet.create({
   insightsButtonText: { color: colors.accent, fontWeight: "700" },
   history: { marginTop: 7, borderTopWidth: 1, borderColor: colors.border, paddingTop: 13 },
   historyTitle: { color: colors.text, fontSize: 16, fontWeight: "700", marginBottom: 6 },
-  historyRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.border },
+  historyRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingRight: 24, borderBottomWidth: 1, borderColor: colors.border },
   historyCurrent: { backgroundColor: "#edf2ed" },
   historyLabel: { color: colors.text, fontSize: 11, fontWeight: "800" },
   historyTotal: { color: colors.text, fontSize: 12, fontWeight: "700" },
   historyX: { color: colors.accent, fontSize: 11, fontWeight: "700" },
-  historyScores: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 },
+  historyScores: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 },
+  historyScoreValue: { flexShrink: 0 },
   historyScore: { color: colors.text, fontSize: 12, fontWeight: "600", paddingVertical: 5 },
   historySelected: { color: colors.accent, textDecorationLine: "underline", fontWeight: "800" },
   state: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
