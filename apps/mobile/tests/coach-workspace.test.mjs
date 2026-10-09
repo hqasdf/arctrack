@@ -4,6 +4,78 @@ import { readFileSync } from "node:fs";
 import { buildCoachAthleteInsights, buildCoachTeamAnalytics, DEFAULT_COACH_FILTERS } from "@arc-track/core/coach-analytics";
 import { summarizeCoachRound } from "@arc-track/core/coach-round";
 import { coachSessionNeighbors, filterCoachDirectory } from "../src/coach-mobile-model.ts";
+import ts from "typescript";
+
+function coachNavRuntime(current = "overview") {
+  const source = readFileSync(new URL("../src/coach-ui.tsx", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("coach-ui.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declaration = ast.statements.find(item => ts.isFunctionDeclaration(item) && item.name?.text === "CoachNav");
+  assert.ok(declaration);
+  const compiled = ts.transpileModule(declaration.getText(ast), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const hooks = [], pushes = [];
+  let cursor = 0;
+  const useState = initial => {
+    const slot = cursor++;
+    if (!(slot in hooks)) hooks[slot] = initial;
+    return [hooks[slot], next => { hooks[slot] = typeof next === "function" ? next(hooks[slot]) : next; }];
+  };
+  const useRef = initial => { const slot = cursor++; return hooks[slot] ?? (hooks[slot] = { current: initial }); };
+  const jsx = (type, props) => ({ type, props });
+  const exports = {};
+  const names = ["useAuth", "useState", "useRef", "useFocusEffect", "useCallback", "readOwnOrganizations", "router", "coachStyles", "coachPalette", "View", "Text", "ScrollView", "Pressable", "Svg", "Polyline"];
+  const values = [() => ({ user: null }), useState, useRef, () => {}, fn => fn, async () => [], { push: value => pushes.push(value), replace() {} }, {}, {}, "View", "Text", "ScrollView", "Pressable", "Svg", "Polyline"];
+  new Function("require", "exports", ...names, compiled)(() => ({ jsx, jsxs: jsx }), exports, ...values);
+  function render() {
+    cursor = 0;
+    const nodes = [];
+    function visit(node) { if (Array.isArray(node)) node.forEach(visit); else if (node?.props) { nodes.push(node); visit(node.props.children); } }
+    visit(exports.CoachNav({ organizationId: "test-org", current }));
+    return {
+      scroll: nodes.find(node => node.type === "ScrollView"),
+      edges: nodes.filter(node => node.props.pointerEvents === "none"),
+      tabs: nodes.filter(node => node.type === "Pressable" && node.props.accessibilityState?.selected !== undefined),
+    };
+  }
+  return { render, pushes };
+}
+
+test("Coach nav cues follow actual scroll availability and update when orientation or content width changes", () => {
+  const runtime = coachNavRuntime();
+  let view = runtime.render();
+  assert.equal(view.edges.length, 0);
+  assert.equal(view.scroll.props.horizontal, true);
+  view.scroll.props.onLayout({ nativeEvent: { layout: { width: 320 } } });
+  view.scroll.props.onContentSizeChange(620);
+  view = runtime.render();
+  assert.deepEqual(view.edges.map(edge => edge.props.style[1]), [{ right: 0 }]);
+  view.scroll.props.onScroll({ nativeEvent: { contentOffset: { x: 150 } } });
+  view = runtime.render();
+  assert.deepEqual(view.edges.map(edge => edge.props.style[1]), [{ left: 0 }, { right: 0 }]);
+  view.scroll.props.onScroll({ nativeEvent: { contentOffset: { x: 300 } } });
+  view = runtime.render();
+  assert.deepEqual(view.edges.map(edge => edge.props.style[1]), [{ left: 0 }]);
+  assert.ok(view.edges.every(edge => edge.props.pointerEvents === "none" && edge.props.accessible === false));
+  view.scroll.props.onLayout({ nativeEvent: { layout: { width: 800 } } });
+  view = runtime.render();
+  assert.equal(view.edges.length, 0);
+  view.scroll.props.onLayout({ nativeEvent: { layout: { width: 390 } } });
+  view = runtime.render();
+  assert.deepEqual(view.edges.map(edge => edge.props.style[1]), [{ right: 0 }]);
+  view.scroll.props.onContentSizeChange(350);
+  assert.equal(runtime.render().edges.length, 0);
+});
+
+test("Coach nav keeps all six tab destinations, organisation parameters, and active styling", () => {
+  const runtime = coachNavRuntime("reviews"), view = runtime.render();
+  assert.equal(view.tabs.length, 6);
+  assert.deepEqual(view.tabs.map(tab => tab.props.accessibilityState.selected), [false, false, true, false, false, false]);
+  view.tabs.forEach(tab => tab.props.onPress());
+  assert.deepEqual(runtime.pushes.map(item => item.pathname), [
+    "/organization/[organizationId]", "/organization/[organizationId]/athletes",
+    "/organization/[organizationId]/training-plans", "/organization/[organizationId]/analytics", "/organization/[organizationId]/settings",
+  ]);
+  assert.ok(runtime.pushes.every(item => item.params.organizationId === "test-org"));
+});
 
 const arrow = (id, end, arrowNumber, score, x = 0, y = 0) => ({ id, end, arrow: arrowNumber, score, plot: { x, y } });
 const round = (id, score = "10") => ({ id, roundNumber: 1, name: "70 m", division: "Recurve", distanceMetres: 70, ends: 1, arrowsPerEnd: 2, faceDiameterCm: 122, faceType: "full_face",

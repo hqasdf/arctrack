@@ -2,7 +2,7 @@ import type { CoachFilters, CoachPeriod } from "@arc-track/core/coach-analytics"
 import { chartAxis, chartTick } from "@arc-track/core/chart-axis";
 import { router, useFocusEffect } from "expo-router";
 import type { ReactNode } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Circle, Line, Polyline, Text as SvgText } from "react-native-svg";
 import { useAuth } from "./auth";
@@ -22,6 +22,7 @@ export const coachStyles = StyleSheet.create({
   chips: { flexDirection: "row", gap: 6, paddingVertical: 3 }, chip: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 22, borderWidth: 1, borderColor: coachPalette.border, backgroundColor: coachPalette.surface, minHeight: 44, justifyContent: "center" },
   chipActive: { backgroundColor: coachPalette.accent, borderColor: coachPalette.accent }, chipText: { color: coachPalette.text, fontWeight: "600", fontSize: 13 }, chipTextActive: { color: coachPalette.surface },
   navTab: { paddingHorizontal: 12, paddingVertical: 12, minHeight: 44, borderBottomWidth: 2, borderColor: "transparent", justifyContent: "center" }, navTabActive: { borderColor: coachPalette.accent },
+  navEdge: { position: "absolute", top: 0, bottom: 0, width: 14, alignItems: "center", justifyContent: "center", backgroundColor: coachPalette.background, opacity: .85 },
   state: { flex: 1, backgroundColor: coachPalette.background, justifyContent: "center", alignItems: "center", padding: 24, gap: 12 },
   chartAxis: { color: coachPalette.muted, fontSize: 11, lineHeight: 17 }, chartLabel: { color: coachPalette.muted, fontSize: 10, textAlign: "center", fontVariant: ["tabular-nums"] },
   headline: { paddingVertical: 18, gap: 7 }, headlineValue: { color: coachPalette.text, fontSize: 64, lineHeight: 72, fontWeight: "500", letterSpacing: -3, fontVariant: ["tabular-nums"] },
@@ -63,6 +64,18 @@ export function CoachNav({ organizationId, current }: { organizationId: string; 
   const { user } = useAuth();
   const [workspaces, setWorkspaces] = useState<OwnOrganization[]>([]);
   const [switching, setSwitching] = useState(false);
+  const scrollMetrics = useRef({ viewport: 0, content: 0, offset: 0 });
+  const [scrollEdges, setScrollEdges] = useState({ left: false, right: false });
+  function updateScrollEdges(patch: Partial<typeof scrollMetrics.current>) {
+    Object.assign(scrollMetrics.current, patch);
+    const { viewport, content } = scrollMetrics.current;
+    const maximum = Math.max(0, content - viewport);
+    const offset = Math.max(0, Math.min(scrollMetrics.current.offset, maximum));
+    scrollMetrics.current.offset = offset;
+    const left = viewport > 0 && offset > 1;
+    const right = viewport > 0 && maximum - offset > 1;
+    setScrollEdges((previous) => previous.left === left && previous.right === right ? previous : { left, right });
+  }
   useFocusEffect(useCallback(() => {
     let active = true;
     if (user) void readOwnOrganizations(user.id).then((items) => {
@@ -92,11 +105,22 @@ export function CoachNav({ organizationId, current }: { organizationId: string; 
     }} style={coachStyles.chip}><Text style={coachStyles.chipText}>{item.name}</Text></Pressable>)}
       <Pressable accessibilityRole="button" onPress={() => { setSwitching(false); router.push("/organization/manage"); }} style={coachStyles.chip}><Text style={coachStyles.link}>Manage memberships</Text></Pressable>
     </View> : null}
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={coachStyles.chips} accessibilityLabel="Coach workspace sections">
+    <View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={coachStyles.chips} accessibilityLabel="Coach workspace sections"
+      onLayout={({ nativeEvent }) => updateScrollEdges({ viewport: nativeEvent.layout.width })}
+      onContentSizeChange={(width) => updateScrollEdges({ content: width })}
+      onScroll={({ nativeEvent }) => updateScrollEdges({ offset: nativeEvent.contentOffset.x })} scrollEventThrottle={16}>
     {choices.map((section) => <Pressable key={section} accessibilityRole="button" accessibilityState={{ selected: current === section }} onPress={() => navigate(section)} style={[coachStyles.navTab, current === section && coachStyles.navTabActive]}>
       <Text style={[coachStyles.chipText, current === section && { color: coachPalette.accent }]}>{section === "training-plans" ? "Training Plans" : section[0].toUpperCase() + section.slice(1)}</Text>
     </Pressable>)}
     </ScrollView>
+    {scrollEdges.left ? <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[coachStyles.navEdge, { left: 0 }]}>
+      <Svg width={8} height={14} viewBox="0 0 8 14"><Polyline points="6,2 2,7 6,12" fill="none" stroke={coachPalette.muted} strokeWidth={1.5}/></Svg>
+    </View> : null}
+    {scrollEdges.right ? <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[coachStyles.navEdge, { right: 0 }]}>
+      <Svg width={8} height={14} viewBox="0 0 8 14"><Polyline points="2,2 6,7 2,12" fill="none" stroke={coachPalette.muted} strokeWidth={1.5}/></Svg>
+    </View> : null}
+    </View>
   </View>;
 }
 
