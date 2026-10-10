@@ -20,6 +20,7 @@ export function AccountCard({ email, pendingEmail }: { email: string; pendingEma
         <div className={styles.buttons}>
           <button type="button" className={styles.secondary} onClick={() => setEditing(true)}>Change email</button>
           <Link href="/update-password" className={styles.secondary}>Change password</Link>
+          <Link href="/delete-account" className={styles.secondary}>Delete Account</Link>
         </div>
       )}
     </section>

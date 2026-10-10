@@ -1,6 +1,6 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../src/auth";
 import { safeAuthMessage } from "../../src/auth-flow";
 import { changeMobilePassword, DIVISIONS, EMPTY_PROFILE, EXPERIENCE_LEVELS, readMobileProfile, saveMobileProfile, SHOOTING_HANDS, type MobileProfile } from "../../src/profile";
@@ -77,6 +77,9 @@ export default function ProfileScreen() {
     </> : null}
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Pressable accessibilityRole="button" onPress={submit} disabled={busy} style={styles.button}><Text style={styles.buttonText}>{busy ? "Signing out…" : "Sign out"}</Text></Pressable>
+    <Pressable accessibilityRole="link" disabled={busy} onPress={() => {
+      void Linking.openURL("https://archery-website.vercel.app/delete-account").catch(() => setError("The account deletion page could not be opened. Please try again."));
+    }}><Text style={styles.link}>Delete Account</Text></Pressable>
   </ScrollView>;
 }
 

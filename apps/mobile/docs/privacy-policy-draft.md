@@ -23,7 +23,7 @@ Saved records remain until the account or records are deleted under the applicat
 
 ## Account deletion and privacy contact
 
-**This section is pending the account-deletion backend and mobile control. Do not publish as a live capability yet.** The proposed control will be Profile → Delete Account, with a separate confirmation. It will remove the Auth account and cascade its profile, Sessions, Rounds, Ends, Arrows and memberships. An organisation created by that user may remain without a Head Coach. [Insert the reviewed contact method for privacy requests and any verified backup-retention details.]
+**This section is pending runtime validation, server configuration and deployment. Do not publish as a live capability yet.** Web and Expo Profile → Delete Account open the same web resource, where the user verifies their current password and types `DELETE`. The trusted server removes the Auth account and its owned profile, Sessions, Rounds, Ends, Arrows, memberships and athlete assignments. Shared organisations and Training Plans remain with creator/assigner references cleared; an organisation may remain without a Head Coach. Local Counter data on other devices is not remotely erased. [Insert the reviewed contact method for privacy requests and verified backup/log-retention details.]
 
 ## Changes
 
