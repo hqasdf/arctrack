@@ -113,6 +113,7 @@ export function routingRuntime(authState) {
     "expo-status-bar": { StatusBar: () => null },
     "react-native": { ActivityIndicator: () => null, Pressable: ({ children }) => children, Text: ({ children }) => children, View: ({ children }) => children },
     "../src/auth": auth,
+    "../src/biometric-lock": { BiometricLockProvider: ({ children }) => children },
     "../src/auth-flow": flow,
     "../src/theme": { colors: {} },
   });

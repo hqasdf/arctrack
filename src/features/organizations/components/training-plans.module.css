@@ -4,7 +4,7 @@
 .hero h1{font-size:clamp(2rem,6vw,3.5rem);letter-spacing:-.055em;line-height:1.03;margin:0;overflow-wrap:anywhere}
 .muted{color:var(--color-muted);line-height:1.5;margin:6px 0 0;overflow-wrap:anywhere}
 .button,.secondary{min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:11px 17px;border-radius:9px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none}
-.button{background:var(--color-primary);color:#fff;border:1px solid var(--color-primary)}
+.button{background:var(--color-primary);color:var(--color-on-primary);border:1px solid var(--color-primary)}
 .secondary{background:transparent;color:var(--color-primary);border:1px solid var(--color-border)}
 .button:disabled,.secondary:disabled{opacity:.5;cursor:not-allowed}
 .button:focus-visible,.secondary:focus-visible,.planLink:focus-visible,.athleteRow:focus-visible{outline:2px solid var(--color-primary);outline-offset:3px}
@@ -24,7 +24,7 @@
 .full{grid-column:1/-1}.pickerActions,.actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.picker{display:grid;gap:8px;margin-top:10px;max-height:260px;overflow-y:auto}
 .pickRow{display:flex;align-items:center;gap:12px;min-height:44px;padding:8px 10px;border:1px solid var(--color-border);border-radius:8px;cursor:pointer}.pickRow input{width:20px;height:20px;accent-color:var(--color-primary)}
 .dayEditor{border-top:1px solid var(--color-border);padding:12px 0}.dayEditor summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}.dayFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px 0}
-.error{color:#a93232;font-weight:700}.goalWrap{display:flex;gap:28px;align-items:center;flex-wrap:wrap}.ring{width:180px;height:180px;flex:none}.ringText{display:grid;gap:4px}.ringText strong{font-size:clamp(1.5rem,5vw,2.5rem);letter-spacing:-.05em;font-variant-numeric:tabular-nums}.ringText span{color:var(--color-muted)}
+.error{color:var(--color-plan-error);font-weight:700}.goalWrap{display:flex;gap:28px;align-items:center;flex-wrap:wrap}.ring{width:180px;height:180px;flex:none}.ringText{display:grid;gap:4px}.ringText strong{font-size:clamp(1.5rem,5vw,2.5rem);letter-spacing:-.05em;font-variant-numeric:tabular-nums}.ringText span{color:var(--color-muted)}
 .athleteRows{list-style:none;padding:0;margin:0}.athleteRows li+li{border-top:1px solid var(--color-border)}.athleteRow{width:100%;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;display:grid;gap:5px;padding:14px 0;min-height:62px}.athleteRow[aria-pressed=true] strong{color:var(--color-primary)}.athleteRow span{color:var(--color-muted);font-size:.86rem}.progressTrack{height:6px;background:var(--color-border);border-radius:10px;overflow:hidden}.progressTrack span{display:block;height:100%;background:var(--color-primary)}
 .dayList{display:grid;gap:0}.dayRow{padding:14px 0;border-top:1px solid var(--color-border);display:grid;gap:5px}.dayRow strong{overflow-wrap:anywhere}.dayRow span,.dayRow p{color:var(--color-muted);margin:0}.note{white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:550px){.fields,.dayFields{grid-template-columns:minmax(0,1fr)}.hero{align-items:start}.ring{width:150px;height:150px}.empty{padding:20px}.goalWrap{gap:16px}}

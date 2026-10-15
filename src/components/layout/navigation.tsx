@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ThemeSelector } from "@/components/theme/theme-control";
 import { Icon } from "@/components/ui/icon";
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import styles from "./shell.module.css";
@@ -58,6 +59,7 @@ export function Navigation({ authenticated = false }: { authenticated?: boolean 
             </Link>
           );
         })}
+        {authenticated && <ThemeSelector />}
       </div>
       <button
         ref={menuButtonRef}
@@ -79,6 +81,7 @@ export function Navigation({ authenticated = false }: { authenticated?: boolean 
             <Icon name={icon} size={18} />{label}
           </Link>;
         })}
+        {authenticated && <ThemeSelector expanded />}
         <div className={styles.mobileMenuSignOut}>
           {authenticated ? <SignOutButton /> : <Link href="/sign-in" className={styles.mobileMenuLink} onClick={() => setOpen(false)}>Sign in</Link>}
         </div>

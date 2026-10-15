@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth";
+import { BiometricLockProvider } from "../src/biometric-lock";
 import { colors } from "../src/theme";
 
 function Routes() {
@@ -38,5 +39,5 @@ function Routes() {
 }
 
 export default function RootLayout() {
-  return <AuthProvider><StatusBar style="dark" /><Routes /></AuthProvider>;
+  return <AuthProvider><StatusBar style="dark" /><BiometricLockProvider><Routes /></BiometricLockProvider></AuthProvider>;
 }

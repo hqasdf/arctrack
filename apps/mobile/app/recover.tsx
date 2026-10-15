@@ -6,6 +6,7 @@ import { useAuth } from "../src/auth";
 import { cancelRecovery, completeRecovery, safeAuthMessage } from "../src/auth-flow";
 import { configError, supabase } from "../src/supabase";
 import { colors, PAGE_TOP_SPACING } from "../src/theme";
+import { OtpInput } from "../src/otp-input";
 import { PasswordField } from "../src/password-field";
 
 export default function RecoverScreen() {
@@ -76,7 +77,7 @@ export default function RecoverScreen() {
       <Action label="Send recovery code" busy={busy} onPress={() => void request()} />
     </> : stage === "verify" ? <>
       <Text style={styles.note}>Enter the six-digit code sent to {email.trim()}.</Text>
-      <TextInput accessibilityLabel="Recovery code" keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} style={styles.input} />
+      <OtpInput accessibilityLabel="Recovery code" keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} style={styles.input} />
       <Action label="Verify code" busy={busy} onPress={() => void verify()} />
       <Action label={cooldown > 0 ? `Resend code in ${cooldown}s` : "Request new code"} busy={busy || cooldown > 0} onPress={() => void request()} secondary />
     </> : <>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
 import { Navigation } from "./navigation";
+import { ThemeControl } from "@/components/theme/theme-control";
 import styles from "./shell.module.css";
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 
@@ -13,7 +14,8 @@ export function AppShell({
   authenticated?: boolean;
 }) {
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-authenticated-theme={authenticated || undefined}>
+      {authenticated && <ThemeControl />}
       <a href="#main-content" className={styles.skip}>
         Skip to content
       </a>

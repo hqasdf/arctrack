@@ -4,8 +4,8 @@
 .panel>p{margin:0 0 18px;color:var(--color-muted);line-height:1.5}
 .form{display:grid;gap:14px}
 .form label,.codeLabel{display:grid;gap:7px;font-weight:600;font-size:.9rem}
-.form input,.codeLabel input{width:100%;min-width:0;min-height:46px;padding:10px 12px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:white;color:var(--color-text);font:inherit}
-.primary{min-height:46px;width:fit-content;padding:10px 18px;border:0;border-radius:var(--radius-sm);background:var(--color-primary);color:white;font-weight:700;cursor:pointer}
+.form input,.codeLabel input{width:100%;min-width:0;min-height:46px;padding:10px 12px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-control-surface);color:var(--color-text);font:inherit}
+.primary{min-height:46px;width:fit-content;padding:10px 18px;border:0;border-radius:var(--radius-sm);background:var(--color-primary);color:var(--color-on-primary);font-weight:700;cursor:pointer}
 .primary:hover:not(:disabled){filter:brightness(.93)}
 .primary:focus-visible{outline:2px solid var(--color-primary);outline-offset:3px}
 .primary:disabled,.organizationList button:disabled{opacity:.55;cursor:default}
@@ -16,7 +16,7 @@
 .organizationList strong{overflow-wrap:anywhere}
 .organizationList span{color:var(--color-muted);font-size:.84rem}
 .organizationList button{min-height:44px;padding:8px 13px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-primary);font-weight:600;cursor:pointer}
-.coachCta{min-height:44px;display:inline-flex;align-items:center;width:fit-content;max-width:100%;padding:9px 16px;border-radius:var(--radius-sm);background:var(--color-primary);color:#fff;font-weight:700;text-decoration:none;text-align:center}
+.coachCta{min-height:44px;display:inline-flex;align-items:center;width:fit-content;max-width:100%;padding:9px 16px;border-radius:var(--radius-sm);background:var(--color-primary);color:var(--color-on-primary);font-weight:700;text-decoration:none;text-align:center}
 .coachCta:hover{filter:brightness(.93)}
 .coachCta:focus-visible,.organizationList button:focus-visible{outline:2px solid var(--color-primary);outline-offset:3px}
 .codeLabel{width:100%;min-width:0}

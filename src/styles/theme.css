@@ -1,0 +1,73 @@
+/* Only the existing authenticated shell may enable saved or system appearance. */
+/* Wait for the pre-paint preference read rather than flash an incorrect app palette. */
+:root:not([data-theme]) [data-authenticated-theme] { visibility: hidden; }
+:root:has([data-authenticated-theme])[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #181715;
+  --color-surface: #24211e;
+  --color-text: #f1e8df;
+  --color-muted: #bcada0;
+  --color-primary: #e6b895;
+  --color-primary-hover: #f5cfaf;
+  --color-peach: #4a3529;
+  --color-peach-light: #342923;
+  --color-border: #51473d;
+  --color-soft: #2d2823;
+  --color-focus: #ffc78e;
+  --color-control-surface: #24211e;
+  --color-on-primary: #241a13;
+  --color-input-border: #8f7e6f;
+  --color-disabled-background: #39312b;
+  --color-disabled-text: #b8a99a;
+  --color-error: #ffb4a9;
+  --color-error-background: #3c2220;
+  --color-error-border: #965c54;
+  --color-danger: #ffb4a9;
+  --color-danger-strong: #ffb4a9;
+  --color-danger-background: #3c2220;
+  --color-danger-border: #965c54;
+  --color-danger-focus: #d78b7e;
+  --color-plan-error: #ffb4a9;
+  --color-chart-secondary: #d6a75f;
+  --theme-coach-background: #1b1916;
+  --theme-coach-surface: #23201c;
+  --theme-coach-peach-light: #3a2d22;
+  --theme-coach-border: #56483b;
+  --theme-coach-soft: #30281f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:has([data-authenticated-theme])[data-theme="system"] {
+    color-scheme: dark;
+    --color-background: #181715;
+    --color-surface: #24211e;
+    --color-text: #f1e8df;
+    --color-muted: #bcada0;
+    --color-primary: #e6b895;
+    --color-primary-hover: #f5cfaf;
+    --color-peach: #4a3529;
+    --color-peach-light: #342923;
+    --color-border: #51473d;
+    --color-soft: #2d2823;
+    --color-focus: #ffc78e;
+    --color-control-surface: #24211e;
+    --color-on-primary: #241a13;
+    --color-input-border: #8f7e6f;
+    --color-disabled-background: #39312b;
+    --color-disabled-text: #b8a99a;
+    --color-error: #ffb4a9;
+    --color-error-background: #3c2220;
+    --color-error-border: #965c54;
+    --color-danger: #ffb4a9;
+    --color-danger-strong: #ffb4a9;
+    --color-danger-background: #3c2220;
+    --color-danger-border: #965c54;
+    --color-danger-focus: #d78b7e;
+    --color-plan-error: #ffb4a9;
+    --color-chart-secondary: #d6a75f;
+    --theme-coach-background: #1b1916;
+    --theme-coach-surface: #23201c;
+    --theme-coach-peach-light: #3a2d22;
+    --theme-coach-border: #56483b;
+    --theme-coach-soft: #30281f;
+  }
+}

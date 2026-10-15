@@ -14,6 +14,7 @@ function profile(openURL) {
     "../../src/auth": { useAuth: () => ({ user: { id: "owner", email: "owner@example.invalid" }, signOut() {} }) },
     "../../src/auth-flow": { safeAuthMessage: () => "safe error" },
     "../../src/profile": { EMPTY_PROFILE: {}, DIVISIONS: [], EXPERIENCE_LEVELS: [], SHOOTING_HANDS: [] },
+    "../../src/biometric-lock": { BiometricSetting: "BiometricSetting" },
     "../../src/password-field": { PasswordField: "PasswordField" },
     "../../src/theme": { colors: {}, PAGE_TOP_SPACING: 0 },
   };

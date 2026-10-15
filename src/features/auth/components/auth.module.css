@@ -59,7 +59,7 @@
   display: block;
   width: 100%;
   min-height: 48px;
-  border: 1px solid #9f9083;
+  border: 1px solid var(--color-input-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
@@ -95,8 +95,8 @@
   background: var(--color-primary-hover);
 }
 .form fieldset:disabled .submit {
-  background: #ebe5df;
-  color: #65564b;
+  background: var(--color-disabled-background);
+  color: var(--color-disabled-text);
   cursor: not-allowed;
 }
 .form fieldset:disabled input {
@@ -118,9 +118,9 @@
   margin-top: 6px;
 }
 .error {
-  color: #8b2920;
-  background: #fff0ed;
-  border: 1px solid #c68478;
+  color: var(--color-error);
+  background: var(--color-error-background);
+  border: 1px solid var(--color-error-border);
 }
 .links {
   display: flex;
@@ -169,7 +169,7 @@
 }
 .signOut p {
   font-size: 0.8rem;
-  color: #8b2920;
+  color: var(--color-error);
 }
 @media (max-width: 640px) {
   .signOut {

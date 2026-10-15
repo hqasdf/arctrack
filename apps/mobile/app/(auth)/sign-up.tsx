@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput }
 import { configError, supabase } from "../../src/supabase";
 import { SIGNUP_STORAGE_KEY, parseSignupContext, safeAuthMessage, serializeSignupContext } from "../../src/auth-flow";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { OtpInput } from "../../src/otp-input";
 import { PasswordField } from "../../src/password-field";
 
 export default function SignUpScreen() {
@@ -70,7 +71,7 @@ export default function SignUpScreen() {
     <Text style={styles.title}>{sent ? "Verify email" : "Create account"}</Text>
     {sent ? <>
       <Text style={styles.note}>Enter the six-digit code sent to {email.trim()}.</Text>
-      <TextInput accessibilityLabel="Email verification code" keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} style={styles.input} />
+      <OtpInput accessibilityLabel="Email verification code" keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} style={styles.input} />
       <Action label="Verify email" busy={busy} onPress={() => void verify()} />
       <Action label={cooldown > 0 ? `Resend code in ${cooldown}s` : "Request new code"} busy={busy || cooldown > 0} onPress={() => void resend()} secondary />
       <Pressable accessibilityRole="button" disabled={busy} onPress={() => { void AsyncStorage.removeItem(SIGNUP_STORAGE_KEY).catch(() => {}); setSent(false); setEmail(""); setCode(""); setCooldown(0); setError(null); }} style={styles.back}><Text style={styles.link}>Use a different email</Text></Pressable>
