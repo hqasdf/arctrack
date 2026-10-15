@@ -6,6 +6,7 @@ import { useState, type FormEvent } from "react";
 import { createOrganization, joinOrganization } from "../actions";
 import type { OwnOrganization } from "../read.server";
 import styles from "./organization.module.css";
+import coachStyles from "./coach.module.css";
 
 export function OrganizationWorkspace({ organizations }: { organizations: OwnOrganization[] }) {
   const router = useRouter();
@@ -35,7 +36,7 @@ export function OrganizationWorkspace({ organizations }: { organizations: OwnOrg
     else router.replace("/organization");
   }
 
-  return <div className={styles.workspace}>
+  return <div className={`${styles.workspace} ${organizations.some((item) => item.role === "head_coach") ? coachStyles.coachManagement : ""}`}>
     {message && <p role="status" className={styles.message}>{message}</p>}
     <section className={styles.panel}>
       <h2>Your organisations</h2>

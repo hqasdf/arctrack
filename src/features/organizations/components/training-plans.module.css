@@ -28,3 +28,52 @@
 .athleteRows{list-style:none;padding:0;margin:0}.athleteRows li+li{border-top:1px solid var(--color-border)}.athleteRow{width:100%;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;display:grid;gap:5px;padding:14px 0;min-height:62px}.athleteRow[aria-pressed=true] strong{color:var(--color-primary)}.athleteRow span{color:var(--color-muted);font-size:.86rem}.progressTrack{height:6px;background:var(--color-border);border-radius:10px;overflow:hidden}.progressTrack span{display:block;height:100%;background:var(--color-primary)}
 .dayList{display:grid;gap:0}.dayRow{padding:14px 0;border-top:1px solid var(--color-border);display:grid;gap:5px}.dayRow strong{overflow-wrap:anywhere}.dayRow span,.dayRow p{color:var(--color-muted);margin:0}.note{white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:550px){.fields,.dayFields{grid-template-columns:minmax(0,1fr)}.hero{align-items:start}.ring{width:150px;height:150px}.empty{padding:20px}.goalWrap{gap:16px}}
+
+/* Coach-only presentation; athlete Sessions cards and plan detail stay unchanged. */
+.coachPage { gap: 24px; }
+.coachPage .hero { align-items: flex-start; gap: 20px; padding: 0 0 24px; }
+.coachPage .hero > div { min-width: 0; max-width: 100%; }
+.coachPage .hero h1 { font-size: clamp(1.9rem, 3vw, 2.6rem); line-height: 1.15; letter-spacing: -.045em; }
+.coachPage .eyebrow { font-size: .7rem; margin-top: 14px; }
+.coachPage .heroMeta { font-size: .86rem; gap: 10px 18px; line-height: 1.6; }
+.coachPage .button, .coachPage .secondary { font-size: .88rem; }
+.coachPage .section, .coachPage .empty { padding: 24px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); }
+.coachPage .section h2 { font-size: 1.14rem; line-height: 1.35; margin-bottom: 18px; }
+.coachPage .planList { padding: 0 22px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); }
+.coachPage .planLink { padding: 20px 0; gap: 9px 18px; min-height: 104px; }
+.coachPage .planLink strong { font-size: 1.12rem; line-height: 1.4; }
+.coachPage .planLink span { font-size: .85rem; line-height: 1.5; }
+.coachPage .planLink em { font-size: .85rem; }
+.coachPage .form { gap: 20px; max-width: none; }
+.coachPage .fields, .coachPage .dayFields { gap: 16px; }
+.coachPage .field { font-size: .83rem; gap: 8px; }
+.coachPage .field input, .coachPage .field textarea, .coachPage .search { font-size: .94rem; background: var(--color-control-surface); }
+.coachPage .picker { gap: 9px; }
+.coachPage .pickRow { padding: 12px; font-size: .9rem; }
+.coachPage .pickRow:has(input:checked) { background: var(--color-peach-light); color: var(--coach-selected-text); }
+.coachPage .dayEditor { padding-block: 16px; }
+.coachPage .dayEditor summary { font-size: .9rem; }
+.coachPage .goalWrap { gap: 24px; }
+.coachPage .ring { width: 152px; height: 152px; }
+.coachPage .ringText { gap: 7px; }
+.coachPage .ringText strong { font-size: clamp(1.65rem, 3vw, 2.25rem); }
+.coachPage .ringText span { font-size: .85rem; line-height: 1.5; }
+.coachPage .athleteRow { gap: 7px; padding: 16px 12px; border-radius: 10px; }
+.coachPage .athleteRow[aria-pressed="true"] { background: var(--color-peach-light); }
+.coachPage .athleteRow[aria-pressed="true"] strong { color: var(--coach-selected-text); }
+.coachPage .athleteRow span { font-size: .86rem; line-height: 1.5; }
+.coachPage .dayRow { gap: 8px; padding-block: 18px; font-size: .9rem; }
+.coachPage .note { font-size: .9rem; line-height: 1.65; }
+.coachPage .destructive { color: var(--color-danger); background: var(--color-danger-background); border-color: var(--color-danger-border); }
+.coachPage .destructive:hover:not(:disabled) { border-color: var(--color-danger-focus); }
+@media (max-width: 600px) {
+  .coachPage .hero { padding-bottom: 20px; }
+  .coachPage .section, .coachPage .empty { padding: 20px; }
+  .coachPage .planList { padding-inline: 18px; }
+  .coachPage .planLink { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .coachPage .planLink em { grid-row: 4; }
+  .coachPage .ring { width: 128px; height: 128px; }
+  .coachPage .goalWrap { gap: 20px; }
+  .coachPage .actions { width: 100%; }
+  .coachPage .actions > * { flex: 1; }
+}

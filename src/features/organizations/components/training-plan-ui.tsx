@@ -52,7 +52,7 @@ export function DayProgress({ day, today }: { day: TrainingPlanDayProgress; toda
 
 export function CoachPlanList({ organizationId, plans, today }: { organizationId: string; plans: TrainingPlanRecord[]; today: string }) {
   const base = `/organization/${organizationId}/training-plans`;
-  return <div className={styles.page}><header className={styles.hero}><div><p className={styles.eyebrow}>Head Coach · Planning</p><h1>Training Plans</h1></div><Link className={styles.button} href={`${base}/new`}>+ New Plan</Link></header>
+  return <div className={`${styles.page} ${styles.coachPage}`}><header className={styles.hero}><div><p className={styles.eyebrow}>Head Coach · Planning</p><h1>Training Plans</h1></div><Link className={styles.button} href={`${base}/new`}>+ New Plan</Link></header>
     {plans.length ? <ul className={styles.planList}>{plans.map((plan) => <li key={plan.id}><Link className={styles.planLink} href={`${base}/${plan.id}`}>
       <strong>{plan.title}</strong><em>View Plan →</em><span>{formatDateOnly(plan.startDate)} – {formatDateOnly(plan.endDate)} · {plan.weeklyArrowTarget === null ? "No weekly Arrow target" : `${plan.weeklyArrowTarget} arrows / week`} · {plan.assignedUserIds.length} athletes</span><span>{trainingPlanStatus(plan.startDate, plan.endDate, today)}</span>
     </Link></li>)}</ul> : <div className={styles.empty}><h2>No Training Plans yet</h2><p>Create a plan to set weekly Arrow goals and daily training requirements for your athletes.</p><Link className={styles.button} href={`${base}/new`}>Create Training Plan</Link></div>}
@@ -104,7 +104,7 @@ export function CoachPlanForm({ organizationId, athletes, plan, today }: {
     } catch { setError("Training Plan could not be saved. Try again."); }
     finally { pendingRef.current = false; setPending(false); }
   };
-  return <div className={styles.page}><header className={styles.hero}><div><Link className={styles.secondary} href={plan ? `/organization/${organizationId}/training-plans/${plan.id}` : `/organization/${organizationId}/training-plans`}>← Training Plans</Link><p className={styles.eyebrow}>Head Coach · Planning</p><h1>{plan ? "Edit Training Plan" : "New Training Plan"}</h1></div></header>
+  return <div className={`${styles.page} ${styles.coachPage}`}><header className={styles.hero}><div><Link className={styles.secondary} href={plan ? `/organization/${organizationId}/training-plans/${plan.id}` : `/organization/${organizationId}/training-plans`}>← Training Plans</Link><p className={styles.eyebrow}>Head Coach · Planning</p><h1>{plan ? "Edit Training Plan" : "New Training Plan"}</h1></div></header>
     <form className={styles.form} onSubmit={submit}><section className={styles.section}><h2>Plan</h2><div className={styles.fields}>
       <label className={`${styles.field} ${styles.full}`}>Plan Name<input required maxLength={120} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })}/></label>
       <label className={styles.field}>Start Date<input type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })}/></label>
@@ -150,7 +150,7 @@ export function CoachPlanDetail({ plan, athletes, today }: {
     } catch { setError("Training Plan could not be deleted. Try again."); }
     finally { setPending(false); }
   }
-  return <div className={styles.page}><header className={styles.hero}><div><Link className={styles.secondary} href={base}>← Training Plans</Link><p className={styles.eyebrow}>Head Coach · Training Plan</p><h1>{plan.title}</h1><div className={styles.heroMeta}><span>{formatDateOnly(plan.startDate)} – {formatDateOnly(plan.endDate)}</span><strong>{trainingPlanStatus(plan.startDate, plan.endDate, today)}</strong><span>{plan.assignedUserIds.length} assigned athletes</span></div></div><div className={styles.actions}><Link className={styles.secondary} href={`${base}/${plan.id}/edit`}>Edit Plan</Link><button className={styles.secondary} disabled={pending} onClick={() => void remove()}>Delete Plan</button></div></header>
+  return <div className={`${styles.page} ${styles.coachPage}`}><header className={styles.hero}><div><Link className={styles.secondary} href={base}>← Training Plans</Link><p className={styles.eyebrow}>Head Coach · Training Plan</p><h1>{plan.title}</h1><div className={styles.heroMeta}><span>{formatDateOnly(plan.startDate)} – {formatDateOnly(plan.endDate)}</span><strong>{trainingPlanStatus(plan.startDate, plan.endDate, today)}</strong><span>{plan.assignedUserIds.length} assigned athletes</span></div></div><div className={styles.actions}><Link className={styles.secondary} href={`${base}/${plan.id}/edit`}>Edit Plan</Link><button className={`${styles.secondary} ${styles.destructive}`} disabled={pending} onClick={() => void remove()}>Delete Plan</button></div></header>
     {error && <p role="alert" className={styles.error}>{error}</p>}
     <div className={styles.heroMeta}><strong>{plan.weeklyArrowTarget === null ? "No weekly Arrow target" : `${plan.weeklyArrowTarget} arrows / week`}</strong></div>
     {plan.note && <p className={styles.note}>{plan.note}</p>}

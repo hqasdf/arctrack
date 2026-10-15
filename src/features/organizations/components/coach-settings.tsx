@@ -35,6 +35,6 @@ export function CoachSettings({ organization, athletes }: { organization: OwnOrg
     <section className={styles.panel}><h2>Membership and Join Code</h2><p>Share the current code with athletes. Regenerating it invalidates the previous code.</p>
       {organization.joinCode ? <><label className={styles.codeLabel}><span>Join code</span><input readOnly value={organization.joinCode} onFocus={(event) => event.target.select()}/></label><div className={styles.codeActions}><button type="button" onClick={copy}>Copy Code</button><button type="button" disabled={pending} onClick={regenerate}>Generate New Code</button></div></> : <p>Join code is unavailable.</p>}
     </section>
-    <section className={styles.panel}><h2>Your membership</h2><p>Leaving ends your Coach access to this organisation. The organisation and athlete Sessions remain.</p><button type="button" disabled={pending} onClick={leave}>Leave organisation</button></section>
+    <section className={styles.panel}><h2>Your membership</h2><p>Leaving ends your Coach access to this organisation. The organisation and athlete Sessions remain.</p><button className={coachStyles.destructiveAction} type="button" disabled={pending} onClick={leave}>Leave organisation</button></section>
   </div>;
 }

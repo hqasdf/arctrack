@@ -44,6 +44,3 @@
 .success, .error { margin-top: 20px; padding: 14px; border-radius: var(--radius-sm); overflow-wrap: anywhere; }
 .success { background: var(--color-peach-light); }
 .error { color: var(--color-error); background: var(--color-error-background); }
-@media (min-width: 960px) {
-  .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; }
-}
