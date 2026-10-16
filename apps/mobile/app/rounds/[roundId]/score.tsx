@@ -11,6 +11,7 @@ import { deleteArrowRecord, readRoundEndIds, saveArrowRecord } from "../../../sr
 import { useAuth } from "../../../src/auth";
 import { ArcIcon } from "../../../src/icons";
 import { GroupingExportButton } from "../../../src/grouping-export";
+import { ScoringWeather } from "../../../src/session-weather";
 import { NativeTarget } from "../../../src/native-target";
 import { RoundGroupPosition, RoundInsights } from "../../../src/round-insights";
 import { canConfigureRound, type RoundSettingsInput } from "../../../src/round-update-model";
@@ -300,6 +301,8 @@ export default function ScoreRoundScreen() {
         </View>;
       })}
     </View>
+    <ScoringWeather key={round.id} session={loaded.session} round={round} arrows={arrows}/>
+
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: showInsights }}
       onPress={() => setShowInsights((value) => !value)} style={styles.insightsButton}>
       <Text style={styles.insightsButtonText}>{showInsights ? "Hide Round Insights" : "Round Insights"}</Text>

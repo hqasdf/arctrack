@@ -7,8 +7,9 @@ import { TargetFace } from "./target-face";
 import { RoundInsights } from "./session-insights";
 import { GroupingExportButton } from "./grouping-export";
 import styles from "./sessions.module.css";
+import { ScoringWeather } from "@/features/weather/components/session-weather";
 
-export function ScoringWorkspace({sessionTitle,sessionDate,round,onChange,onBack,onConfigure}:{sessionTitle:string;sessionDate:string;round:RoundDraft;onChange:(update:(round:RoundDraft)=>RoundDraft)=>void;onBack:()=>void;onConfigure:()=>void}) {
+export function ScoringWorkspace({sessionId,sessionTitle,sessionDate,round,onChange,onBack,onConfigure}:{sessionId:string;sessionTitle:string;sessionDate:string;round:RoundDraft;onChange:(update:(round:RoundDraft)=>RoundDraft)=>void;onBack:()=>void;onConfigure:()=>void}) {
   function findFirstOpen(arrows:ArrowEntry[]=round.arrows) { for (let end=1;end<=round.ends;end++) for (let arrow=1;arrow<=round.arrowsPerEnd;arrow++) if (!arrows.some((item)=>item.end===end&&item.arrow===arrow)) return {end,arrow}; return {end:round.ends,arrow:round.arrowsPerEnd}; }
   const [slot,setSlot]=useState(findFirstOpen);
   const slotRef=useRef(slot);
@@ -99,6 +100,7 @@ export function ScoringWorkspace({sessionTitle,sessionDate,round,onChange,onBack
       </div>
     </div>
     <div className={styles.roundLog}><h3>End history</h3>{endHistory.size===0?<p>No arrows yet. Tap the target to score the first arrow.</p>:<div className={styles.endHistory}>{[...endHistory].map(([end,arrows])=><div key={end} className={`${styles.endHistoryRow} ${slot.end===end||slot.end>newestEnd&&end===newestEnd?styles.endHistoryCurrent:""}`}><strong className={styles.endHistoryNumber}>END {end}</strong><strong className={styles.endHistoryTotal}>{endTotal(round.arrows,end)} pts</strong>{xCount(round.arrows.filter((item)=>item.end===end))>0&&<strong className={styles.endHistoryX}>{xCount(round.arrows.filter((item)=>item.end===end))}X</strong>}<div className={styles.endHistoryScores}>{arrows.map((item)=><button type="button" key={item.arrow} className={`${styles.endHistoryScore} ${selected?.end===item.end&&selected.arrow===item.arrow?styles.endHistoryScoreSelected:""} ${item.syncState==="failed"?styles.endHistoryScoreFailed:""}`} aria-label={`End ${item.end}, Arrow ${item.arrow}: ${item.score}${item.syncState==="failed"?", not saved; select to retry":item.syncState==="saving"?", saving":""}`} aria-pressed={selected?.end===item.end&&selected.arrow===item.arrow} title={item.syncState==="failed"?"Not saved · select to retry":item.syncState==="saving"?"Saving…":`End ${item.end} · Arrow ${item.arrow}`} onClick={()=>chooseSlot({end:item.end,arrow:item.arrow})}>{item.score==="X"?"10X":item.score}</button>)}</div></div>)}</div>}</div>
+    <ScoringWeather sessionId={sessionId} sessionDate={sessionDate} round={round} collecting={!leaving}/>
     <RoundInsights round={round}/>
   </section>;
 }

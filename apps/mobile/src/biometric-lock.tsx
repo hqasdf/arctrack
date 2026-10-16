@@ -66,6 +66,11 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
   </View></LockContext.Provider>;
 }
 
+/** Read existing privacy state without changing biometric or authentication behavior. */
+export function useBiometricPrivacyState() {
+  return useContext(LockContext)?.state ?? null;
+}
+
 export function BiometricSetting() {
   const context = useContext(LockContext);
   const [availability, setAvailability] = useState<BiometricAvailability | null>(null);

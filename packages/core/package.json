@@ -17,7 +17,9 @@
     "./training-plan": "./src/training-plan-model.ts",
     "./training-plan-input": "./src/training-plan-input.ts",
     "./round-order": "./src/round-order-model.ts",
-    "./grouping-export": "./src/grouping-export.ts"
+    "./grouping-export": "./src/grouping-export.ts",
+    "./weather": "./src/weather-model.ts",
+    "./weather-collector": "./src/weather-collector.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.mjs",

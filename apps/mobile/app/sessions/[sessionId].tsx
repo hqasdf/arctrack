@@ -6,6 +6,7 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../src/auth";
+import { SessionWeatherHistory } from "../../src/session-weather";
 import { readOwnSession } from "../../src/sessions";
 import { scoreRoundHref } from "../../src/round-navigation";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
@@ -115,6 +116,7 @@ export default function SessionDetailScreen() {
         <View style={styles.summary}><Text style={styles.score}>{roundTotal(round.arrows)} pts</Text><Text style={styles.count}>{round.arrows.length}/{expected} recorded · {round.arrows.length === expected && expected > 0 ? "Completed" : "In progress"}</Text></View>
       </Pressable><Pressable accessibilityRole="button" disabled={deleting} onPress={() => confirmDeleteRound(round.id, round.name)} style={styles.deleteAction}><Text style={styles.deleteText}>Delete Round</Text></Pressable></View>;
     })}
+    <SessionWeatherHistory key={session.id} session={session}/>
     <Pressable accessibilityRole="button" disabled={deleting} onPress={confirmDeleteSession} style={styles.deleteAction}><Text style={styles.deleteText}>Delete Session</Text></Pressable>
   </ScrollView>;
 }

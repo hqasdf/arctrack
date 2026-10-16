@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
         { key: "Referrer-Policy", value: "no-referrer" },
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
       ],
+    }, {
+      source: "/sessions",
+      headers: [{ key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" }],
     }];
   },
   async redirects() {
