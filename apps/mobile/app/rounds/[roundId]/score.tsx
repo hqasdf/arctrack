@@ -46,6 +46,8 @@ export default function ScoreRoundScreen() {
   const arrowsRef = useRef<ArrowEntry[]>([]);
   const [slot, setSlot] = useState<ArrowSlot>({ end: 1, arrow: 1 });
   const slotRef = useRef<ArrowSlot>({ end: 1, arrow: 1 });
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const editingKeyRef = useRef<string | null>(null);
   const [latestPlotKey, setLatestPlotKey] = useState<string | null>(null);
   const endIds = useRef(new Map<number, string>());
   const persistedIds = useRef(new Map<string, string>());
@@ -90,7 +92,7 @@ export default function ScoreRoundScreen() {
   useEffect(() => { void load(); }, [load]);
 
   function commitArrows(next: ArrowEntry[]) { arrowsRef.current = next; setArrows(next); }
-  function selectSlot(next: ArrowSlot) { slotRef.current = next; setSlot(next); }
+  function selectSlot(next: ArrowSlot, explicit = false) { slotRef.current = next; editingKeyRef.current = explicit ? arrowKey(next.end, next.arrow) : null; setEditingKey(editingKeyRef.current); setSlot(next); }
   function replaceEntry(key: string, change: (entry: ArrowEntry) => ArrowEntry) {
     commitArrows(arrowsRef.current.map((item) => arrowKey(item.end, item.arrow) === key ? change(item) : item));
   }
@@ -123,6 +125,8 @@ export default function ScoreRoundScreen() {
   function handlePlot(plot: Plot) {
     if (!loaded) return;
     const current = slotRef.current;
+    const key = arrowKey(current.end, current.arrow);
+    if (arrowsRef.current.some((item) => item.end === current.end && item.arrow === current.arrow) && editingKeyRef.current !== key) return;
     const result = plotCurrentArrow(loaded.round, arrowsRef.current, current, plot);
     commitArrows(result.arrows);
     selectSlot(result.slot);
@@ -211,7 +215,7 @@ export default function ScoreRoundScreen() {
   if (!loaded) return <View style={styles.state}><Text style={styles.message}>Round not found or you do not have access.</Text></View>;
 
   const round = loaded.round;
-  const selected = arrows.find((item) => item.end === slot.end && item.arrow === slot.arrow) ?? null;
+  const selected = editingKey === arrowKey(slot.end, slot.arrow) ? arrows.find((item) => item.end === slot.end && item.arrow === slot.arrow) ?? null : null;
   const previous = previousPlottedArrow(arrows, slot);
   const latest = latestScore(arrows, latestPlotKey);
   const failedCount = arrows.filter((item) => item.syncState === "failed").length;
@@ -244,10 +248,10 @@ export default function ScoreRoundScreen() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scoreRow} accessibilityLabel={`Scores in End ${slot.end}`}>
       {Array.from({ length: round.arrowsPerEnd }, (_, index) => {
         const arrow = arrows.find((item) => item.end === slot.end && item.arrow === index + 1);
-        const active = slot.arrow === index + 1;
+        const active = slot.arrow === index + 1 && (!arrow || selected !== null);
         const palette = scoreColours(arrow?.score ?? null);
         return <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Arrow ${index + 1}, ${arrow ? scoreText(arrow.score) : "empty"}${arrow?.syncState === "failed" ? ", save failed" : ""}`}
-          accessibilityState={{ selected: active }} onPress={() => selectSlot({ end: slot.end, arrow: index + 1 })}
+          accessibilityState={{ selected: active }} onPress={() => selectSlot({ end: slot.end, arrow: index + 1 }, true)}
           style={[styles.scoreSlot, { backgroundColor: palette.backgroundColor }, active && styles.scoreSlotSelected]}>
           <Text style={[styles.scoreSlotText, { color: palette.color }]}>{scoreText(arrow?.score ?? null)}</Text>
           {arrow?.syncState === "failed" ? <Text style={styles.failedMark}>!</Text> : null}
@@ -295,7 +299,7 @@ export default function ScoreRoundScreen() {
           {countX > 0 ? <Text style={styles.historyX}>{countX}X</Text> : null}
           <View style={styles.historyScores}>{endArrows.map((arrow) => <Pressable key={arrow.arrow} style={styles.historyScoreValue}
             accessibilityRole="button" accessibilityLabel={`End ${end}, Arrow ${arrow.arrow}, ${scoreText(arrow.score)}${arrow.syncState === "failed" ? ", save failed" : ""}`}
-            onPress={() => selectSlot({ end, arrow: arrow.arrow })}>
+            onPress={() => selectSlot({ end, arrow: arrow.arrow }, true)}>
             <Text style={[styles.historyScore, selected?.end === end && selected.arrow === arrow.arrow && styles.historySelected]}>{scoreText(arrow.score)}{arrow.syncState === "failed" ? "!" : ""}</Text>
           </Pressable>)}</View>
         </View>;

@@ -18,23 +18,37 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.FOREGROUND_SERVICE_LOCATION"
-      ]
+      ],
+      "package": "com.arctrack.archery"
     },
     "plugins": [
       "expo-router",
       "expo-sharing",
-      ["expo-location", {
-        "locationWhenInUsePermission": "Allow Arc Track to use approximate location for weather during outdoor scoring.",
-        "locationAlwaysPermission": false,
-        "locationAlwaysAndWhenInUsePermission": false,
-        "isIosBackgroundLocationEnabled": false,
-        "isAndroidBackgroundLocationEnabled": false,
-        "isAndroidForegroundServiceEnabled": false,
-        "isAndroidMotionActivityEnabled": false,
-        "motionUsagePermission": false
-      }],
-      ["expo-secure-store", { "faceIDPermission": "Allow Arc Track to use Face ID for optional app unlock." }],
-      ["expo-local-authentication", { "faceIDPermission": "Allow Arc Track to use Face ID for optional app unlock." }]
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Arc Track to use approximate location for weather during outdoor scoring.",
+          "locationAlwaysPermission": false,
+          "locationAlwaysAndWhenInUsePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false,
+          "isAndroidMotionActivityEnabled": false,
+          "motionUsagePermission": false
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Allow Arc Track to use Face ID for optional app unlock."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Arc Track to use Face ID for optional app unlock."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

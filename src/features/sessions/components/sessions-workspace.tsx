@@ -6,6 +6,7 @@ import { createRoundWithEnds, createSession, deleteRound, deleteSession, updateS
 import { DIVISIONS, ROUND_PRESETS, TARGET_FACE_OPTIONS, type Division, type RoundPreset } from "../round-presets";
 import { formatArrowAverage, roundTotal, type RoundDraft, type SessionDraft, type SessionType, type TargetFaceType } from "../scoring-model";
 import { RoundPresetsPanel } from "./round-presets-panel";
+import { SessionCategoryTabs } from "./session-category-tabs";
 import { ScoringWorkspace } from "./scoring-workspace";
 import styles from "./sessions.module.css";
 import { SessionWeatherHistory } from "@/features/weather/components/session-weather";
@@ -18,6 +19,7 @@ const base=ROUND_PRESETS[3];
 export function SessionsWorkspace({initialSessions,trainingPlanContent}:{initialSessions:SessionDraft[];trainingPlanContent?:ReactNode}) {
   const router=useRouter();
   const [view,setView]=useState<View>("sessions");
+  const [category,setCategory]=useState<SessionType>("training");
   const [sessions,setSessions]=useState(initialSessions);
   const [arrowCountDrafts,setArrowCountDrafts]=useState<Record<string,string>>(()=>Object.fromEntries(initialSessions.map((item)=>[item.id,String(item.arrowCount)])));
   const [activeSessionId,setActiveSessionId]=useState<string|null>(null);
@@ -115,12 +117,9 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent}:{initial
   const competitionSessions=sessions.filter((item)=>item.sessionType==="competition");
 
   if (view==="scoring"&&session&&activeRound) return <ScoringWorkspace key={activeRound.id} sessionId={session.id} sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>{setView("session");router.refresh();}} onConfigure={()=>configureRound(activeRound)}/>;
-  return <>{trainingPlanContent}<section className={styles.workspace}>
+  return <>{view!=="sessions"&&trainingPlanContent}<section className={styles.workspace}>
     {message&&<p className={styles.saveError} role="alert">{message}</p>}
-    {view==="sessions"&&<div>
-      <div className={styles.sessionHeading}><div><h2>{sessions.length?"Your saved Sessions":"Start today’s scorecard"}</h2><p>{sessions.length?"Open a Session or start another scorecard.":"Create a Session, then add as many Rounds as you need."}</p></div><button className={styles.primary} type="button" onClick={()=>setView("new-session")}>New Session</button></div>
-      {sessions.length>0&&<div className={styles.sessionSections}><SessionSection heading="Training" emptyMessage="No Training Sessions yet." sessions={trainingSessions} onOpen={openSession} onDelete={removeSession}/><SessionSection heading="Competitions" emptyMessage="No Competitions yet." sessions={competitionSessions} onOpen={openSession} onDelete={removeSession}/></div>}
-    </div>}
+    {view==="sessions"&&<SessionCategoryTabs category={category} onCategoryChange={setCategory} toolbar={<div className={styles.sessionHeading}><div><h2>{sessions.length?"Your saved Sessions":"Start today’s scorecard"}</h2><p>{sessions.length?"Open a Session or start another scorecard.":"Create a Session, then add as many Rounds as you need."}</p></div><button className={styles.primary} type="button" onClick={()=>setView("new-session")}>New Session</button></div>} training={<>{trainingPlanContent}<SessionSection heading="Training" emptyMessage="No Training Sessions yet." sessions={trainingSessions} onOpen={openSession} onDelete={removeSession}/></>} competition={<SessionSection heading="Competition" emptyMessage="No Competitions yet." sessions={competitionSessions} onOpen={openSession} onDelete={removeSession}/>}/>}
     {view==="new-session"&&<form className={styles.formCard} onSubmit={submitSession}>
       <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>setView("sessions")}>← Sessions</button><p>New Session</p></div><h2>Create a Session</h2><p className={styles.formIntro}>Choose how this Session should appear in your journal.</p>
       <fieldset className={styles.sessionTypeChoice}><legend>Session type</legend><label><input type="radio" name="session-type" value="training" checked={sessionForm.sessionType==="training"} onChange={()=>setSessionForm({...sessionForm,sessionType:"training"})}/><span>Training Session</span></label><label><input type="radio" name="session-type" value="competition" checked={sessionForm.sessionType==="competition"} onChange={()=>setSessionForm({...sessionForm,sessionType:"competition"})}/><span>Competition</span></label></fieldset>

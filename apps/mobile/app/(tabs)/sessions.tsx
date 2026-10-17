@@ -4,6 +4,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../src/auth";
+import { SessionCategoryTabs } from "../../src/session-category-tabs";
 import { readOwnSessions, type MobileSession } from "../../src/sessions";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
 import { singaporeToday } from "../../src/mobile-analytics";
@@ -57,18 +58,20 @@ export default function SessionsScreen() {
 
   return <View style={styles.page}>
     <Text style={styles.title}>Sessions</Text>
+    <SessionCategoryTabs>{category => <>
     <Pressable accessibilityRole="button" onPress={() => router.push("/sessions/new")} style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}>
       <Text style={styles.newButtonText}>+ New Session</Text>
     </Pressable>
     {loading ? <ActivityIndicator style={styles.state} color={colors.accent} accessibilityLabel="Loading Sessions" /> :
       error ? <View style={styles.state}><Text style={styles.message}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void load()} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable></View> :
-      <FlatList data={sessions} keyExtractor={(item) => item.id} contentContainerStyle={styles.list} ListHeaderComponent={planHeader}
-        ListEmptyComponent={<Text style={styles.message}>No Sessions yet.</Text>}
+      <FlatList data={sessions.filter(item => item.type === category)} keyExtractor={(item) => item.id} contentContainerStyle={styles.list} ListHeaderComponent={<View style={category === "training" ? undefined : { display: "none" }}>{planHeader}</View>}
+        ListEmptyComponent={<Text style={styles.message}>{category === "training" ? "No Training Sessions yet." : "No Competitions yet."}</Text>}
         renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.title}`} onPress={() => router.push({ pathname: "/sessions/[sessionId]", params: { sessionId: item.id } })} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
           <Text style={styles.date}>{formatDateOnly(item.date)} · {item.type === "competition" ? "Competition" : "Training"}</Text>
           <Text style={styles.name}>{item.title}</Text>
           <Text style={styles.detail}>Arrow count: {item.arrowCount}</Text>
         </Pressable>} />}
+    </>}</SessionCategoryTabs>
   </View>;
 }
 

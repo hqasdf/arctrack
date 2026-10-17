@@ -13,6 +13,8 @@ export function ScoringWorkspace({sessionId,sessionTitle,sessionDate,round,onCha
   function findFirstOpen(arrows:ArrowEntry[]=round.arrows) { for (let end=1;end<=round.ends;end++) for (let arrow=1;arrow<=round.arrowsPerEnd;arrow++) if (!arrows.some((item)=>item.end===end&&item.arrow===arrow)) return {end,arrow}; return {end:round.ends,arrow:round.arrowsPerEnd}; }
   const [slot,setSlot]=useState(findFirstOpen);
   const slotRef=useRef(slot);
+  const [editingKey,setEditingKey]=useState<string|null>(null);
+  const editingKeyRef=useRef<string|null>(null);
   const [correctionOpen,setCorrectionOpen]=useState(false);
   const [saveMessage,setSaveMessage]=useState<string|null>(null);
   const [latestPlotKey,setLatestPlotKey]=useState<string|null>(null);
@@ -38,12 +40,12 @@ export function ScoringWorkspace({sessionId,sessionTitle,sessionDate,round,onCha
     });
     return queue;
   });
-  const selected=round.arrows.find((item)=>item.end===slot.end&&item.arrow===slot.arrow)??null;
+  const selected=editingKey===arrowKey(slot.end,slot.arrow)?round.arrows.find((item)=>item.end===slot.end&&item.arrow===slot.arrow)??null:null;
   const latestScore=latestPlottedArrow(round.arrows,latestPlotKey)?.score??null;
   const endHistory=Map.groupBy([...round.arrows].sort((a,b)=>a.end-b.end||a.arrow-b.arrow),(item)=>item.end);
   const newestEnd=Math.max(0,...endHistory.keys());
 
-  function chooseSlot(next:{end:number;arrow:number}) { slotRef.current=next; setCorrectionOpen(false); setSlot(next); }
+  function chooseSlot(next:{end:number;arrow:number},explicit=false) { slotRef.current=next; editingKeyRef.current=explicit?arrowKey(next.end,next.arrow):null; setEditingKey(editingKeyRef.current); setCorrectionOpen(false); setSlot(next); }
   function selectNext(arrows:ArrowEntry[]) {
     const currentSlot=slotRef.current;
     const total=round.ends*round.arrowsPerEnd,current=(currentSlot.end-1)*round.arrowsPerEnd+(currentSlot.arrow-1);
@@ -64,9 +66,11 @@ export function ScoringWorkspace({sessionId,sessionTitle,sessionDate,round,onCha
   function handleTarget(plot:Plot) {
     const currentSlot=slotRef.current;
     const key=arrowKey(currentSlot.end,currentSlot.arrow);
+    const current=queue.desiredAt(key);
+    if (current&&editingKeyRef.current!==key) return;
+    chooseSlot(currentSlot);
     const score=scoreFromPlot(plot,round.faceType);
     setLatestPlotKey(key);
-    const current=queue.desiredAt(key);
     if (current) { queue.edit({...current,score,plot}); return; }
     const entry:ArrowEntry={id:arrowKey(currentSlot.end,currentSlot.arrow),...currentSlot,score,plot,syncState:"saving"};
     queue.edit(entry); selectNext(queue.desiredArrows());
@@ -94,12 +98,12 @@ export function ScoringWorkspace({sessionId,sessionTitle,sessionDate,round,onCha
       <div className={styles.entryPanel}>
         <div className={styles.entryHeading}><div><p className={styles.kicker}>{selected?"Selected arrow":"Ready to score"}</p><h3>End {slot.end} · Arrow {slot.arrow}</h3></div><div className={styles.latestScoreDisplay}><strong className={styles.selectedScore} aria-live="polite">{latestScore===null?"—":latestScore==="X"?"10X":latestScore}</strong><span>Latest score</span></div></div>
         {selected&&<p className={styles.entryHint}>Move its marker on the target, or correct only its recorded score.</p>}
-        <div className={styles.arrowStrip} aria-label={`Arrows in end ${slot.end}`}>{Array.from({length:round.arrowsPerEnd},(_,index)=>{const arrow=round.arrows.find((item)=>item.end===slot.end&&item.arrow===index+1);const scoreClass=arrow?styles[`score${arrow.score==="M"?"Miss":arrow.score}`]:"";return <button type="button" key={index} aria-label={`Select Arrow ${index+1}${arrow?`, score ${arrow.score}`:", empty"}${arrow?.syncState==="failed"?", save failed":""}`} aria-pressed={slot.arrow===index+1} className={`${slot.arrow===index+1?styles.arrowChipActive:styles.arrowChip} ${scoreClass}`} onClick={()=>chooseSlot({end:slot.end,arrow:index+1})}><strong>{arrow?.score==="X"?"10X":arrow?.score??"—"}</strong>{arrow?.syncState==="failed"&&<span aria-hidden="true">!</span>}</button>;})}</div>
+        <div className={styles.arrowStrip} aria-label={`Arrows in end ${slot.end}`}>{Array.from({length:round.arrowsPerEnd},(_,index)=>{const arrow=round.arrows.find((item)=>item.end===slot.end&&item.arrow===index+1);const active=slot.arrow===index+1&&(!arrow||selected!==null);const scoreClass=arrow?styles[`score${arrow.score==="M"?"Miss":arrow.score}`]:"";return <button type="button" key={index} aria-label={`Select Arrow ${index+1}${arrow?`, score ${arrow.score}`:", empty"}${arrow?.syncState==="failed"?", save failed":""}`} aria-pressed={active} className={`${active?styles.arrowChipActive:styles.arrowChip} ${scoreClass}`} onClick={()=>chooseSlot({end:slot.end,arrow:index+1},true)}><strong>{arrow?.score==="X"?"10X":arrow?.score??"—"}</strong>{arrow?.syncState==="failed"&&<span aria-hidden="true">!</span>}</button>;})}</div>
         <div className={styles.endNav}><button type="button" disabled={slot.end===1} onClick={()=>chooseSlot({end:slot.end-1,arrow:1})}>Previous</button><span>End {slot.end} of {round.ends}</span><button type="button" disabled={slot.end===round.ends} onClick={()=>chooseSlot({end:slot.end+1,arrow:1})}>Next</button></div>
         {selected&&<div className={styles.editArea}><div className={styles.editActions}><button type="button" aria-expanded={correctionOpen} onClick={()=>setCorrectionOpen((open)=>!open)}>Correct score</button><button type="button" onClick={clearPlot} disabled={!selected.plot}>Clear marker</button>{selected.syncState==="failed"&&<button type="button" className={styles.retryButton} onClick={()=>queue.retry(arrowKey(selected.end,selected.arrow))}>Retry save</button>}<button type="button" className={styles.arrowDelete} aria-label={`Delete End ${selected.end}, Arrow ${selected.arrow}`} title="Delete arrow" onClick={()=>removeArrow(selected)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg></button></div>{correctionOpen&&<div className={styles.correctionPanel} aria-label="Correct recorded score">{SCORE_LABELS.map((score)=><button key={score} type="button" aria-pressed={selected.score===score} className={`${styles.correctionOption} ${styles[`score${score==="M"?"Miss":score}`]}`} onClick={()=>correctScore(score)}>{score}</button>)}</div>}</div>}
       </div>
     </div>
-    <div className={styles.roundLog}><h3>End history</h3>{endHistory.size===0?<p>No arrows yet. Tap the target to score the first arrow.</p>:<div className={styles.endHistory}>{[...endHistory].map(([end,arrows])=><div key={end} className={`${styles.endHistoryRow} ${slot.end===end||slot.end>newestEnd&&end===newestEnd?styles.endHistoryCurrent:""}`}><strong className={styles.endHistoryNumber}>END {end}</strong><strong className={styles.endHistoryTotal}>{endTotal(round.arrows,end)} pts</strong>{xCount(round.arrows.filter((item)=>item.end===end))>0&&<strong className={styles.endHistoryX}>{xCount(round.arrows.filter((item)=>item.end===end))}X</strong>}<div className={styles.endHistoryScores}>{arrows.map((item)=><button type="button" key={item.arrow} className={`${styles.endHistoryScore} ${selected?.end===item.end&&selected.arrow===item.arrow?styles.endHistoryScoreSelected:""} ${item.syncState==="failed"?styles.endHistoryScoreFailed:""}`} aria-label={`End ${item.end}, Arrow ${item.arrow}: ${item.score}${item.syncState==="failed"?", not saved; select to retry":item.syncState==="saving"?", saving":""}`} aria-pressed={selected?.end===item.end&&selected.arrow===item.arrow} title={item.syncState==="failed"?"Not saved · select to retry":item.syncState==="saving"?"Saving…":`End ${item.end} · Arrow ${item.arrow}`} onClick={()=>chooseSlot({end:item.end,arrow:item.arrow})}>{item.score==="X"?"10X":item.score}</button>)}</div></div>)}</div>}</div>
+    <div className={styles.roundLog}><h3>End history</h3>{endHistory.size===0?<p>No arrows yet. Tap the target to score the first arrow.</p>:<div className={styles.endHistory}>{[...endHistory].map(([end,arrows])=><div key={end} className={`${styles.endHistoryRow} ${slot.end===end||slot.end>newestEnd&&end===newestEnd?styles.endHistoryCurrent:""}`}><strong className={styles.endHistoryNumber}>END {end}</strong><strong className={styles.endHistoryTotal}>{endTotal(round.arrows,end)} pts</strong>{xCount(round.arrows.filter((item)=>item.end===end))>0&&<strong className={styles.endHistoryX}>{xCount(round.arrows.filter((item)=>item.end===end))}X</strong>}<div className={styles.endHistoryScores}>{arrows.map((item)=><button type="button" key={item.arrow} className={`${styles.endHistoryScore} ${selected?.end===item.end&&selected.arrow===item.arrow?styles.endHistoryScoreSelected:""} ${item.syncState==="failed"?styles.endHistoryScoreFailed:""}`} aria-label={`End ${item.end}, Arrow ${item.arrow}: ${item.score}${item.syncState==="failed"?", not saved; select to retry":item.syncState==="saving"?", saving":""}`} aria-pressed={selected?.end===item.end&&selected.arrow===item.arrow} title={item.syncState==="failed"?"Not saved · select to retry":item.syncState==="saving"?"Saving…":`End ${item.end} · Arrow ${item.arrow}`} onClick={()=>chooseSlot({end:item.end,arrow:item.arrow},true)}>{item.score==="X"?"10X":item.score}</button>)}</div></div>)}</div>}</div>
     <ScoringWeather sessionId={sessionId} sessionDate={sessionDate} round={round} collecting={!leaving}/>
     <RoundInsights round={round}/>
   </section>;

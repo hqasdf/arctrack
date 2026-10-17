@@ -8,6 +8,7 @@ import { EXPORT_TOP_PADDING, mobileExportPreviewWidth, renderMobileGroupingExpor
 
 const round = (arrows = [], ends = 6, faceType = "full_face") => ({ id: "qa-export", name: "A long Round name with readable wrapping", division: "Recurve", distanceMetres: 70, faceDiameterCm: 122, faceType, ends, arrowsPerEnd: 6, arrows });
 const arrow = (end, number, score = "9") => ({ id: `${end}-${number}`, end, arrow: number, score, plot: { x: number * .02, y: -.02, faceIndex: (number - 1) % 3 } });
+const reportText = svg => [...svg.matchAll(/<text[^>]*>(.*?)<\/text>/g)].map(match => match[1]).join(" ");
 
 test("mobile preview has safe-area support, 100px padding, scrolling and a static single PNG source", async () => {
   const source = await readFile(new URL("../src/grouping-export.tsx", import.meta.url), "utf8");
@@ -37,10 +38,10 @@ test("mobile report exposes every existing grouping and Round summary result wit
   assert.equal(values["Round status"], "Completed Round");
   assert.equal(values["Recorded Arrows"], "36/36");
   assert.equal(report.total, 325);
-  assert.match(rendered.svg, />325 · 1X</);
+  assert.match(rendered.svg, />325</); assert.match(rendered.svg, />1X</);
   assert.equal(report.ends.length, 6);
   assert.equal(report.ends.flatMap((end) => end.arrows).length, 36);
-  assert.match(rendered.svg, /y="116"[^>]*>ARC TRACK/);
+  assert.match(rendered.svg, />ARC TRACK</);
   assert.doesNotMatch(rendered.svg, /Save \/ Share|undefined|NaN|onResponder/);
 });
 
@@ -57,7 +58,7 @@ test("partial, empty and long reports retain X/M, every End/Arrow, correct total
   const long = renderMobileGroupingExport(createGroupingExport(round(Array.from({ length: 120 }, (_, i) => arrow(Math.floor(i / 6) + 1, i % 6 + 1)), 20)));
   assert.ok(long.height > rendered.height);
   assert.match(long.svg, />END 20</);
-  assert.match(long.svg, />1080 · 0X</);
+  assert.match(long.svg, />1080</); assert.match(long.svg, />0X</);
   assert.ok(long.height > Math.max(...[...long.svg.matchAll(/<text[^>]* y="(\d+)"/g)].map((match) => +match[1])));
 });
 
@@ -104,9 +105,9 @@ test("full reader hierarchy and current Arrow state retain identical web/Expo ex
     }
     for (const entry of end.arrows) assert.ok(mobileSvg.includes(entry.label));
   }
-  assert.match(mobileSvg, /10X · 10 · 9 · 8 · 10 · M/);
-  assert.match(mobileSvg, /9 · 9 · 8/);
-  assert.match(mobileSvg, />83 · 2X</);
+  assert.match(reportText(mobileSvg), /10X · 10 · 9 · 8 · 10 · M/);
+  assert.match(reportText(mobileSvg), /9 · 9 · 8/);
+  assert.match(mobileSvg, />83</); assert.match(mobileSvg, />2X</);
   assert.match(webSvg, />83</); assert.match(webSvg, />2X</);
 });
 
@@ -115,15 +116,16 @@ test("3/6/12-End report bounds grow with content and total stays below every End
     Array.from({ length: ends * 6 }, (_, i) => arrow(Math.floor(i / 6) + 1, i % 6 + 1)), ends))));
   for (const report of reports) {
     const { layout } = report;
-    assert.equal(layout.targetWidth, 291);
+    assert.equal(layout.targetWidth, 318);
     assert.equal(layout.targetHeight, layout.targetWidth);
-    assert.equal(layout.statsTop, layout.targetTop + layout.targetHeight + 24);
+    assert.ok(layout.legendTop > layout.targetTop + layout.targetHeight);
+    assert.ok(layout.statsTop > layout.legendTop);
     assert.ok(layout.endsTop > layout.statsTop);
     assert.ok(layout.endPositions.every((position, i, list) => position < report.height && (i === 0 || position > list[i - 1])));
     assert.ok(layout.totalTop > layout.endPositions.at(-1));
     const textPositions = [...report.svg.matchAll(/<text[^>]* y="(\d+)"/g)].map((match) => +match[1]);
-    assert.ok(textPositions.every((position) => position >= 100 && position < report.height));
-    assert.equal(report.height - Math.max(...textPositions), 40, "bottom padding is small and fixed, not a giant blank canvas");
+    assert.ok(textPositions.every((position) => position >= 35 && position < report.height));
+    assert.equal(report.height - Math.max(...textPositions), 43, "bottom padding stays fixed");
     assert.match(report.svg, new RegExp(`viewBox="0 0 ${report.width} ${report.height}"`));
     for (const screen of [320, 360, 390, 430]) {
       const previewWidth = mobileExportPreviewWidth(screen);
@@ -140,4 +142,25 @@ test("native preview mounts exactly one SVG root and captures that root, without
   assert.match(source, /<SvgXml xml={svg} override={{ ref: image, width: previewWidth, height: height \* previewWidth \/ width/);
   assert.match(source, /viewBox: `0 0 \$\{width\} \$\{height\}`/);
   assert.match(source, /preserveAspectRatio: "xMidYMid meet"/);
+});
+
+test("Expo inherits shared target geometry, main-group crosshairs, secondary dots and separate legend", () => {
+  for (const face of ["full_face", "six_ring", "triple_face"]) {
+    const report = createGroupingExport(round([arrow(1, 1), arrow(1, 2), arrow(1, 3)], 6, face));
+    const web = renderGroupingExport(report), mobile = renderMobileGroupingExport(report);
+    const sharedNative = renderGroupingExport(report, { width: 390 });
+    const crosshairs = web.svg.match(/<g data-average-impact=[\s\S]*?<\/g>/g);
+    assert.equal(crosshairs.length, face === "triple_face" ? 3 : 1);
+    for (const marker of sharedNative.svg.match(/<g data-average-impact=[\s\S]*?<\/g>/g)) assert.ok(mobile.svg.includes(marker));
+    const mainMarkers = sharedNative.svg.match(/<g data-main-group-centre=[\s\S]*?<\/g>/g);
+    for (const marker of mainMarkers) assert.ok(mobile.svg.includes(marker));
+    const centres = svg => [...svg.matchAll(/data-average-impact="\d+"[^>]*><circle cx="([^"]+)" cy="([^"]+)"/g)].map(match => match.slice(1));
+    assert.deepEqual(centres(web.svg), centres(mobile.svg));
+    assert.doesNotMatch(mobile.svg, /data-target-centre=|data-group-centre=/);
+    assert.match(mobile.svg, />Main Group Centre<\/text>/);
+    assert.match(mobile.svg, />All-Arrow Average<\/text>/);
+    assert.equal(mobile.width, 390);
+    assert.match(mobile.svg, />Main Group Area<\/text>/);
+    assert.equal(mobile.layout.targetWidth, 318);
+  }
 });
