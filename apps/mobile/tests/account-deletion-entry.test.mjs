@@ -16,6 +16,7 @@ function profile(openURL) {
     "../../src/profile": { EMPTY_PROFILE: {}, DIVISIONS: [], EXPERIENCE_LEVELS: [], SHOOTING_HANDS: [] },
     "../../src/biometric-lock": { BiometricSetting: "BiometricSetting" },
     "../../src/password-field": { PasswordField: "PasswordField" },
+    "../../src/privacy-policy-link": { PrivacyPolicyLink: "PrivacyPolicyLink" },
     "../../src/theme": { colors: {}, PAGE_TOP_SPACING: 0 },
   };
   const source = readFileSync(new URL("../app/(tabs)/profile.tsx", import.meta.url), "utf8");

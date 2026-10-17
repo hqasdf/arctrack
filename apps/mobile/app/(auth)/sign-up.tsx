@@ -7,6 +7,7 @@ import { SIGNUP_STORAGE_KEY, parseSignupContext, safeAuthMessage, serializeSignu
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
 import { OtpInput } from "../../src/otp-input";
 import { PasswordField } from "../../src/password-field";
+import { PrivacyPolicyLink } from "../../src/privacy-policy-link";
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState("");
@@ -84,6 +85,7 @@ export default function SignUpScreen() {
     {configError ? <Text style={styles.error}>{configError}</Text> : null}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     <Pressable accessibilityRole="button" onPress={() => router.replace("/(auth)/sign-in")} style={styles.back}><Text style={styles.link}>Back to sign in</Text></Pressable>
+    <PrivacyPolicyLink />
   </ScrollView>;
 }
 function Action({ label, busy, onPress, secondary }: { label: string; busy: boolean; onPress: () => void; secondary?: boolean }) {

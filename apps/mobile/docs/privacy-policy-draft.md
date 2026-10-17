@@ -1,30 +1,51 @@
-# Arc Track privacy policy — draft for review, not published
+# Arc Track privacy policy publication review
 
-**Effective date:** [Set before publication]  
-**Operator and contact:** [Legal operator name and monitored privacy email or contact URL required]
+The canonical policy is now the public web page at src/app/privacy/page.tsx.
+This file records implementation evidence and publication checks; it is not a second policy.
 
-Arc Track helps archers record training and competition Sessions, score Rounds and Arrows, review performance, use a local Arrow Counter, and participate in organisations. An account is required for saved Sessions.
+Intended URL: https://archery-website.vercel.app/privacy
+Last reviewed: 17 October 2026.
 
-## Information used
+## Confirm before publication
 
-- **Account:** email address and authentication/session information managed by Supabase Auth. Arc Track does not store a separate password in its application tables.
-- **Profile:** optional display name, club or team, division, shooting hand, and experience level.
-- **Archery records:** Session title, date, type and manually entered Arrow count; Round format; End and Arrow scores; X status; and normalized target-plot positions and triple-face index. The app derives totals, trends, grouping and other insights from these records.
-- **Organisations:** membership, role, join/leave status and timing, and organisation join codes. A current Head Coach can view the profile display name and saved archery records of active Archer members of a shared organisation. Other Archers cannot use that access to read one another's records. A former or inactive membership does not grant ongoing coach access under the current model.
-- **On-device counter:** total, selected increment and Undo history are stored locally on the device with AsyncStorage, not in an Arc Track server table. Removing the app or its data may remove that counter state.
+- Replace the explicit operator-name and monitored privacy-contact placeholders on the page.
+- Confirm backup, Auth log, Vercel log and abuse-prevention retention periods and legal exceptions.
+- Confirm configured processing regions, subprocessors/email delivery arrangements, intended audience/age distribution and actual provider dashboard monitoring settings.
+- Reconcile the Google Play Data safety answers with the signed Android build, especially foreground approximate location, account information, user content, organisation sharing and provider processing. A public Privacy Policy does not replace any separately required in-app prominent disclosure/permission consent.
+- Do not submit the placeholder page as a finished Play policy. Google requires an actual privacy contact, retention/deletion disclosure and a publicly accessible, non-geofenced HTML URL.
 
-Arc Track uses these details to sign users in, save and display their records, calculate performance views, and support organisation and Head Coach features. Supabase provides authentication and backend data storage. The mobile app sends account and saved-record requests to the configured Supabase project. App distribution through Apple or Google may involve separate platform processing under their terms.
+## Verified application flows
 
-## Visibility and retention
+- Email/password and verification/recovery go through Supabase Auth. Optional profile fields are display name, club/team, division, shooting hand and experience.
+- Saved Sessions, Round formats, End/Arrow scores, X state, raw normalized coordinates and triple-face indices support scoring and derived Analytics/Insights.
+- Active Head Coaches can read active Archer members' saved history, including Sessions predating membership. Normal Archers do not receive peer access. Leaving removes access based on that membership.
+- Plans persist titles/notes, dates, assignments and dated targets/coach notes. Shared plans can survive account deletion with creator/assigner references cleared.
+- Weather requests one foreground location fix in eligible active scoring. Coordinates are rounded to two decimals before the trusted Arc Track API; the API sends coarse coordinates to Open-Meteo. The weather save RPC stores conditions and timestamps, not coordinates. Provider logs can still process request information.
+- Mobile Auth uses SecureStore-backed session storage; signup/recovery context and Counter state use AsyncStorage. Optional biometric unlock uses the OS result, not biometric templates.
+- Grouping exports are local downloads/cache files and user-directed sharing. No immediate cache cleanup is implemented; do not promise that exported files disappear after sharing or account deletion.
+- No advertising/tracking or third-party product-analytics/crash SDK was found in current app dependencies/source. Hosting/Auth/provider operational logging is separate and must not be described as nonexistent.
+- Profile > Delete Account opens the existing web resource. The server checks current Auth identity, password and exact DELETE confirmation before deleting that identity through the server-only Admin API. Owned scoring/weather/profile records cascade; shared organisations/plans remain. No production deletion was executed for this policy task.
 
-An authenticated user can access their own saved records. Current Head Coaches have read-only access to active Archer members' saved Sessions and scoring data through the organisation access rules. They cannot change another athlete's scores. Organisation membership and role are used to determine that access.
+## Relevant code
 
-Saved records remain until the account or records are deleted under the application's available controls and backend rules. [Confirm retention, backups, operational logs and any legal retention requirements with the operator before publication.] The local Arrow Counter remains on the device until reset or app data is removed.
+- src/proxy.ts and src/app/(platform)/layout.tsx: public privacy route stays outside protected-route matching/layout.
+- src/features/profile/account-deletion-actions.ts and supabase migrations: account deletion and cascade behaviour.
+- src/features/weather/location.client.ts, apps/mobile/src/weather-location.ts, src/features/weather/provider.server.ts and service.server.ts: weather flow.
+- apps/mobile/src/secure-auth-storage.ts, auth-flow.ts, counter-model.ts and biometrics.ts: local data.
+- apps/mobile/src/privacy-policy-link.tsx: one canonical external Privacy Policy URL, linked from Sign in, Sign up and Profile.
 
-## Account deletion and privacy contact
+## Deployment verification (not executed by this implementation)
 
-**This section is pending runtime validation, server configuration and deployment. Do not publish as a live capability yet.** Web and Expo Profile → Delete Account open the same web resource, where the user verifies their current password and types `DELETE`. The trusted server removes the Auth account and its owned profile, Sessions, Rounds, Ends, Arrows, memberships and athlete assignments. Shared organisations and Training Plans remain with creator/assigner references cleared; an organisation may remain without a Head Coach. Local Counter data on other devices is not remotely erased. [Insert the reviewed contact method for privacy requests and verified backup/log-retention details.]
+Deploy the reviewed web application to the existing Vercel project using the normal approved release process. No database migration, new environment variable or EAS configuration change is needed for these links.
 
-## Changes
+After deployment, request /privacy without cookies or an Authorization header from outside the developer machine. Confirm HTTPS, status 200, HTML content, no authentication or Vercel Deployment Protection challenge and no country/network restriction. Check mobile and desktop, all in-app links, and the existing account-deletion flow. Test another network/region if worldwide accessibility is required; localhost cannot prove that property.
 
-Update this policy when Arc Track adds or changes data collection, coach access, processors, or deletion behavior. [Insert the operator's publication/change-notice process.]
+Build/release the updated Expo application through the existing process so store testers receive the new links. The public web page must be deployed before the new app link can work in production.
+
+Enter https://archery-website.vercel.app/privacy in the Google Play Privacy Policy field only after the content and external accessibility checks pass. The account-deletion URL is a separate Play field.
+
+## Primary references
+
+- https://support.google.com/googleplay/android-developer/answer/10144311?hl=en
+- https://support.google.com/googleplay/android-developer/answer/13327111?hl=en
+- https://open-meteo.com/en/terms

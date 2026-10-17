@@ -7,6 +7,7 @@ import { changeMobilePassword, DIVISIONS, EMPTY_PROFILE, EXPERIENCE_LEVELS, read
 import { BiometricSetting } from "../../src/biometric-lock";
 import { PasswordField } from "../../src/password-field";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PrivacyPolicyLink } from "../../src/privacy-policy-link";
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -82,6 +83,7 @@ export default function ProfileScreen() {
     <Pressable accessibilityRole="link" disabled={busy} onPress={() => {
       void Linking.openURL("https://archery-website.vercel.app/delete-account").catch(() => setError("The account deletion page could not be opened. Please try again."));
     }}><Text style={styles.link}>Delete Account</Text></Pressable>
+    <PrivacyPolicyLink />
   </ScrollView>;
 }
 

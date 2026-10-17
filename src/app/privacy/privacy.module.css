@@ -1,0 +1,19 @@
+.page{width:min(100%,920px);margin:0 auto;padding:36px clamp(18px,5vw,48px) 48px;overflow-wrap:anywhere}
+.header{padding-bottom:28px;border-bottom:1px solid var(--color-border)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;font-weight:700;letter-spacing:.08em;color:var(--color-primary);margin-bottom:28px}
+.eyebrow{font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--color-muted)}
+.header h1{font-size:clamp(2rem,7vw,3rem);line-height:1.15;margin:10px 0 14px}
+.updated{color:var(--color-muted);font-size:.88rem;margin-bottom:18px}
+.pending{background:var(--color-peach-light);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:18px 20px;margin:24px 0;font-size:.9rem}
+.pending p{margin-top:6px}
+.contents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px;padding:0 0 24px;border-bottom:1px solid var(--color-border)}
+.page a:not(.brand){text-decoration:underline;text-underline-offset:4px}
+.contents a,.footer a{min-height:44px;display:flex;align-items:center;font-size:.9rem}
+.section{margin-top:32px;scroll-margin-top:24px}
+.section h2{font-size:clamp(1.2rem,4.5vw,1.5rem);line-height:1.35;margin-bottom:16px}
+.section p{margin:12px 0}
+.section ul{padding-left:22px;margin:12px 0}
+.section li{margin:12px 0;padding-left:3px}
+.placeholder{background:var(--color-peach-light);padding:2px 4px;border-radius:3px}
+.footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin-top:40px;padding-top:20px;border-top:1px solid var(--color-border)}
+@media(max-width:480px){.contents{grid-template-columns:minmax(0,1fr)}.pending{padding:16px}.brand{margin-bottom:20px}}

@@ -54,7 +54,7 @@ export function AuthPanel({
         ) : (
           <AuthForm mode={mode} configured={configured} />
         )}
-        <div className={styles.links}>{children}</div>
+        <div className={styles.links}>{children}<Link href="/privacy" prefetch={false}>Privacy Policy</Link></div>
       </section>
       <p className={styles.footnote}>Recurve & compound</p>
     </main>

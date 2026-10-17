@@ -1,0 +1,7 @@
+.information{margin-top:24px}
+.information h3{font-size:1rem;line-height:1.4;margin:24px 0 10px}
+.information p{margin:12px 0;font-size:.9rem}
+.information ol,.information ul{padding-left:22px;font-size:.9rem}
+.information li{margin:10px 0}
+.pending{padding:12px;background:var(--color-peach-light);border:1px solid var(--color-border);border-radius:var(--radius-sm);overflow-wrap:anywhere}
+.policyLink{display:inline-flex;align-items:center;min-height:44px;text-decoration:underline;text-underline-offset:4px}

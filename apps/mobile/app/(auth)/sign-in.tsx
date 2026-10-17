@@ -5,6 +5,7 @@ import { useAuth } from "../../src/auth";
 import { safeAuthMessage } from "../../src/auth-flow";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
 import { PasswordField } from "../../src/password-field";
+import { PrivacyPolicyLink } from "../../src/privacy-policy-link";
 
 export default function SignInScreen() {
   const { configError, signIn } = useAuth();
@@ -39,6 +40,7 @@ export default function SignInScreen() {
     </Pressable>
     <Pressable accessibilityRole="button" onPress={() => router.push("/(auth)/sign-up")} style={styles.linkButton}><Text style={styles.link}>Create account</Text></Pressable>
     <Pressable accessibilityRole="button" onPress={() => router.push("/recover")} style={styles.linkButton}><Text style={styles.link}>Forgot password?</Text></Pressable>
+    <PrivacyPolicyLink />
   </View></View>;
 }
 
