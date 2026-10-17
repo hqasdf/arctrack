@@ -59,7 +59,7 @@ function groupingExportTarget(report: GroupingExport, targetWidth: number, targe
       const extent = Math.min(10, Math.max(6, ...arrows.map((arrow) => Math.hypot(arrow.x - centreX, arrow.y - centreY) * 100)));
       include(x, y, extent + 2);
       indicators.push((scale) => {
-        const arm = (targetWidth < 500 ? 8 : 10) / scale, gap = 3.5 / scale, radius = 3 / scale;
+        const arm = (targetWidth < 500 ? 11 : 14) / scale, gap = 3.5 / scale, radius = 3 / scale;
         const crosshair = `M ${x - arm} ${y} H ${x - gap} M ${x + gap} ${y} H ${x + arm} M ${x} ${y - arm} V ${y - gap} M ${x} ${y + gap} V ${y + arm}`;
         return `<g data-main-group-centre="${index}" pointer-events="none" fill="none"><path d="${crosshair}" stroke="#ffffff" stroke-width="${2.5 / scale}"/><path d="${crosshair}" stroke="#306b60" stroke-width="${1.2 / scale}"/><circle cx="${x}" cy="${y}" r="${radius}" stroke="#ffffff" stroke-width="${2.5 / scale}"/><circle cx="${x}" cy="${y}" r="${radius}" stroke="#306b60" stroke-width="${1.2 / scale}"/></g>`;
       });

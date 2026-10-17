@@ -78,7 +78,7 @@ test("export main-group crosshairs and all-Arrow average dots preserve hulls, co
         const plotted = report.grouping.arrows.filter(arrow => faceType !== "triple_face" || arrow.faceIndex === index);
         const { centreX, centreY } = report.mainGroup.metrics;
         const cx = centreX * 100, yy = cy + centreY * 100;
-        const extent = 10 / scale, gap = 3.5 / scale;
+        const extent = 14 / scale, gap = 3.5 / scale;
         assert.ok(svg.includes(`data-main-group-centre="${index}" pointer-events="none" fill="none"><path d="M ${cx - extent} ${yy} H ${cx - gap} M ${cx + gap} ${yy} H ${cx + extent} M ${cx} ${yy - extent} V ${yy - gap} M ${cx} ${yy + gap} V ${yy + extent}"`));
         assert.ok(svg.includes(`<circle cx="${cx}" cy="${yy}" r="${3 / scale}"`));
         const meanX = plotted.reduce((sum, arrow) => sum + arrow.x, 0) / plotted.length * 100;
@@ -130,7 +130,7 @@ test("asymmetric groups average all displayed Arrows including flyers, not the r
   assert.doesNotMatch(averageMarker, /<path|<line/);
   const mainMarker = svg.match(/<g data-main-group-centre="0"[\s\S]*?<\/g>/)[0];
   const scale = Number(svg.match(/data-target-plot="true" transform="translate\([^)]+\) scale\(([^)]+)\)"/)[1]);
-  assert.ok(mainMarker.includes(`M ${-10 / scale} 0 H ${-3.5 / scale}`));
+  assert.ok(mainMarker.includes(`M ${-14 / scale} 0 H ${-3.5 / scale}`));
   assert.ok(Math.abs(report.mainGroup.metrics.centreX - .1) > .05);
   assert.ok(Math.abs(report.mainGroup.metrics.centreY + .05) > .02);
   assert.deepEqual(report, before);
@@ -172,7 +172,8 @@ test("report separates the legend from the target, preserves Session context and
     assert.doesNotMatch(plot, /<text/);
     const path = svg.match(/data-main-group-centre="0"[^>]*><path d="([^"]+)"/)[1];
     const values = path.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g).map(Number);
-    assert.ok(Math.abs(values[5] - values[0]) <= 20.000001);
+    const scale = Number(svg.match(/data-target-plot="true" transform="translate\([^)]+\) scale\(([^)]+)\)"/)[1]);
+    assert.ok(Math.abs((values[5] - values[0]) * scale - (width === 390 ? 22 : 28)) < 1e-8);
     assert.equal((svg.match(/<svg\b/g) ?? []).length, 1);
   }
 });
@@ -231,7 +232,7 @@ test("partial and completed Rounds retain visible centre/spread with compact pix
       const marker = svg.match(/<g data-main-group-centre="\d+"[^>]*>([\s\S]*?)<\/g>/)[1];
       const coordinates = marker.match(/<path d="([^"]+)"/)[1].match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g).map(Number);
       const pixelWidth = (coordinates[5] - coordinates[0]) * scale;
-      assert.ok(Math.abs(pixelWidth - (width === 390 ? 16 : 20)) < 1e-8);
+      assert.ok(Math.abs(pixelWidth - (width === 390 ? 22 : 28)) < 1e-8);
       const markerCircle = marker.match(/<circle cx="([^"]+)" cy="([^"]+)" r="([^"]+)"/).slice(1).map(Number);
       assert.equal(markerCircle[0], report.mainGroup.metrics.centreX * 100);
       assert.equal(markerCircle[1], report.mainGroup.metrics.centreY * 100);
