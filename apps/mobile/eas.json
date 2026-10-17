@@ -1,4 +1,8 @@
+
 {
+  "cli": {
+    "appVersionSource": "remote"
+  },
   "build": {
     "development": {
       "environment": "development",
@@ -9,7 +13,8 @@
       "distribution": "internal"
     },
     "production": {
-      "environment": "production"
+      "environment": "production",
+      "autoIncrement": true
     }
   }
 }
