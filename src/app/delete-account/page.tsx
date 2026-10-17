@@ -41,7 +41,7 @@ export default async function DeleteAccountPage() {
 
       <h3>Contact for deletion requests</h3>
       <p>If you cannot access your account, or need help requesting deletion of account-related information, contact Arc Track support. Ownership must be verified before a request can be fulfilled. Do not send your password or verification codes.</p>
-      <p className={pageStyles.pending}>[Monitored account-deletion support email or contact URL — to be confirmed before publication.]</p>
+      <p>For support and account-deletion requests, email <a href="mailto:wonghanqian123456@gmail.com">wonghanqian123456@gmail.com</a>.</p>
 
       <h3>Data removed when deletion succeeds</h3>
       <ul>
@@ -59,7 +59,7 @@ export default async function DeleteAccountPage() {
 
       <h3>When deletion happens</h3>
       <p>The existing self-service flow processes deletion during the confirmed request; it has no scheduled waiting period. It reports success only after the account-deletion operation succeeds. Other signed-in devices lose account access when their account or session is checked again.</p>
-      <p>A response time for support-assisted requests has not yet been confirmed. Contact details and retention information must be completed before this page is published as a finished store resource.</p>
+      <p>A response time for support-assisted requests has not yet been confirmed. Retention information must be completed before this page is published as a finished store resource.</p>
       <Link href="/privacy" prefetch={false} className={pageStyles.policyLink}>Arc Track Privacy Policy</Link>
     </section>
   </main>;

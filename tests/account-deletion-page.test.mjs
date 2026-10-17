@@ -30,12 +30,13 @@ test("signed-out deletion page exposes instructions and retention details withou
   assert.match(html, /Without installing or opening the app/);
   assert.match(html, /current password/);
   assert.match(html, /Permanently delete my account/);
-  assert.match(html, /Monitored account-deletion support email or contact URL/);
+  assert.match(html, /<a href="mailto:wonghanqian123456@gmail\.com">wonghanqian123456@gmail\.com<\/a>/);
+  assert.doesNotMatch(html, /Monitored account-deletion support email or contact URL|Contact details and retention information/);
   assert.match(html, /Shared organisations, Training Plans and plan days remain/);
   assert.match(html, /retention reasons and periods/);
   assert.match(html, /no scheduled waiting period/);
   assert.match(html, /href="\/privacy"/);
-  assert.doesNotMatch(html, /mailto:|@example\./);
+  assert.doesNotMatch(html, /@example\./);
   assert.equal(metadata.alternates.canonical, "https://archery-website.vercel.app/delete-account");
   assert.doesNotMatch(source, /requireUser\(|redirect\(|createAdminClient\(|deleteUser\(/);
 });

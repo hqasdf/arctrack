@@ -22,20 +22,19 @@ export default function PrivacyPage() {
 
     <aside className={styles.pending} aria-label="Publication details awaiting confirmation">
       <strong>Publication details awaiting confirmation</strong>
-      <p>The operator name, genuine privacy contact and backup/log retention details below must be confirmed before this policy is published for a store submission.</p>
+      <p>The backup/log retention details below must be confirmed before this policy is published for a store submission.</p>
     </aside>
 
     <nav className={styles.contents} aria-label="Privacy Policy sections">
-      <a href="#contact">Operator &amp; contact</a><a href="#information">Information we use</a>
+      <a href="#contact">Privacy contact</a><a href="#information">Information we use</a>
       <a href="#sharing">Organisations &amp; sharing</a><a href="#weather">Weather &amp; location</a>
       <a href="#device">On your device</a><a href="#providers">Service providers &amp; security</a>
       <a href="#retention">Retention &amp; deletion</a><a href="#controls">Your controls &amp; requests</a>
     </nav>
 
     <section id="contact" className={styles.section}>
-      <h2>1. Operator and privacy contact</h2>
-      <p><strong>Operator:</strong> <span className={styles.placeholder}>[Operator name — to be confirmed]</span></p>
-      <p><strong>Privacy contact:</strong> <span className={styles.placeholder}>[Monitored privacy email or contact URL — to be confirmed]</span></p>
+      <h2>1. Privacy contact</h2>
+      <p><strong>Privacy contact:</strong> <a href="mailto:wonghanqian123456@gmail.com">wonghanqian123456@gmail.com</a></p>
       <p>Use the privacy contact for questions about this policy, access or correction requests, deletion concerns and other privacy requests. Arc Track is the application covered by this policy; provider links below are not substitutes for the Arc Track privacy contact.</p>
     </section>
 

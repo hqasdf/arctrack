@@ -28,8 +28,10 @@ test("Privacy Policy renders as public HTML without auth, cookies, user data or 
   assert.match(html, /Supabase/);
   assert.match(html, /Vercel/);
   assert.match(html, /href="\/delete-account"/);
-  assert.match(html, /Operator name — to be confirmed/);
-  assert.match(html, /Monitored privacy email or contact URL — to be confirmed/);
+  assert.match(html, /<h2>1\. Privacy contact<\/h2>/);
+  assert.doesNotMatch(html, /Operator name|Operator:|Operator &amp; contact/);
+  assert.match(html, /<a href="mailto:wonghanqian123456@gmail\.com">wonghanqian123456@gmail\.com<\/a>/);
+  assert.doesNotMatch(html, /Monitored privacy email or contact URL|genuine privacy contact and/);
   assert.doesNotMatch(source, /readIdentity\(|requireUser\(|cookies\(|fetch\(|redirect\(/);
   assert.equal(pageExports.metadata.alternates.canonical, "https://archery-website.vercel.app/privacy");
   assert.equal(pageExports.metadata.robots.index, true);
