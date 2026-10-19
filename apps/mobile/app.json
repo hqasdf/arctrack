@@ -33,6 +33,8 @@
         }
       ],
       "./plugins/with-optimized-android-release.cjs",
+      "./plugins/with-android-adaptive-orientation.cjs",
+      "./plugins/with-android-material-components.cjs",
       "expo-router",
       "expo-sharing",
       [

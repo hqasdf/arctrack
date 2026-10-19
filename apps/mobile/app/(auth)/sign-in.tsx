@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/auth";
 import { safeAuthMessage } from "../../src/auth-flow";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
@@ -9,6 +10,8 @@ import { PrivacyPolicyLink } from "../../src/privacy-policy-link";
 
 export default function SignInScreen() {
   const { configError, signIn } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -27,7 +30,13 @@ export default function SignInScreen() {
     }
   }
 
-  return <View style={styles.page}><View style={styles.panel}>
+  return <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[styles.content, {
+      paddingTop: Math.max(height < 600 ? 24 : 24 + PAGE_TOP_SPACING, insets.top + 16),
+      paddingBottom: Math.max(24, insets.bottom + 12),
+      paddingLeft: Math.max(24, insets.left + 16),
+      paddingRight: Math.max(24, insets.right + 16),
+    }]}><View style={styles.panel}>
     <Text style={styles.brand}>ARC TRACK</Text>
     <Text style={styles.title}>Welcome back</Text>
     <Text style={styles.subtitle}>Sign in to view your Sessions.</Text>
@@ -41,11 +50,12 @@ export default function SignInScreen() {
     <Pressable accessibilityRole="button" onPress={() => router.push("/(auth)/sign-up")} style={styles.linkButton}><Text style={styles.link}>Create account</Text></Pressable>
     <Pressable accessibilityRole="button" onPress={() => router.push("/recover")} style={styles.linkButton}><Text style={styles.link}>Forgot password?</Text></Pressable>
     <PrivacyPolicyLink />
-  </View></View>;
+  </View></ScrollView></KeyboardAvoidingView>;
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, justifyContent: "center", padding: 24, paddingTop: 24 + PAGE_TOP_SPACING, backgroundColor: colors.background },
+  page: { flex: 1, backgroundColor: colors.background },
+  content: { flexGrow: 1, justifyContent: "center" },
   panel: { width: "100%", maxWidth: 440, alignSelf: "center", gap: 14 },
   brand: { color: colors.accent, fontSize: 13, fontWeight: "800", letterSpacing: 3 },
   title: { color: colors.text, fontSize: 31, fontWeight: "700" },

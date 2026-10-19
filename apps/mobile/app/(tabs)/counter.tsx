@@ -1,7 +1,8 @@
 ﻿import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   addArrows, COUNTER_STORAGE_KEY, DEFAULT_COUNTER, readCounter,
   resetCounter, setIncrement, undoLastAddition, type CounterState,
@@ -10,6 +11,12 @@ import { colors, PAGE_TOP_SPACING } from "../../src/theme";
 import { COUNTER_TOTAL_COLUMN_FLEX, COUNTER_WHEEL_COLUMN_FLEX, COUNTER_WHEEL_ROW_HEIGHT, COUNTER_WHEEL_VISIBLE_ROWS, COUNTER_WHEEL_WINDOW, counterWheelRangeStart, counterWheelValueFromOffset, shouldRecenterCounterWheel, shouldTickCounterWheel } from "../../src/counter-wheel-model";
 
 export default function CounterScreen() {
+  const window = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const compact = (viewportHeight || window.height) < 560;
+  const padding = compact ? 12 : 18;
   const [counter, setCounter] = useState<CounterState>(DEFAULT_COUNTER);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -52,7 +59,16 @@ export default function CounterScreen() {
     ]);
   }
 
-  return <View style={styles.page}>
+  return <ScrollView style={styles.page}
+    onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+    onContentSizeChange={(_, height) => setContentHeight(height)}
+    scrollEnabled={viewportHeight > 0 && contentHeight > viewportHeight + 1}
+    nestedScrollEnabled
+    contentContainerStyle={[styles.content, compact && styles.compactContent, {
+      minHeight: viewportHeight,
+      paddingTop: Math.max(compact ? 12 : 18 + PAGE_TOP_SPACING, insets.top + padding),
+      paddingLeft: padding + insets.left, paddingRight: padding + insets.right,
+    }]}>
     <View style={styles.toolbar}>
       <Text style={styles.heading}>Arrow Counter</Text>
       <View style={styles.actions}>
@@ -76,14 +92,16 @@ export default function CounterScreen() {
     </View>
     {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
     <Pressable accessibilityRole="button" accessibilityLabel={`Add ${counter.increment} Arrows`} disabled={!ready}
-      onPress={() => apply(addArrows)} style={({ pressed }) => [styles.clicker, pressed && styles.pressed]}>
-      <Text style={styles.arrow}>↑</Text><Text style={styles.addText}>+{counter.increment}</Text>
+      onPress={() => apply(addArrows)} style={({ pressed }) => [styles.clicker, compact && styles.compactClicker, pressed && styles.pressed]}>
+      <Text style={[styles.arrow, compact && styles.compactArrow]}>↑</Text><Text style={styles.addText}>+{counter.increment}</Text>
     </Pressable>
-  </View>;
+  </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.background, padding: 18, paddingTop: 18 + PAGE_TOP_SPACING, gap: 10 },
+  page: { flex: 1, backgroundColor: colors.background },
+  content: { flexGrow: 1, padding: 18, gap: 10 },
+  compactContent: { padding: 12, gap: 8 },
   toolbar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   heading: { color: colors.text, fontSize: 17, fontWeight: "700", flexShrink: 1 },
   actions: { flexDirection: "row", gap: 5 },
@@ -106,6 +124,8 @@ const styles = StyleSheet.create({
   wheelSelection: { position: "absolute", top: 16 + COUNTER_WHEEL_ROW_HEIGHT * 2, width: "96%", height: COUNTER_WHEEL_ROW_HEIGHT, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.accent, borderRadius: 8 },
   error: { color: colors.error, fontSize: 12, textAlign: "center" },
   clicker: { flex: 1, minHeight: 160, borderRadius: 20, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  compactClicker: { minHeight: 88 },
+  compactArrow: { fontSize: 40 },
   pressed: { opacity: .8 },
   arrow: { color: "#fff", fontSize: 58, fontWeight: "700" },
   addText: { color: "#fff", fontSize: 22, fontWeight: "800" },

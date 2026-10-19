@@ -7,6 +7,7 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { deleteArrowRecord, readRoundEndIds, saveArrowRecord } from "../../../src/arrow-writes";
 import { useAuth } from "../../../src/auth";
 import { ArcIcon } from "../../../src/icons";
@@ -313,6 +314,8 @@ export default function ScoreRoundScreen() {
     </Pressable>
     {showInsights ? <RoundInsights round={{ ...round, arrows }} showGroupPosition={false} /> : null}
     <Modal visible={showConfigure} animationType="slide" onRequestClose={() => setShowConfigure(false)}>
+      <SafeAreaProvider style={styles.configurePage}>
+      <SafeAreaView style={styles.configurePage} edges={["top", "right", "bottom", "left"]}>
       <ScrollView style={styles.configurePage} contentContainerStyle={styles.configureContent} keyboardShouldPersistTaps="handled">
         <View style={styles.configureTitleRow}><Text style={styles.configureTitle}>Configure Round</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Close Round settings" onPress={() => setShowConfigure(false)} style={styles.closeButton}><Text style={styles.closeText}>Close</Text></Pressable>
@@ -339,6 +342,8 @@ export default function ScoreRoundScreen() {
           </Pressable>
         </> : null}
       </ScrollView>
+      </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   </ScrollView>;
 }
@@ -398,7 +403,7 @@ const styles = StyleSheet.create({
   historySelected: { color: colors.accent, textDecorationLine: "underline", fontWeight: "800" },
   state: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
   configurePage: { flex: 1, backgroundColor: colors.background },
-  configureContent: { padding: 24, paddingTop: 56 + PAGE_TOP_SPACING, paddingBottom: 40, gap: 12 },
+  configureContent: { padding: 24, paddingBottom: 24, gap: 12 },
   configureTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   configureTitle: { color: colors.text, fontSize: 25, fontWeight: "800" },
   closeButton: { minWidth: 56, minHeight: 44, alignItems: "center", justifyContent: "center" },
