@@ -32,7 +32,7 @@ function SignInPasskeyAction({ disabled, onError }: {
   return <BiometricSignInAction available={!disabled} busy={busy} onPress={async () => {
     if (disabled || pending.current) return;
     pending.current = true; setBusy(true);
-    // This remains unreachable until the separate activation/configuration review.
+    // Only an explicit button press starts native authentication.
     try {
       const { signInWithPasskey } = await import("./runtime");
       await signInWithPasskey();

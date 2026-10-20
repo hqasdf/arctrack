@@ -157,9 +157,9 @@ test("LIMITATION: existing legacy migration fallback also needs a future durable
 
 test("cold and recreated coordinators cannot adopt or perform storage/native side effects", async () => {
   const s = store(), before = structuredClone([...s.secureValues]);
-  const attempt = coordinator(); await assert.rejects(attempt.prepared.authenticate(), /not been enabled/);
+  const attempt = coordinator(); await assert.rejects(attempt.prepared.authenticate(), /session adoption has not been implemented/);
   attempt.prepared.invalidate(); attempt.prepared.dispose();
-  const fresh = coordinator(); await assert.rejects(fresh.prepared.authenticate(), /not been enabled/);
+  const fresh = coordinator(); await assert.rejects(fresh.prepared.authenticate(), /session adoption has not been implemented/);
   assert.equal(attempt.factories + fresh.factories, 0);
   assert.deepEqual([...s.secureValues], before); assert.deepEqual(s.operations, []);
 });

@@ -2,8 +2,14 @@
 
 20 October 2026. The owner-supplied Play signing certificate is now populated in
 the templates and in the website's `public/.well-known/assetlinks.json`.
-The association is prepared locally; deployment requires separate approval.
-The app's feature gates remain disabled. No live Supabase settings were changed.
+The association is now live: a read-only check returned HTTP 200, JSON, no redirect,
+and the exact approved package/certificate. Supabase's public settings returned
+`passkeys_enabled: true`. The saved RP/origins are not exposed there; authenticated
+management access was unavailable, so those fields remain owner-reported.
+The three app gates are locally enabled for controlled Android testing and the RP
+constant is `archery-website.vercel.app`. No live settings were changed by this task.
+See [controlled Android testing](./controlled-android-testing.md) for the current
+build/signing procedure. Earlier debug-build evidence below remains historical.
 
 ## Verified values and missing approval
 
@@ -11,11 +17,11 @@ The app's feature gates remain disabled. No live Supabase settings were changed.
 - Existing Android identity: `com.arctrack.archery`.
 - Existing EAS project: `dfd3b325-3579-49b1-bd3b-6e8c762993eb`.
 - Display-name candidate: `Arc Track`, matching the existing app.
-- The live public Auth settings report `passkeys_enabled: false`.
-- Existing website's `/.well-known/assetlinks.json` returns HTTP 404.
-- Owner-proposed RP ID: `archery-website.vercel.app`. Keep it stable after enrollment;
-  changing the RP invalidates credentials registered against it. Applying this
-  proposed value to Supabase remains a separate approval step.
+- The live public Auth settings report `passkeys_enabled: true`.
+- Existing website's `/.well-known/assetlinks.json` returns HTTP 200.
+- Owner-confirmed RP ID: `archery-website.vercel.app`. Keep it stable after enrollment;
+  changing the RP invalidates credentials registered against it. Its saved live
+  value remains owner-reported because management access was unavailable.
 - Owner-confirmed current Play App Signing SHA-256:
   `71:44:97:2B:C6:BE:FA:06:B2:DD:90:BF:C1:58:6D:1E:1A:B4:9A:6B:AD:03:E3:D9:D0:FA:30:D3:A2:BC:A7:BF`.
   This is supplied Play Console evidence, not an independently retrieved certificate.
@@ -27,27 +33,29 @@ The app's feature gates remain disabled. No live Supabase settings were changed.
 
 ## Exact configuration to complete after owner review
 
-1. Review the proposed RP `archery-website.vercel.app` and HTTPS origin
-   `https://archery-website.vercel.app` before applying live configuration.
+1. Confirm the owner-reported RP `archery-website.vercel.app` and HTTPS origin
+   `https://archery-website.vercel.app` in the existing dashboard before phone QA.
 2. The supplied colon-hex fingerprint decodes to exactly 32 bytes. Independently
    encoding those bytes with Node Buffer and .NET Convert yields the same unpadded
    base64url digest: `cUSXK8a--gay3ZC_wVhtHhq0mmutA-PZ0Pow06K8p78`.
    Proposed Android origin:
    `android:apk-key-hash:cUSXK8a--gay3ZC_wVhtHhq0mmutA-PZ0Pow06K8p78`.
    This encodes the digest bytes directly; do not hash the fingerprint text again.
-3. After separate deployment approval, publish the prepared static file at
-   `https://archery-website.vercel.app/.well-known/assetlinks.json`. Verify HTTP 200,
-   `Content-Type: application/json`, exact JSON, no login, redirect or HTML fallback.
+3. The owner has published the prepared static file at
+   `https://archery-website.vercel.app/.well-known/assetlinks.json`. HTTP 200,
+   `Content-Type: application/json`, exact JSON, no login, redirect or HTML fallback
+   were verified read-only during local activation.
    Local auth proxy matchers do not include this path; no routing change is needed.
    Do not add the local debug build's certificate without separate approval.
 4. Inspect the existing Supabase Auth configuration through the dashboard/management
-   API. Review the filled `supabase-auth-config.json.template`. The template deliberately
-   says `passkey_enabled: false`. Activation requires a separately approved change
-   to true with exact RP ID/display name/origins. HTTPS origins must match/be under
-   the RP; Android origins bind the package's signing certificate.
-5. Only after approved configuration and device security validation, review all
-   four constants in `src/passkeys/feature.ts`. They remain false/empty today.
-   Do not bypass them via an environment-variable or alternate app identity.
+   API. The public settings already confirm enablement. The retained configuration
+   template deliberately says `passkey_enabled: false` as a non-activation proposal;
+   do not submit it over the owner's configured live settings. Confirm the saved
+   RP/display name/origins rather than changing them during this task.
+5. The owner authorized local activation: all three readiness booleans in
+   `src/passkeys/feature.ts` are true and the RP constant matches the supplied host.
+   Screen controls remain Android-only (API 28+) and require explicit gestures.
+   Physical-device validation and a separately approved Play release are pending.
 
 Supabase reference: https://supabase.com/docs/guides/auth/passkeys
 Android reference: https://developer.android.com/identity/passkeys/credential-manager

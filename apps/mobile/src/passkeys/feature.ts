@@ -1,10 +1,9 @@
-// Code gates, not environment-variable switches. Production configuration,
-// device validation and safe persistent session adoption require separate review.
-export const PASSKEY_FEATURE_ENABLED: boolean = false;
-export const PASSKEY_REGISTRATION_READY: boolean = false;
-export const PASSKEY_SESSION_ADOPTION_READY: boolean = false;
-// Intentionally unset: an RP domain has not been approved.
-export const PASSKEY_RELYING_PARTY_ID: string = "";
+// Locally activated for controlled Android testing. Publishing this source and
+// Play-signed physical-device validation remain separate release steps.
+export const PASSKEY_FEATURE_ENABLED: boolean = true;
+export const PASSKEY_REGISTRATION_READY: boolean = true;
+export const PASSKEY_SESSION_ADOPTION_READY: boolean = true;
+export const PASSKEY_RELYING_PARTY_ID: string = "archery-website.vercel.app";
 
 export function canShowBiometricSignIn(): boolean {
   return PASSKEY_FEATURE_ENABLED && PASSKEY_SESSION_ADOPTION_READY && !!PASSKEY_RELYING_PARTY_ID;

@@ -26,15 +26,15 @@ function load(file, mocks = {}) {
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 const outcome = promise => promise.then(value => ({ value }), error => ({ error }));
 
-test("all readiness gates are off, no RP was chosen, and the real app's project is not substituted", () => {
+test("controlled Android testing enables the reviewed gates and exact approved RP without substituting the project", () => {
   const feature = load("src/passkeys/feature.ts");
-  assert.equal(feature.PASSKEY_FEATURE_ENABLED, false);
-  assert.equal(feature.PASSKEY_REGISTRATION_READY, false);
-  assert.equal(feature.PASSKEY_SESSION_ADOPTION_READY, false);
-  assert.equal(feature.PASSKEY_RELYING_PARTY_ID, "");
-  assert.equal(feature.canShowBiometricSignIn(), false);
-  assert.equal(feature.canShowBiometricSignInSetting(), false);
-  assert.throws(feature.assertPasskeysAllowed, /not available/);
+  assert.equal(feature.PASSKEY_FEATURE_ENABLED, true);
+  assert.equal(feature.PASSKEY_REGISTRATION_READY, true);
+  assert.equal(feature.PASSKEY_SESSION_ADOPTION_READY, true);
+  assert.equal(feature.PASSKEY_RELYING_PARTY_ID, "archery-website.vercel.app");
+  assert.equal(feature.canShowBiometricSignIn(), true);
+  assert.equal(feature.canShowBiometricSignInSetting(), true);
+  assert.doesNotThrow(feature.assertPasskeysAllowed);
   for (const file of ["feature.ts", "provider.ts", "runtime.ts", "service.ts"]) {
     assert.doesNotMatch(read(`src/passkeys/${file}`), /passkeydev|ARC_TRACK_DEV|arcTrackDevelopment|productionHost/);
   }
@@ -59,13 +59,14 @@ test("coordinator is idle and cannot adopt even if called directly", async () =>
   const r = coordinatorRuntime();
   r.coordinator.setForeground(false); r.coordinator.setForeground(true);
   assert.equal(r.creations, 0);
-  await assert.rejects(r.coordinator.authenticate(), /not been enabled/);
+  await assert.rejects(r.coordinator.authenticate(), /session adoption has not been implemented/);
   assert.equal(r.creations, 0);
 });
 
 test("main-app provider cannot create native/server clients while disabled", async () => {
   let creations = 0, ownerReads = 0;
   const factory = load("src/passkeys/provider.ts", {
+    "./feature": { assertPasskeysAllowed() { throw Error("not available"); } },
     "./native-adapter": { createNativePasskeyAdapter() { creations++; throw Error("Unexpected native adapter"); } },
     "./service": { createPreparedPasskeyService() { creations++; throw Error("Unexpected server client"); } },
     "./coordinator": load("src/passkeys/coordinator.ts"),
@@ -76,7 +77,7 @@ test("main-app provider cannot create native/server clients while disabled", asy
   });
   assert.equal(creations, 0); assert.equal(ownerReads, 0);
   await assert.rejects(provider.register(), /not available/);
-  await assert.rejects(provider.authenticate(), /not been enabled/);
+  await assert.rejects(provider.authenticate(), /session adoption has not been implemented/);
   assert.equal(creations, 0); assert.equal(ownerReads, 0);
 });
 
@@ -109,6 +110,7 @@ test("unavailable or signed-out management rejects before service creation", asy
 
 test("both prepared controls remain hidden even if callers claim availability", () => {
   const ui = load("src/passkeys/prepared-ui.tsx", {
+    "./feature": { canShowBiometricSignIn: () => false, canShowBiometricSignInSetting: () => false },
     "react-native": { Pressable: "Pressable", Text: "Text", View: "View" },
     "../auth-ui": { AuthAction: () => { throw Error("Must not render"); }, authStyles: {} },
     "../theme": { colors: {} },
@@ -121,6 +123,7 @@ test("both prepared controls remain hidden even if callers claim availability", 
 test("actual screen boundaries mount no hooks, focus work, native probe or requests while gated", () => {
   const forbidden = () => { throw Error("Disabled UI must be idle"); };
   const controls = load("src/passkeys/screen-controls.tsx", {
+    "./feature": { canShowBiometricSignIn: () => false, canShowBiometricSignInSetting: () => false },
     "../auth-native-prompt": { nativeAuthPrompt: { active: false } },
     react: { useCallback: forbidden, useRef: forbidden, useState: forbidden },
     "expo-router": { useFocusEffect: forbidden },
@@ -132,6 +135,72 @@ test("actual screen boundaries mount no hooks, focus work, native probe or reque
   assert.match(read("app/(auth)/sign-in.tsx"), /<SignInBiometricControl disabled=\{busy \|\| !!configError\} onError=\{setError\}/);
   assert.match(read("app/(tabs)/profile.tsx"), /<ProfileBiometricControl userId=\{user\?\.id \?\? null\}/);
 });
+
+test("activated controls are Android-only, remain idle on render, and keep registration opt-in", () => {
+  const forbidden = () => { throw Error("Rendering must not start authentication"); };
+  const platform = { OS: "android", Version: 36 };
+  const controls = load("src/passkeys/screen-controls.tsx", {
+    "../auth-native-prompt": { nativeAuthPrompt: { active: false } },
+    react: { useCallback: forbidden, useRef: forbidden, useState: forbidden },
+    "expo-router": { useFocusEffect: forbidden },
+    "react-native": { Platform: platform }, "../auth-ui": {}, "../theme": {}, "./prepared-ui": {},
+  });
+  assert.ok(controls.SignInBiometricControl({ disabled: false, onError: forbidden }));
+  assert.ok(controls.ProfileBiometricControl({ userId: "athlete-a" }));
+  assert.equal(controls.ProfileBiometricControl({ userId: null }), null);
+  platform.OS = "ios";
+  assert.equal(controls.SignInBiometricControl({ disabled: false, onError: forbidden }), null);
+  assert.equal(controls.ProfileBiometricControl({ userId: "athlete-a" }), null);
+  platform.OS = "android"; platform.Version = 27;
+  assert.equal(controls.SignInBiometricControl({ disabled: false, onError: forbidden }), null);
+});
+
+test("activated labels are available with password fallback and registration only invokes its explicit action", async () => {
+  let calls = 0;
+  const ui = load("src/passkeys/prepared-ui.tsx", {
+    "react-native": { Pressable: "Pressable", Text: "Text", View: "View" },
+    "../auth-ui": { AuthAction: "AuthAction", authStyles: {} }, "../theme": { colors: {} },
+  });
+  const onPress = async () => { calls++; };
+  const action = ui.BiometricSignInAction({ available: true, onPress });
+  assert.equal(action.props.label, "Sign in with Biometrics");
+  const setting = ui.BiometricSignInSetting({ available: true, onEnable: onPress, onRemove: onPress });
+  const enable = setting.props.children.find(child => child.type === "Pressable");
+  assert.equal(enable.props.accessibilityLabel, "Enable Biometric Sign-In");
+  assert.equal(calls, 0);
+  action.props.onPress(); assert.equal(calls, 1);
+  enable.props.onPress(); assert.equal(calls, 2);
+  assert.match(read("app/(auth)/sign-in.tsx"), /signIn\(/);
+});
+
+for (const stale of [false, true]) {
+  test(`activated sign-in passes its verified candidate through the existing authority lease${stale ? " and rejects late acceptance" : ""}`, async () => {
+    const calls = [], candidate = { user: { id: "athlete-a" }, access_token: "synthetic", refresh_token: "synthetic" };
+    let current = true, acceptCandidate, began = 0;
+    const attempt = { isCurrent: () => current, owns: () => false,
+      async accept(session) { if (!current) throw Error("abandoned"); calls.push(["accept", session]); },
+      async abandon() { calls.push(["abandon"]); } };
+    const runtime = load("src/passkeys/runtime.ts", {
+      "../supabase": { mobileAuthentication: { async beginPasskey() { began++; return attempt; } } },
+      "./lifecycle": {}, "./provider": {}, "./credential-state": {}, "./credential-storage": {},
+      "./native-adapter": { createNativePasskeyAdapter: () => ({}) },
+      "./service": { createPreparedPasskeyService(input) {
+        assert.equal(input.environment.relyingPartyId, "archery-website.vercel.app");
+        assert.equal(input.isCurrent, attempt.isCurrent);
+        assert.equal(input.ownsAdoptedSession, attempt.owns);
+        acceptCandidate = input.adoptVerifiedSession;
+        return { async authenticate() { await acceptCandidate(candidate); return { userId: candidate.user.id }; },
+          dispose() { calls.push(["dispose"]); } };
+      } },
+    });
+    assert.equal(began, 0);
+    if (stale) current = false;
+    if (stale) await assert.rejects(runtime.signInWithPasskey(), /abandoned/);
+    else assert.deepEqual(await runtime.signInWithPasskey(), { userId: "athlete-a" });
+    assert.equal(began, 1);
+    assert.deepEqual(calls, stale ? [["dispose"], ["abandon"]] : [["accept", candidate], ["dispose"], ["abandon"]]);
+  });
+}
 
 test("logout invalidates management synchronously before waiting for the existing SDK", async () => {
   const user = { id: "athlete-a" }, app = providerRuntime({ restoredUser: user });

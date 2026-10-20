@@ -5,7 +5,7 @@ import ts from "typescript";
 import * as jsx from "react/jsx-runtime";
 
 // Exercise the real gated Profile UI with synthetic service results only.
-// Gates are mocked ready in this harness; production source gates remain false.
+// Synthetic service results; no native prompts or live authentication requests.
 function runtime({ restoredId = null } = {}) {
   const slots = [], effects = [], alerts = [], removals = [], registrations = [];
   let cursor = 0, focus, cleanup, generation = 0, controller, onAppState;

@@ -139,7 +139,7 @@ export function createPreparedPasskeyService(dependencies: PreparedPasskeyDepend
   }
   return {
     async authenticate(): Promise<{ userId: string }> {
-      // Production creation still requires disabled feature/configuration gates.
+      // Authentication requires the reviewed feature/configuration gates.
       // Without a reviewed owner-aware adopter there is no persistence fallback.
       if (!dependencies.adoptVerifiedSession || !dependencies.ownsAdoptedSession) return fail("adoption_disabled");
       return verifyAuthentication(true);
