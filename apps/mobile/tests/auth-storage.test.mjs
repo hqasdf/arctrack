@@ -266,38 +266,40 @@ test("native wrapper uses SecureStore directly without biometric options or plai
   assert.equal(legacy.calls.some(([op]) => op === "set"), false);
 });
 
-test("mobile client keeps its persistence flags and foreground refresh behavior", () => {
+test("mobile client wires durable storage and preserves foreground refresh behavior", () => {
   let config, onChange;
-  const storage = {};
-  let starts = 0, stops = 0;
-  evaluateMobileSource("supabase.ts", {
-    "react-native-url-polyfill/auto": {},
-    "./secure-auth-storage": { secureAuthStorage: storage },
-    "@supabase/supabase-js": { createClient: (_url, _key, options) => {
-      config = options;
-      return { auth: { startAutoRefresh: () => starts++, stopAutoRefresh: () => stops++ } };
-    } },
-    "react-native": { AppState: { addEventListener: (event, callback) => { assert.equal(event, "change"); onChange = callback; } } },
-  });
-  // Source uses real process.env; exercise configured initialization separately.
-  if (!config) {
-    const previousUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const previousKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    try {
-      process.env.EXPO_PUBLIC_SUPABASE_URL = "https://dummy.example.invalid";
-      process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_dummy";
-      evaluateMobileSource("supabase.ts", {
-        "react-native-url-polyfill/auto": {},
-        "./secure-auth-storage": { secureAuthStorage: storage },
-        "@supabase/supabase-js": { createClient: (_url, _key, options) => { config = options; return { auth: { startAutoRefresh: () => starts++, stopAutoRefresh: () => stops++ } }; } },
-        "react-native": { AppState: { addEventListener: (_event, callback) => { onChange = callback; } } },
-      });
-    } finally {
-      if (previousUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL; else process.env.EXPO_PUBLIC_SUPABASE_URL = previousUrl;
-      if (previousKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY; else process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = previousKey;
-    }
+  const storage = {}, records = {};
+  let starts = 0, stops = 0, abandons = 0;
+  const prompt = { active: false };
+  const previousUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const previousKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  try {
+    process.env.EXPO_PUBLIC_SUPABASE_URL = "https://dummy.example.invalid";
+    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_dummy";
+    evaluateMobileSource("supabase.ts", {
+      "react-native-url-polyfill/auto": {},
+      "@react-native-async-storage/async-storage": {},
+      "./auth-flow": {},
+      "./auth-native-prompt": { nativeAuthPrompt: prompt },
+      "./secure-auth-storage": { secureAuthStorage: storage, secureAuthorityStorage: records },
+      "./session-client": { createMobileSessionClient: (_url, _key, options) => {
+        config = options;
+        return { client: { auth: { startAutoRefresh: () => starts++, stopAutoRefresh: () => stops++ } },
+          authentication: { abandonPasskey: async () => { abandons++; } }, authority: {} };
+      } },
+      "react-native": { AppState: { addEventListener: (event, callback) => { assert.equal(event, "change"); onChange = callback; } } },
+    });
+  } finally {
+    if (previousUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL; else process.env.EXPO_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY; else process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = previousKey;
   }
-  assert.deepEqual(config.auth, { storage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false });
+  assert.equal(config.records, records);
+  assert.equal(config.legacy, storage);
   onChange("active"); onChange("background"); onChange("active");
   assert.equal(starts, 2); assert.equal(stops, 1);
+  assert.equal(abandons, 1);
+  prompt.active = true; onChange("background"); onChange("active");
+  assert.equal(abandons, 1); // Native prompt does not cancel its own sign-in.
+  prompt.active = false; onChange("background");
+  assert.equal(abandons, 2); // Ordinary backgrounding still abandons it.
 });

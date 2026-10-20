@@ -4,10 +4,10 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fro
 import { useAuth } from "../../src/auth";
 import { safeAuthMessage } from "../../src/auth-flow";
 import { changeMobilePassword, DIVISIONS, EMPTY_PROFILE, EXPERIENCE_LEVELS, readMobileProfile, saveMobileProfile, SHOOTING_HANDS, type MobileProfile } from "../../src/profile";
-import { BiometricSetting } from "../../src/biometric-lock";
 import { PasswordField } from "../../src/password-field";
 import { colors, PAGE_TOP_SPACING } from "../../src/theme";
 import { PrivacyPolicyLink } from "../../src/privacy-policy-link";
+import { ProfileBiometricControl } from "../../src/passkeys/screen-controls";
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -71,13 +71,13 @@ export default function ProfileScreen() {
       <Text style={styles.detail}>Experience: {profile.experience_level || "Not specified"}</Text>
       <Pressable accessibilityRole="button" onPress={() => setEditing(true)}><Text style={styles.link}>Edit profile</Text></Pressable>
     </>}
-    <BiometricSetting />
     <Pressable accessibilityRole="button" onPress={() => setChangingPassword(!changingPassword)}><Text style={styles.link}>Change password</Text></Pressable>
     {changingPassword ? <>
       <PasswordField accessibilityLabel="New password" placeholder="New password" autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
       <PasswordField accessibilityLabel="Confirm new password" placeholder="Confirm new password" autoCapitalize="none" value={confirmPassword} onChangeText={setConfirmPassword} style={styles.input} />
       <Pressable accessibilityRole="button" disabled={busy} onPress={() => void updatePassword()} style={styles.button}><Text style={styles.buttonText}>Update password</Text></Pressable>
     </> : null}
+    <ProfileBiometricControl userId={user?.id ?? null} />
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Pressable accessibilityRole="button" onPress={submit} disabled={busy} style={styles.button}><Text style={styles.buttonText}>{busy ? "Signing out…" : "Sign out"}</Text></Pressable>
     <Pressable accessibilityRole="link" disabled={busy} onPress={() => {

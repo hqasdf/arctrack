@@ -5,6 +5,7 @@ import { renderToString } from "react-dom/server";
 import ts from "typescript";
 import * as flow from "../../src/auth-flow.ts";
 import * as state from "../../src/auth-state.ts";
+import * as passkeyLifecycle from "../../src/passkeys/lifecycle.ts";
 
 const require = createRequire(import.meta.url);
 const mobileRoot = new URL("../../", import.meta.url);
@@ -33,13 +34,26 @@ function loadTs(relative, dependencies) {
 
 // Test the real provider with in-memory hooks and mocked native I/O. No account,
 // network or production data is involved; route transitions use Expo's real router below.
-export function providerRuntime({ storedRecovery = null, restoredUser = null, removeItem } = {}) {
+export function providerRuntime({ storedRecovery = null, restoredUser = null, removeItem, secureValues = new Map(), deleteSecureItem, acceptedMode } = {}) {
   const slots = [];
   let cursor = 0;
   let effects = [];
   let listener;
   let getUserCalls = 0;
   const storage = new Map(storedRecovery ? [[flow.RECOVERY_STORAGE_KEY, storedRecovery]] : []);
+  const secureDeletes = [];
+  let accepted = restoredUser ? { user: restoredUser } : null, retiring = false, acceptedEpoch = 0;
+  let mode = acceptedMode ?? (flow.recoveryBlocksApp(restoredUser, flow.parseRecoveryContext(storedRecovery)) ? "recovery" : "normal");
+  const authorityListeners = new Set();
+  const notifyAuthority = () => { for (const callback of authorityListeners) callback(); };
+  const sessionAuthority = {
+    snapshot: () => ({ accepted: accepted ? { epoch: acceptedEpoch, accountId: accepted.user.id, mode, session: accepted } : null,
+      ready: true, retiring, error: null }),
+    allowsUser: user => !!user && !retiring && accepted?.user.id === user.id,
+    allowsSession: session => !!session && !retiring && accepted?.user.id === session.user.id &&
+      (!accepted.access_token || accepted.access_token === session.access_token),
+    subscribe(callback) { authorityListeners.add(callback); return () => authorityListeners.delete(callback); },
+  };
   const same = (a, b) => a && b && a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
   const hooks = {
     ...React,
@@ -70,7 +84,22 @@ export function providerRuntime({ storedRecovery = null, restoredUser = null, re
     onAuthStateChange(callback) { listener = callback; return { data: { listener: undefined, subscription: { unsubscribe() {} } } }; },
     async getUser() { getUserCalls++; return { data: { user: restoredUser }, error: null }; },
     async signInWithPassword() { throw new Error("Provide a test sign-in result"); },
-    async signOut() { listener("SIGNED_OUT", null); return { error: null }; },
+    async signOut() { accepted = null; listener("SIGNED_OUT", null); return { error: null }; },
+  };
+  const mobileAuthentication = {
+    async signInWithPassword(...args) {
+      const result = await auth.signInWithPassword(...args);
+      if (result.data?.session && !result.error) {
+        accepted = result.data.session; acceptedEpoch++; mode = "normal"; notifyAuthority();
+      }
+      return result;
+    },
+    async signOut() {
+      retiring = true; accepted = null; notifyAuthority();
+      const result = await auth.signOut();
+      retiring = false; notifyAuthority();
+      if (result.error) throw result.error;
+    },
   };
   const { AuthProvider } = loadTs("src/auth.tsx", {
     react: hooks,
@@ -79,9 +108,15 @@ export function providerRuntime({ storedRecovery = null, restoredUser = null, re
       setItem: async (key, value) => { storage.set(key, value); },
       removeItem: async (key) => { if (removeItem) await removeItem(key); storage.delete(key); },
     },
-    "./supabase": { configError: null, supabase: { auth } },
+    "./supabase": { configError: null, supabase: { auth }, mobileAuthentication, sessionAuthority },
+    "expo-secure-store": { deleteItemAsync: async key => {
+      secureDeletes.push(key);
+      if (deleteSecureItem) await deleteSecureItem(key);
+      secureValues.delete(key);
+    } },
     "./auth-flow": flow,
     "./auth-state": state,
+    "./passkeys/lifecycle": passkeyLifecycle,
   });
   function render() {
     cursor = 0;
@@ -93,8 +128,17 @@ export function providerRuntime({ storedRecovery = null, restoredUser = null, re
   }
   render();
   return {
-    auth, storage, render,
-    emit: (event, session) => listener(event, session),
+    auth, storage, render, secureDeletes, secureValues,
+    emitRaw: (event, session) => listener(event, session),
+    accept(session, purpose = "normal") { accepted = session; acceptedEpoch++; mode = purpose; notifyAuthority(); },
+    emit: (event, session) => {
+      if (event === "SIGNED_OUT") accepted = null;
+      else if (session) {
+        accepted = session;
+        mode = flow.recoveryBlocksApp(session.user, flow.parseRecoveryContext(storage.get(flow.RECOVERY_STORAGE_KEY) ?? null)) ? "recovery" : "normal";
+      }
+      notifyAuthority(); listener(event, session);
+    },
     getUserCalls: () => getUserCalls,
     async settle() { await new Promise(setImmediate); return render(); },
   };
@@ -113,7 +157,6 @@ export function routingRuntime(authState) {
     "expo-status-bar": { StatusBar: () => null },
     "react-native": { ActivityIndicator: () => null, Pressable: ({ children }) => children, Text: ({ children }) => children, View: ({ children }) => children },
     "../src/auth": auth,
-    "../src/biometric-lock": { BiometricLockProvider: ({ children }) => children },
     "../src/auth-flow": flow,
     "../src/theme": { colors: {} },
   });

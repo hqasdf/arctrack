@@ -4,7 +4,7 @@ import { colors } from "./theme";
 
 export const PRIVACY_POLICY_URL = "https://archery-website.vercel.app/privacy";
 
-export function PrivacyPolicyLink() {
+export function PrivacyPolicyLink({ color = colors.accent }: { color?: string } = {}) {
   const [error, setError] = useState<string | null>(null);
   async function open() {
     setError(null);
@@ -13,7 +13,7 @@ export function PrivacyPolicyLink() {
   }
   return <View>
     <Pressable accessibilityRole="link" accessibilityLabel="Privacy Policy" onPress={() => void open()} style={styles.link}>
-      <Text style={styles.label}>Privacy Policy</Text>
+      <Text style={[styles.label, { color }]}>Privacy Policy</Text>
     </Pressable>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
   </View>;

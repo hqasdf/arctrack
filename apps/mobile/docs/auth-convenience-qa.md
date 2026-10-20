@@ -1,5 +1,9 @@
 # OTP AutoFill and optional biometric unlock
 
+> Historical QA record. On 19 October 2026, Phase 1 removed the optional app lock,
+> native adapter/dependency, setting and app-lock-only tests described below.
+> OTP functionality remains. See `passkey-sign-in-readiness.md` for current status.
+
 Local implementation and validation: 15 October 2026. No commit, push, deployment, release build, production Auth/configuration change, database/RLS/RPC change, or account deletion.
 
 ## Scope and architecture

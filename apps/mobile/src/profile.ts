@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { mobileAuthentication, supabase } from "./supabase";
 import { safeAuthMessage } from "./auth-flow";
 import { EMPTY_PROFILE, validateMobileProfile, type MobileProfile } from "./profile-model";
 export { DIVISIONS, SHOOTING_HANDS, EXPERIENCE_LEVELS, EMPTY_PROFILE, validateMobileProfile } from "./profile-model";
@@ -23,6 +23,6 @@ export async function changeMobilePassword(password: string, confirmation: strin
   if (!supabase) throw new Error("Password update is unavailable.");
   if (password.length < 12 || password.length > 128) throw new Error("Choose a password between 12 and 128 characters.");
   if (password !== confirmation) throw new Error("Passwords do not match.");
-  const { error } = await supabase.auth.updateUser({ password });
+  const { error } = await mobileAuthentication!.updateUser({ password });
   if (error) throw new Error(safeAuthMessage(error, "password"));
 }

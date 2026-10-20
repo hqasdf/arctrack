@@ -8,6 +8,7 @@ import * as jsx from "react/jsx-runtime";
 // This verifies resize does not replace its input/submit state; it is not native layout QA.
 function screenRuntime(platform = "android") {
   let height = 844;
+  let width = 390;
   let insets = { top: 24, right: 0, bottom: 0, left: 0 };
   let cursor = 0;
   const slots = [];
@@ -26,7 +27,7 @@ function screenRuntime(platform = "android") {
     "react-native": {
       ActivityIndicator: "ActivityIndicator", KeyboardAvoidingView: "KeyboardAvoidingView", Pressable: "Pressable",
       ScrollView: "ScrollView", Text: "Text", TextInput: "TextInput", View: "View",
-      Platform: { OS: platform }, StyleSheet: { create: value => value }, useWindowDimensions: () => ({ height }),
+      Platform: { OS: platform }, StyleSheet: { create: value => value }, useWindowDimensions: () => ({ height, width }),
     },
     "react-native-safe-area-context": { useSafeAreaInsets: () => insets },
     "expo-router": { router: { push() {} } },
@@ -35,7 +36,17 @@ function screenRuntime(platform = "android") {
     "../../src/theme": { colors: {}, PAGE_TOP_SPACING: 40 },
     "../../src/password-field": { PasswordField: "PasswordField" },
     "../../src/privacy-policy-link": { PrivacyPolicyLink: "PrivacyPolicyLink" },
+    "../../src/passkeys/screen-controls": { SignInBiometricControl: () => null },
   };
+  const shared = {};
+  const sharedCode = ts.transpileModule(readFileSync(new URL("../src/auth-ui.tsx", import.meta.url), "utf8"), { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022,
+  } }).outputText;
+  new Function("require", "exports", sharedCode)(name => {
+    assert.ok(name in dependencies, `Unexpected shared auth dependency ${name}`);
+    return dependencies[name];
+  }, shared);
+  dependencies["../../src/auth-ui"] = shared;
   const exports = {};
   new Function("require", "exports", compiled)(name => {
     assert.ok(name in dependencies, `Unexpected dependency ${name}`);
@@ -43,9 +54,16 @@ function screenRuntime(platform = "android") {
   }, exports);
   return {
     calls,
-    resize(nextHeight, nextInsets = insets) { height = nextHeight; insets = nextInsets; },
-    render() { cursor = 0; return exports.default(); },
+    resize(nextHeight, nextInsets = insets, nextWidth = width) { height = nextHeight; insets = nextInsets; width = nextWidth; },
+    render() { cursor = 0; return expand(exports.default()); },
   };
+}
+
+function expand(node) {
+  if (Array.isArray(node)) return node.map(expand);
+  if (!node || typeof node !== "object") return node;
+  if (typeof node.type === "function") return expand(node.type(node.props));
+  return { ...node, props: { ...node.props, children: expand(node.props?.children) } };
 }
 
 function nodes(node) {
@@ -55,27 +73,28 @@ function nodes(node) {
 }
 const find = (tree, type) => nodes(tree).find(node => node.type === type);
 
-test("sign-in remains centered on phones and scrollable/inset-aware in short or landscape windows", () => {
+test("sign-in uses the shared top-aligned scrollable/inset-aware shell in short or landscape windows", () => {
   const screen = screenRuntime();
   let tree = screen.render();
   const scroll = find(tree, "ScrollView");
   assert.equal(scroll.props.keyboardShouldPersistTaps, "handled");
   assert.equal(scroll.props.keyboardDismissMode, "on-drag");
-  assert.equal(scroll.props.contentContainerStyle[0].flexGrow, 1);
-  assert.equal(scroll.props.contentContainerStyle[0].justifyContent, "center");
-  assert.equal(scroll.props.contentContainerStyle[1].paddingTop, 64);
-  assert.equal(find(tree, "View").props.style.maxWidth, 440);
+  const style = value => Object.assign({}, ...[value].flat(Infinity).filter(Boolean));
+  assert.equal(style(scroll.props.contentContainerStyle).flexGrow, 1);
+  assert.notEqual(style(scroll.props.contentContainerStyle).justifyContent, "center");
+  assert.equal(style(scroll.props.contentContainerStyle).paddingTop, 48);
+  assert.ok(nodes(tree).some(node => style(node.props?.style).maxWidth === 480));
   for (const height of [320, 360, 390, 430]) {
     screen.resize(height, { top: 0, right: 44, bottom: 24, left: 44 });
     tree = screen.render();
-    const padding = find(tree, "ScrollView").props.contentContainerStyle[1];
-    assert.equal(padding.paddingTop, 24);
-    assert.equal(padding.paddingBottom, 36);
-    assert.equal(padding.paddingLeft, 60);
-    assert.equal(padding.paddingRight, 60);
-    assert.equal(find(tree, "KeyboardAvoidingView").props.behavior, undefined);
+    const padding = style(find(tree, "ScrollView").props.contentContainerStyle);
+    assert.equal(padding.paddingTop, 16);
+    assert.equal(padding.paddingBottom, 40);
+    assert.equal(padding.paddingLeft, 56);
+    assert.equal(padding.paddingRight, 56);
+    assert.equal(find(tree, "KeyboardAvoidingView"), undefined);
   }
-  assert.equal(find(screenRuntime("ios").render(), "KeyboardAvoidingView").props.behavior, "padding");
+  assert.equal(find(screenRuntime("ios").render(), "ScrollView").props.automaticallyAdjustKeyboardInsets, true);
 });
 
 test("resizing preserves entered credentials and the existing sign-in validation/submission", async () => {

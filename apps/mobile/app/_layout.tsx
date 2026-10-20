@@ -3,7 +3,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth";
-import { BiometricLockProvider } from "../src/biometric-lock";
 import { colors } from "../src/theme";
 
 function Routes() {
@@ -20,7 +19,9 @@ function Routes() {
     <Text style={{ color: colors.text, textAlign: "center" }}>Arc Track could not verify your sign-in. Check your connection and try again.</Text>
     <Pressable accessibilityRole="button" onPress={retry} style={{ padding: 16 }}><Text style={{ color: colors.accent, fontWeight: "700" }}>Retry</Text></Pressable>
   </View>;
-  return <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>
+  // A different accepted account must not inherit mounted screens/data from the
+  // previous account. Refresh and ordinary navigation keep this identity stable.
+  return <Stack key={user?.id ?? "signed-out"} initialRouteName="index" screenOptions={{ headerShown: false }}>
     <Stack.Screen name="index" />
     <Stack.Protected guard={!!user && !recoveryRequired}>
       <Stack.Screen name="(tabs)" />
@@ -39,5 +40,5 @@ function Routes() {
 }
 
 export default function RootLayout() {
-  return <AuthProvider><StatusBar style="dark" /><BiometricLockProvider><Routes /></BiometricLockProvider></AuthProvider>;
+  return <AuthProvider><StatusBar style="dark" /><Routes /></AuthProvider>;
 }

@@ -53,13 +53,7 @@
       [
         "expo-secure-store",
         {
-          "faceIDPermission": "Allow Arc Track to use Face ID for optional app unlock."
-        }
-      ],
-      [
-        "expo-local-authentication",
-        {
-          "faceIDPermission": "Allow Arc Track to use Face ID for optional app unlock."
+          "faceIDPermission": false
         }
       ]
     ],

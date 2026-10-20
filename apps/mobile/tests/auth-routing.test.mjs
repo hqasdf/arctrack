@@ -8,6 +8,39 @@ const session = { user };
 const stale = serializeRecoveryContext({ active: true, stage: "password", email: user.email, userId: user.id });
 const ready = (overrides = {}) => ({ user: null, recovery: null, recoveryRequired: false, loading: false, authError: false, ...overrides });
 
+test("unaccepted SDK sign-in events cannot open protected routes", async () => {
+  const runtime = providerRuntime(); await runtime.settle();
+  runtime.emitRaw("SIGNED_IN", session);
+  assert.equal(runtime.render().user, null);
+  assert.equal(routingRuntime(runtime.render()).indexDestination(), "/(auth)/sign-in");
+});
+
+test("stale SDK sign-out cannot clear an accepted account", async () => {
+  const runtime = providerRuntime({ restoredUser: user }); await runtime.settle();
+  runtime.emitRaw("SIGNED_OUT", null);
+  assert.equal(runtime.render().user, user);
+});
+
+test("durable recovery purpose cannot be cleared by missing or removed UI metadata", async () => {
+  const runtime = providerRuntime({ restoredUser: user, acceptedMode: "recovery" }); await runtime.settle();
+  assert.equal(runtime.render().recoveryRequired, true);
+  assert.equal(runtime.render().recovery.stage, "password");
+  await runtime.render().setRecovery(null);
+  assert.equal(runtime.render().recoveryRequired, true);
+  assert.equal(routingRuntime(runtime.render()).indexDestination(), "/recover");
+  runtime.accept(session, "normal");
+  assert.equal(runtime.render().recoveryRequired, false);
+});
+
+test("changing accepted accounts closes old protected identity before the SDK event", async () => {
+  const runtime = providerRuntime({ restoredUser: user }); await runtime.settle();
+  const next = { user: { ...user, id: "other-athlete" } };
+  runtime.accept(next);
+  assert.equal(runtime.render().user, null);
+  runtime.emitRaw("SIGNED_IN", next);
+  assert.equal(runtime.render().user.id, "other-athlete");
+});
+
 test("every root Stack.Screen and protected group corresponds to a real Expo route", () => {
   const routes = routingRuntime(ready());
   const discovered = routes.node.children.map((route) => route.route);

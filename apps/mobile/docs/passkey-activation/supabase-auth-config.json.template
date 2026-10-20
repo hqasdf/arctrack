@@ -1,0 +1,6 @@
+{
+  "passkey_enabled": false,
+  "webauthn_rp_display_name": "Arc Track",
+  "webauthn_rp_id": "archery-website.vercel.app",
+  "webauthn_rp_origins": "https://archery-website.vercel.app,android:apk-key-hash:cUSXK8a--gay3ZC_wVhtHhq0mmutA-PZ0Pow06K8p78"
+}

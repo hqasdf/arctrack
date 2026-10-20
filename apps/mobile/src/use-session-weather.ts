@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import type { ArrowEntry, RoundDraft, SessionDraft } from "@arc-track/core/scoring";
 import { useAuth } from "./auth";
-import { useBiometricPrivacyState } from "./biometric-lock";
 import { mobileWeatherApi } from "./weather-api";
 import { locateForWeather } from "./weather-location";
 
@@ -14,7 +13,6 @@ const initial: WeatherState = { status: "loading", readings: [], enabled: false,
 /** Independent foreground weather lifecycle; it never reads or mutates scoring queues. */
 export function useSessionWeather(session: SessionDraft, round?: RoundDraft, arrows: readonly ArrowEntry[] = []) {
   const { user } = useAuth();
-  const privacy = useBiometricPrivacyState();
   const userId = user?.id;
   const [focused, setFocused] = useState(false);
   const [foreground, setForeground] = useState(AppState.currentState === "active");
@@ -23,10 +21,9 @@ export function useSessionWeather(session: SessionDraft, round?: RoundDraft, arr
   const permitted = useRef(false);
   const context = useRef({ session, round, arrows });
   context.current = { session, round, arrows };
-  const unlocked = !!userId && privacy?.userId === userId && privacy.loaded && !privacy.obscured && !privacy.busy && (!privacy.enabled || !privacy.locked);
   const eligible = !!round && canCollectWeather({ distance: round.distanceMetres, sessionDate: session.date,
     plannedEnds: round.ends, arrowsPerEnd: round.arrowsPerEnd, arrows }, Date.now());
-  const active = !!user && unlocked && focused && foreground && eligible && mobileWeatherApi.available;
+  const active = !!userId && focused && foreground && eligible && mobileWeatherApi.available;
   permitted.current = active;
 
   useFocusEffect(useCallback(() => {
@@ -67,13 +64,13 @@ export function useSessionWeather(session: SessionDraft, round?: RoundDraft, arr
 
   // History-only views (including old/completed Rounds) must never request location.
   useEffect(() => {
-    if (active || !focused || !foreground || !unlocked || !userId) return;
+    if (active || !focused || !foreground || !userId) return;
     let cancelled = false;
     if (!mobileWeatherApi.available) return;
     void mobileWeatherApi.load(sessionId).then(result => {
       if (!cancelled) setState({ status: "ready", readings: result.readings, enabled: result.enabled, nextRefreshAt: result.nextRefreshAt });
     }).catch(() => { if (!cancelled) setState({ ...initial, status: "unavailable" }); });
     return () => { cancelled = true; };
-  }, [sessionId, active, focused, foreground, unlocked, userId]);
+  }, [sessionId, active, focused, foreground, userId]);
   return mobileWeatherApi.available ? state : { ...initial, status: "unavailable" as const };
 }

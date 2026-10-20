@@ -1,0 +1,20 @@
+// Test-only source injection. Does not change the generated app or production source sets.
+def nativeTestsDirectory = new File(
+  System.getProperty('arcTrackSecureStoreTestsDir',
+    new File(gradle.startParameter.currentDir, '../native-tests/secure-store').path)
+).canonicalFile
+if (!new File(nativeTestsDirectory, 'SecureStoreCommitTest.kt').isFile()) {
+  throw new GradleException('SecureStore native-test sources not found; set -DarcTrackSecureStoreTestsDir to their directory')
+}
+gradle.beforeProject { project ->
+  if (project.name == 'expo-secure-store') {
+    project.plugins.withId('com.android.library') {
+      def android = project.extensions.getByName('android')
+      android.sourceSets.getByName('test').java.srcDir(nativeTestsDirectory)
+      android.testOptions.unitTests.includeAndroidResources = true
+      android.testOptions.unitTests.all {
+        testLogging.events 'passed', 'failed', 'skipped'
+      }
+    }
+  }
+}

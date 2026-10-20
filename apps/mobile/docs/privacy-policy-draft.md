@@ -1,5 +1,10 @@
 # Arc Track privacy policy publication review
 
+> Historical publication-review notes, not a current compliance checklist. The
+> 19 October 2026 mobile Phase 1 removes optional biometric app locking and its
+> `biometrics.ts` adapter; secure session storage remains. Passkey sign-in is not
+> enabled. Earlier release observations below are retained as history.
+
 The canonical policy is now the public web page at src/app/privacy/page.tsx.
 This file records implementation evidence and publication checks; it is not a second policy.
 

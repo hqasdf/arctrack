@@ -1,11 +1,11 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput } from "react-native";
+import { Pressable, Text, TextInput } from "react-native";
 import { changeMobilePassword } from "../src/profile";
 import { useAuth } from "../src/auth";
 import { cancelRecovery, completeRecovery, safeAuthMessage } from "../src/auth-flow";
-import { configError, supabase } from "../src/supabase";
-import { colors, PAGE_TOP_SPACING } from "../src/theme";
+import { configError, mobileAuthentication, supabase } from "../src/supabase";
+import { AuthAction as Action, AuthField, AuthScreen, authColors, authStyles as styles } from "../src/auth-ui";
 import { OtpInput } from "../src/otp-input";
 import { PasswordField } from "../src/password-field";
 
@@ -43,7 +43,7 @@ export default function RecoverScreen() {
     try {
       // Persist the gate before verifyOtp emits SIGNED_IN.
       await setRecovery({ active: true, email: email.trim(), stage: "password" });
-      const { data, error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "recovery" });
+      const { data, error } = await mobileAuthentication!.verifyOtp({ email: email.trim(), token: code.trim(), type: "recovery" });
       if (error || !data.session) throw error ?? new Error("No recovery session");
       try { await setRecovery({ active: true, email: email.trim(), stage: "password", userId: data.session.user.id }); }
       catch { /* The already-persisted password gate remains active. */ }
@@ -70,37 +70,32 @@ export default function RecoverScreen() {
     } catch (error) { setMessage(safeAuthMessage(error, "sign-out")); }
     finally { setBusy(false); }
   }
-  return <ScrollView style={styles.page} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <Text style={styles.title}>{stage === "request" ? "Reset password" : stage === "verify" ? "Verify recovery code" : "Choose new password"}</Text>
+  return <AuthScreen nativeHeader title={stage === "request" ? "Reset password" : stage === "verify" ? "Verify recovery code" : "Choose new password"}
+    description={stage === "request" ? "Enter your email address to request a six-digit recovery code."
+      : stage === "password" ? "Use a unique password for your archery journal." : undefined}>
     {stage === "request" ? <>
-      <TextInput accessibilityLabel="Email" placeholder="Account email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} style={styles.input} />
-      <Action label="Send recovery code" busy={busy} onPress={() => void request()} />
+      <AuthField label="Account email">
+        <TextInput accessibilityLabel="Email" placeholder="Account email" placeholderTextColor={authColors.muted} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} style={styles.input} />
+      </AuthField>
+      <Action label="Send recovery code" busy={busy} disabled={!!configError} onPress={() => void request()} />
     </> : stage === "verify" ? <>
       <Text style={styles.note}>Enter the six-digit code sent to {email.trim()}.</Text>
-      <OtpInput accessibilityLabel="Recovery code" keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} style={styles.input} />
-      <Action label="Verify code" busy={busy} onPress={() => void verify()} />
-      <Action label={cooldown > 0 ? `Resend code in ${cooldown}s` : "Request new code"} busy={busy || cooldown > 0} onPress={() => void request()} secondary />
+      <AuthField label="Recovery verification code">
+        <OtpInput accessibilityLabel="Recovery code" placeholder="Six-digit code" placeholderTextColor={authColors.muted} keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} style={styles.input} />
+      </AuthField>
+      <Action label="Verify code" busy={busy} disabled={!!configError} onPress={() => void verify()} />
+      <Action label={cooldown > 0 ? `Resend code in ${cooldown}s` : "Request new code"} busy={busy || cooldown > 0} disabled={!!configError} onPress={() => void request()} secondary />
     </> : <>
-      <PasswordField accessibilityLabel="New password" placeholder="New password (12–128 characters)" autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
-      <PasswordField accessibilityLabel="Confirm new password" placeholder="Confirm new password" autoCapitalize="none" value={confirm} onChangeText={setConfirm} style={styles.input} />
-      <Action label="Update password" busy={busy} onPress={() => void updatePassword()} />
+      <AuthField label="New password" hint="Use 12–128 characters. A long, unique passphrase works well.">
+        <PasswordField accessibilityLabel="New password" placeholder="New password (12–128 characters)" placeholderTextColor={authColors.muted} autoCapitalize="none" value={password} onChangeText={setPassword} style={styles.input} />
+      </AuthField>
+      <AuthField label="Confirm new password">
+        <PasswordField accessibilityLabel="Confirm new password" placeholder="Confirm new password" placeholderTextColor={authColors.muted} autoCapitalize="none" value={confirm} onChangeText={setConfirm} style={styles.input} />
+      </AuthField>
+      <Action label="Update password" busy={busy} disabled={!!configError} onPress={() => void updatePassword()} />
     </>}
     {configError ? <Text style={styles.error}>{configError}</Text> : null}
     {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
     <Pressable accessibilityRole="button" disabled={busy} onPress={() => void cancel()} style={styles.back}><Text style={styles.link}>{recovery?.stage === "password" ? "Cancel recovery and sign out" : "Back to sign in"}</Text></Pressable>
-  </ScrollView>;
+  </AuthScreen>;
 }
-function Action({ label, busy, onPress, secondary }: { label: string; busy: boolean; onPress: () => void; secondary?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={busy || !!configError} onPress={onPress} style={[styles.button, secondary && styles.secondary]}>
-    {busy && !secondary ? <ActivityIndicator color="#fff" /> : <Text style={[styles.buttonText, secondary && styles.link]}>{label}</Text>}
-  </Pressable>;
-}
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.background }, content: { flexGrow: 1, justifyContent: "center", padding: 24, paddingTop: 24 + PAGE_TOP_SPACING, gap: 13 },
-  title: { color: colors.text, fontSize: 28, fontWeight: "700" }, note: { color: colors.muted, fontSize: 14 },
-  input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, paddingHorizontal: 14, minHeight: 52, fontSize: 16 },
-  button: { backgroundColor: colors.accent, minHeight: 52, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, buttonText: { color: "#fff", fontWeight: "700" },
-  back: { minHeight: 44, justifyContent: "center", alignItems: "center" }, link: { color: colors.accent, fontWeight: "700" },
-  error: { color: colors.error, fontSize: 13 },
-});

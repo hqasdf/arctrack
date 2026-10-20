@@ -10,13 +10,13 @@ async function privacyLink(openURL) {
     react: { useState: () => [error, value => { error = value; }] },
     "react/jsx-runtime": jsx,
     "react-native": { Pressable: "Pressable", Text: "Text", View: "View", StyleSheet: { create: value => value }, Linking: { openURL } },
-    "./theme": { colors: {} },
+    "./theme": { colors: { accent: "#306b60" } },
   };
   const source = await readFile(new URL("../src/privacy-policy-link.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const componentExports = {};
   new Function("require", "exports", compiled)(name => { assert.ok(name in modules, name); return modules[name]; }, componentExports);
-  return { render: () => componentExports.PrivacyPolicyLink(), url: componentExports.PRIVACY_POLICY_URL };
+  return { render: props => componentExports.PrivacyPolicyLink(props), url: componentExports.PRIVACY_POLICY_URL };
 }
 
 test("Expo Privacy Policy opens the public HTTPS URL without credentials or an app route", async () => {
@@ -39,10 +39,27 @@ test("external-link failure displays a safe local retry message", async () => {
   assert.equal(alert.props.children, "The Privacy Policy could not be opened. Please try again.");
 });
 
+test("optional auth colour changes only the label while the default and public URL remain intact", async () => {
+  const calls = [], component = await privacyLink(async url => { calls.push(url); });
+  const original = component.render().props.children[0];
+  const themed = component.render({ color: "#563d30" }).props.children[0];
+  const labelStyle = link => Object.assign({}, ...link.props.children.props.style);
+  assert.equal(labelStyle(original).color, "#306b60");
+  assert.equal(labelStyle(themed).color, "#563d30");
+  assert.deepEqual(themed.props.style, original.props.style);
+  assert.equal(themed.props.accessibilityRole, original.props.accessibilityRole);
+  assert.equal(themed.props.accessibilityLabel, original.props.accessibilityLabel);
+  assert.equal(themed.props.children.props.children, original.props.children.props.children);
+  original.props.onPress(); themed.props.onPress();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, [component.url, component.url]);
+  assert.equal(component.url, "https://archery-website.vercel.app/privacy");
+});
+
 test("Privacy Policy is available before account entry and from the existing Profile screen", async () => {
   for (const route of ["(auth)/sign-in.tsx", "(auth)/sign-up.tsx", "(tabs)/profile.tsx"]) {
     const source = await readFile(new URL(`../app/${route}`, import.meta.url), "utf8");
     assert.match(source, /import { PrivacyPolicyLink } from "\.\.\/\.\.\/src\/privacy-policy-link"/);
-    assert.match(source, /<PrivacyPolicyLink \/>/);
+    assert.match(source, /<PrivacyPolicyLink(?:\s+[^>]*)?\s*\/>/);
   }
 });

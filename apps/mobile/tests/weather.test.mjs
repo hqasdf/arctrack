@@ -108,8 +108,7 @@ test("leaving while native permission is pending prevents the location fix", asy
 
 function hookRuntime() {
   const slots = []; let cursor = 0; let effects = []; let focused = true; let appListener;
-  const user = { id: "owner" };
-  let privacy = { userId: user.id, loaded: true, enabled: false, locked: false, obscured: false, busy: false };
+  let user = { id: "owner" };
   const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
   const hooks = {
     useState(initial) { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial; return [slots[index], value => { slots[index] = typeof value === "function" ? value(slots[index]) : value; }]; },
@@ -129,7 +128,7 @@ function hookRuntime() {
     react: hooks, "@arc-track/core/weather": weather, "@arc-track/core/weather-collector": { WeatherCollector: Collector },
     "expo-router": { useFocusEffect: callback => hooks.useEffect(() => focused ? callback() : undefined, [callback, focused]) },
     "react-native": { AppState: { currentState: "active", addEventListener: (_event, callback) => { appListener = callback; return { remove() {} }; } } },
-    "./auth": { useAuth: () => ({ user }) }, "./biometric-lock": { useBiometricPrivacyState: () => privacy },
+    "./auth": { useAuth: () => ({ user }) },
     "./weather-api": { mobileWeatherApi: api },
     "./weather-location": { locateForWeather: async allowed => { assert.equal(allowed(), true); calls.push(["locate"]); return { latitude: 1.3, longitude: 103.85 }; } },
   });
@@ -138,14 +137,14 @@ function hookRuntime() {
   function render() { cursor = 0; const value = useSessionWeather(session, round, arrows); const pending = effects; effects = []; pending.forEach(effect => effect()); return value; }
   return { calls, timers, render,
     setDate: value => { session.date = value; }, setRound: value => { round = value; }, setArrows: value => { arrows = value; },
-    setFocus: value => { focused = value; }, setPrivacy: value => { privacy = { ...privacy, ...value }; },
+    setFocus: value => { focused = value; }, setUser: value => { user = value; },
     background: () => appListener("background"), foreground: () => appListener("active"),
     async settle() { render(); await new Promise(setImmediate); render(); await new Promise(setImmediate); return render(); },
     dispose() { slots.forEach(slot => slot?.cleanup?.()); },
   };
 }
 
-test("weather hook captures eligible focused scoring, pauses on blur/background/lock, and activates a changed Round", async () => {
+test("weather hook captures eligible focused scoring, pauses on blur/background, and activates a changed Round", async () => {
   const runtime = hookRuntime();
   try {
     const state = await runtime.settle();
@@ -156,10 +155,22 @@ test("weather hook captures eligible focused scoring, pauses on blur/background/
     runtime.setFocus(true); await runtime.settle();
     runtime.background(); await runtime.settle(); assert.equal(runtime.timers.size, 0);
     runtime.foreground(); await runtime.settle();
-    runtime.setPrivacy({ obscured: true }); await runtime.settle(); assert.equal(runtime.timers.size, 0);
-    runtime.setPrivacy({ obscured: false }); await runtime.settle();
     runtime.setRound({ id: "round-two", distanceMetres: 50, ends: 1, arrowsPerEnd: 6 }); await runtime.settle();
     assert.ok(runtime.calls.some(call => call[0] === "capture" && call[2] === "round-two"));
+  } finally { runtime.dispose(); }
+});
+
+test("weather hook needs authentication, starts after sign-in without an app lock, and pauses on sign-out", async () => {
+  const runtime = hookRuntime();
+  try {
+    runtime.setUser(null); await runtime.settle();
+    assert.equal(runtime.calls.length, 0);
+    runtime.setUser({ id: "owner" }); await runtime.settle();
+    assert.equal(runtime.calls.filter(call => call[0] === "capture").length, 1);
+    assert.equal(runtime.timers.size, 1);
+    runtime.setUser(null); await runtime.settle();
+    assert.equal(runtime.timers.size, 0);
+    assert.equal(runtime.calls.filter(call => call[0] === "capture").length, 1);
   } finally { runtime.dispose(); }
 });
 
