@@ -8,6 +8,34 @@ const session = { user };
 const stale = serializeRecoveryContext({ active: true, stage: "password", email: user.email, userId: user.id });
 const ready = (overrides = {}) => ({ user: null, recovery: null, recoveryRequired: false, loading: false, authError: false, ...overrides });
 
+test("normal restored authority ignores same-account stale recovery metadata", async () => {
+  const runtime = providerRuntime({ restoredUser: user, storedRecovery: stale, acceptedMode: "normal" });
+  const value = await runtime.settle();
+  assert.equal(value.recovery?.stage, "password");
+  assert.equal(value.recoveryRequired, false);
+  const routes = routingRuntime(value);
+  assert.equal(routes.indexDestination(), "/(tabs)/sessions");
+  assert.ok(routes.routeNames.includes("(tabs)"));
+  assert.ok(!routes.routeNames.includes("recover"));
+});
+
+test("entry follows accepted account transitions instead of retained recovery metadata", async () => {
+  const runtime = providerRuntime({ restoredUser: user, storedRecovery: stale, acceptedMode: "recovery" });
+  await runtime.settle();
+  assert.equal(routingRuntime(runtime.render()).indexDestination(), "/recover");
+  runtime.accept(session, "normal");
+  assert.equal(routingRuntime(runtime.render()).indexDestination(), "/(tabs)/sessions");
+  const next = { user: { id: "other-athlete", email: "other@example.invalid" } };
+  runtime.accept(next, "normal");
+  assert.equal(runtime.render().user, null);
+  runtime.emitRaw("SIGNED_IN", next);
+  assert.equal(routingRuntime(runtime.render()).indexDestination(), "/(tabs)/sessions");
+  runtime.accept(next, "recovery");
+  assert.equal(routingRuntime(runtime.render()).indexDestination(), "/recover");
+  await runtime.render().signOut();
+  assert.equal(routingRuntime(runtime.render()).indexDestination(), "/(auth)/sign-in");
+});
+
 test("unaccepted SDK sign-in events cannot open protected routes", async () => {
   const runtime = providerRuntime(); await runtime.settle();
   runtime.emitRaw("SIGNED_IN", session);

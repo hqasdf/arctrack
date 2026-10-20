@@ -8,7 +8,7 @@ import * as wheelModel from "../src/counter-wheel-model.ts";
 
 // Run the real screen with persistent hooks. Native measurements are supplied,
 // not calculated: physical clipping, keyboard and gestures still need device QA.
-function counterRuntime() {
+function counterRuntime({ getItem, renderWheel = false, storedState = { version: 2, totalArrows: 190, increment: 15, history: [] } } = {}) {
   let dimensions = { width: 390, height: 844 };
   let insets = { top: 24, right: 0, bottom: 34, left: 0 };
   let cursor = 0;
@@ -18,6 +18,8 @@ function counterRuntime() {
   const slots = [];
   const writes = [];
   const alerts = [];
+  let wheelTree;
+  const offsets = [];
   const same = (left, right) => left && right && left.length === right.length && left.every((value, i) => Object.is(value, right[i]));
   const dependencies = {
     "react/jsx-runtime": jsx,
@@ -49,7 +51,7 @@ function counterRuntime() {
     },
     "react-native-safe-area-context": { useSafeAreaInsets: () => insets },
     "@react-native-async-storage/async-storage": { __esModule: true, default: {
-      getItem: async () => { reads++; return JSON.stringify({ version: 2, totalArrows: 190, increment: 15, history: [] }); },
+      getItem: async () => { reads++; return getItem ? getItem() : JSON.stringify(storedState); },
       setItem: async (key, value) => { writes.push([key, JSON.parse(value)]); },
     } },
     "expo-haptics": { selectionAsync: async () => { ticks++; } },
@@ -69,6 +71,13 @@ function counterRuntime() {
   const render = () => {
     cursor = 0;
     const tree = exports.default();
+    if (renderWheel) {
+      const element = wheel(tree);
+      wheelTree = element.type(element.props);
+      nodes(wheelTree).find(node => node.type === "FlatList").props.ref.current = {
+        scrollToOffset: value => offsets.push(value),
+      };
+    }
     const pending = effects;
     effects = [];
     pending.forEach(effect => effect());
@@ -76,6 +85,7 @@ function counterRuntime() {
   };
   return {
     render, writes, alerts, reads: () => reads, ticks: () => ticks,
+    wheel: () => nodes(wheelTree).find(node => node.type === "FlatList"), offsets,
     resize(width, height, nextInsets = insets) { dimensions = { width, height }; insets = nextInsets; },
     async settle() { await new Promise(setImmediate); return render(); },
   };
@@ -169,4 +179,110 @@ test("Counter resize preserves total/increment/Undo/reset and does not reload or
   assert.equal(runtime.writes.length, afterChange);
   assert.equal(runtime.ticks(), 1);
   assert.equal(runtime.reads(), 1);
+});
+
+test("failed Counter read blocks every write until Retry restores the original total and history", async () => {
+  const saved = { version: 2, totalArrows: 190, increment: 15, history: [10, 15] };
+  let fail = true;
+  const runtime = counterRuntime({ getItem: async () => {
+    if (fail) throw new Error("Transient read failure");
+    return JSON.stringify(saved);
+  } });
+  runtime.render();
+  let tree = await runtime.settle();
+  assert.equal(button(tree, "Add 6 Arrows").props.disabled, true);
+  assert.equal(button(tree, "Undo last addition").props.disabled, true);
+  assert.equal(button(tree, "Reset counter").props.disabled, true);
+  assert.equal(wheel(tree).props.enabled, false);
+  // Directly invoking even a disabled/stale handler must not bypass the guard.
+  button(tree, "Add 6 Arrows").props.onPress();
+  wheel(tree).props.onChange(7);
+  await runtime.settle();
+  assert.equal(runtime.writes.length, 0);
+  button(runtime.render(), "Retry loading saved counter").props.onPress();
+  await runtime.settle();
+  tree = await runtime.settle();
+  assert.equal(runtime.writes.length, 0);
+  assert.equal(button(tree, "Add 6 Arrows").props.disabled, true);
+  fail = false;
+  button(tree, "Retry loading saved counter").props.onPress();
+  await runtime.settle();
+  tree = await runtime.settle();
+  assert.equal(wheel(tree).props.value, 15);
+  assert.equal(button(tree, "Add 15 Arrows").props.disabled, false);
+  assert.equal(runtime.writes.length, 0, "Restoring state does not write defaults");
+  button(tree, "Add 15 Arrows").props.onPress();
+  button(tree, "Add 15 Arrows").props.onPress();
+  tree = await runtime.settle();
+  assert.equal(runtime.writes.at(-1)[1].totalArrows, 220);
+  assert.deepEqual(runtime.writes.at(-1)[1].history, [10, 15, 15, 15]);
+  button(tree, "Undo last addition").props.onPress();
+  await runtime.settle();
+  assert.equal(runtime.writes.at(-1)[1].totalArrows, 205);
+  assert.equal(runtime.reads(), 3);
+});
+
+test("Counter accessibility adjustments synchronise value, highlight, scroll offset and Add", async () => {
+  const runtime = counterRuntime({ renderWheel: true });
+  runtime.render();
+  await runtime.settle();
+  let tree = runtime.render();
+  assert.equal(runtime.wheel().props.accessibilityValue.now, 15);
+  assert.equal(runtime.offsets.at(-1).offset, 14 * wheelModel.COUNTER_WHEEL_ROW_HEIGHT);
+  const adjust = runtime.wheel().props.onAccessibilityAction;
+  adjust({ nativeEvent: { actionName: "increment" } });
+  adjust({ nativeEvent: { actionName: "increment" } });
+  tree = await runtime.settle();
+  assert.equal(wheel(tree).props.value, 17);
+  assert.equal(runtime.wheel().props.accessibilityValue.now, 17);
+  assert.equal(runtime.wheel().props.accessibilityValue.text, "Add 17 Arrows");
+  assert.equal(runtime.offsets.at(-1).offset, 16 * wheelModel.COUNTER_WHEEL_ROW_HEIGHT);
+  const row = runtime.wheel().props.renderItem({ item: 17 });
+  assert.equal(row.props.children.props.children, "+17");
+  runtime.wheel().props.onAccessibilityAction({ nativeEvent: { actionName: "decrement" } });
+  tree = await runtime.settle();
+  assert.equal(runtime.wheel().props.accessibilityValue.now, 16);
+  button(tree, "Add 16 Arrows").props.onPress();
+  await runtime.settle();
+  assert.equal(runtime.writes.at(-1)[1].totalArrows, 206);
+  assert.equal(runtime.ticks(), 3);
+});
+
+test("Counter wheel restores large values, recentres and respects accessibility limits and disabled state", async () => {
+  const initialValue = 5000;
+  const runtime = counterRuntime({ renderWheel: true,
+    storedState: { version: 2, totalArrows: 0, increment: initialValue, history: [] } });
+  runtime.render();
+  runtime.wheel().props.onAccessibilityAction({ nativeEvent: { actionName: "increment" } });
+  assert.equal(runtime.writes.length, 0);
+  await runtime.settle();
+  await runtime.settle();
+  let tree = runtime.render();
+  assert.equal(runtime.wheel().props.accessibilityValue.now, initialValue);
+  let data = runtime.wheel().props.data;
+  assert.ok(data.includes(initialValue));
+  assert.equal(runtime.offsets.at(-1).offset, (initialValue - data[0]) * wheelModel.COUNTER_WHEEL_ROW_HEIGHT);
+  const next = data.at(-1) - 1;
+  runtime.wheel().props.onScroll({ nativeEvent: { contentOffset: { y: (next - data[0]) * wheelModel.COUNTER_WHEEL_ROW_HEIGHT } } });
+  await runtime.settle();
+  tree = runtime.render();
+  assert.equal(wheel(tree).props.value, next);
+  assert.equal(runtime.wheel().props.accessibilityValue.now, next);
+  data = runtime.wheel().props.data;
+  assert.equal(data[0], wheelModel.counterWheelRangeStart(next));
+  runtime.wheel().props.onAccessibilityAction({ nativeEvent: { actionName: "decrement" } });
+  await runtime.settle();
+  assert.equal(runtime.wheel().props.accessibilityValue.now, next - 1);
+  for (const value of [1, Number.MAX_SAFE_INTEGER]) {
+    wheel(runtime.render()).props.onChange(value);
+    await runtime.settle();
+    await runtime.settle();
+    runtime.render();
+    const count = runtime.writes.length;
+    runtime.wheel().props.onAccessibilityAction({ nativeEvent: { actionName: value === 1 ? "decrement" : "increment" } });
+    runtime.wheel().props.onAccessibilityAction({ nativeEvent: { actionName: "unknown" } });
+    await runtime.settle();
+    assert.equal(runtime.wheel().props.accessibilityValue.now, value);
+    assert.equal(runtime.writes.length, count);
+  }
 });

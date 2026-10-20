@@ -1,7 +1,7 @@
 import { calculateGroupingForArrows, convexHull } from "@arc-track/core/insights";
 import type { ArrowEntry, Plot, TargetFaceType } from "@arc-track/core/scoring";
-import { useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, Pressable, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
 import Svg, { Circle, G, Polygon } from "react-native-svg";
 import {
   initialViewport, plotFromTransformedNativeTouch, shouldCommitNativeTap, targetViews, tripleCentres,
@@ -24,6 +24,7 @@ type Props = {
   faceType: TargetFaceType;
   faceDiameterCm: number;
   onPlot: (plot: Plot) => void;
+  onMultiTouchChange?: (active: boolean) => void;
 };
 
 type Tap = { startX: number; startY: number; moved: boolean; hadMultiTouch: boolean } | null;
@@ -38,10 +39,20 @@ function touchPair(event: GestureResponderEvent) {
   };
 }
 
-export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDiameterCm, onPlot }: Props) {
+export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDiameterCm, onPlot, onMultiTouchChange }: Props) {
   const [availableWidth, setAvailableWidth] = useState(320);
   const tap = useRef<Tap>(null);
   const gesture = useRef<Gesture>(null);
+  const multiTouch = useRef(false);
+  const finishGesture = useCallback(() => {
+    tap.current = null;
+    gesture.current = null;
+    if (multiTouch.current) { multiTouch.current = false; onMultiTouchChange?.(false); }
+  }, [onMultiTouchChange]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", state => { if (state !== "active") finishGesture(); });
+    return () => { subscription.remove(); finishGesture(); };
+  }, [finishGesture]);
   const [viewport, setViewport] = useState<TargetViewport>(initialViewport);
   const viewportRef = useRef<TargetViewport>(initialViewport);
   const view = targetViews[faceType];
@@ -55,10 +66,18 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
     ...plotted.filter((item) => item.id === selectedId),
   ];
 
-  function trackTouch(event: GestureResponderEvent) {
-    if (!tap.current) return;
+  function captureMultiTouch(event: GestureResponderEvent) {
     if (event.nativeEvent.touches.length > 1) {
+      if (!tap.current) tap.current = { startX: event.nativeEvent.locationX, startY: event.nativeEvent.locationY, moved: false, hadMultiTouch: true };
       tap.current.hadMultiTouch = true;
+      if (!multiTouch.current) { multiTouch.current = true; onMultiTouchChange?.(true); }
+    }
+    return multiTouch.current;
+  }
+
+  function trackTouch(event: GestureResponderEvent) {
+    if (event.nativeEvent.touches.length > 1) {
+      captureMultiTouch(event);
       const pair = touchPair(event);
       if (pair && !gesture.current) gesture.current = { viewport: viewportRef.current, ...pair };
       if (pair && gesture.current) {
@@ -71,13 +90,16 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
       }
       return;
     }
+    // Keep ownership after one finger lifts; a new pair starts from the current view.
+    if (multiTouch.current) { gesture.current = null; return; }
+    if (!tap.current) return;
     if (Math.hypot(event.nativeEvent.locationX - tap.current.startX, event.nativeEvent.locationY - tap.current.startY) > 8) tap.current.moved = true;
   }
 
   function release(event: GestureResponderEvent) {
+    if (multiTouch.current && event.nativeEvent.touches.length > 0) return;
     const candidate = tap.current;
-    tap.current = null;
-    gesture.current = null;
+    finishGesture();
     if (!candidate || !shouldCommitNativeTap({ moved: candidate.moved, hadMultiTouch: candidate.hadMultiTouch, changedTouchCount: event.nativeEvent.changedTouches.length })) return;
     const { locationX, locationY } = event.nativeEvent;
     if (locationX < 0 || locationX > width || locationY < 0 || locationY > height) return;
@@ -122,25 +144,31 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
         </G>
       </Svg>
       <View style={StyleSheet.absoluteFill} accessible accessibilityLabel="Scoring target"
+        onStartShouldSetResponderCapture={captureMultiTouch}
+        onMoveShouldSetResponderCapture={captureMultiTouch}
         onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        onResponderGrant={(event) => { tap.current = {
-          startX: event.nativeEvent.locationX,
-          startY: event.nativeEvent.locationY,
-          moved: false,
-          hadMultiTouch: event.nativeEvent.touches.length > 1,
-        }; }}
+        onMoveShouldSetResponder={captureMultiTouch}
+        onResponderGrant={(event) => {
+          if (!multiTouch.current) tap.current = {
+            startX: event.nativeEvent.locationX, startY: event.nativeEvent.locationY,
+            moved: false, hadMultiTouch: false,
+          };
+          trackTouch(event);
+          return multiTouch.current; // Also block native interception when claiming a pinch.
+        }}
         onResponderStart={trackTouch}
-        onResponderMove={trackTouch}
+        onTouchStart={trackTouch}
+        onTouchMove={trackTouch}
+        onTouchEnd={(event) => { if (!event.nativeEvent.touches.length) finishGesture(); else if (multiTouch.current) gesture.current = null; }}
+        onTouchCancel={finishGesture}
         onResponderRelease={release}
-        onResponderTerminate={() => { tap.current = null; gesture.current = null; }}
-        onResponderTerminationRequest={() => false} />
+        onResponderTerminate={finishGesture}
+        onResponderTerminationRequest={() => !multiTouch.current} />
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Reset target zoom" onPress={() => {
       viewportRef.current = initialViewport;
       setViewport(initialViewport);
-      gesture.current = null;
-      tap.current = null;
+      finishGesture();
     }} style={styles.reset}><Text style={styles.resetText}>Reset zoom</Text></Pressable>
   </View>;
 }

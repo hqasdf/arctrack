@@ -63,6 +63,13 @@ export default function ScoreRoundScreen() {
   const [configureDraft, setConfigureDraft] = useState<RoundSettingsInput | null>(null);
   const [configureError, setConfigureError] = useState<string | null>(null);
   const [savingConfigure, setSavingConfigure] = useState(false);
+  const pageScroll = useRef<ScrollView>(null);
+  const pageOffset = useRef({ x: 0, y: 0 });
+  const setTargetMultiTouch = useCallback((active: boolean) => {
+    // Update the native scroller in the touch callback, not after a React render.
+    pageScroll.current?.setNativeProps({ scrollEnabled: !active });
+    if (active) pageScroll.current?.scrollTo({ ...pageOffset.current, animated: false });
+  }, []);
 
   const load = useCallback(async (preferredSlot?: ArrowSlot) => {
     if (!user || !roundId) return;
@@ -224,7 +231,8 @@ export default function ScoreRoundScreen() {
   const enteredEnds = Array.from(new Set(arrows.map((item) => item.end))).sort((a, b) => a - b);
 
 
-  return <ScrollView style={styles.page} contentContainerStyle={styles.content}>
+  return <ScrollView ref={pageScroll} style={styles.page} contentContainerStyle={styles.content}
+    scrollEventThrottle={16} onScroll={(event) => { pageOffset.current = event.nativeEvent.contentOffset; }}>
     <Text style={styles.eyebrow}>{loaded.session.title} · ROUND {round.roundNumber}</Text>
     <View style={styles.titleRow}><Text style={styles.title}>{round.name}</Text>
       {canConfigureRound({ ...round, arrows }) ? <Pressable accessibilityRole="button" accessibilityLabel="Configure Round settings" onPress={openConfigure} style={styles.configureButton}>
@@ -234,7 +242,7 @@ export default function ScoreRoundScreen() {
     <Text style={styles.meta}>{round.division} · {round.distanceMetres} m · {targetFaceLabel(round)}</Text>
 
     <NativeTarget arrows={arrows} selectedId={selected?.id ?? null} currentEnd={slot.end}
-      faceType={round.faceType} faceDiameterCm={round.faceDiameterCm} onPlot={handlePlot} />
+      faceType={round.faceType} faceDiameterCm={round.faceDiameterCm} onPlot={handlePlot} onMultiTouchChange={setTargetMultiTouch} />
 
     <RoundGroupPosition round={{ ...round, arrows }} />
     <GroupingExportButton round={{ ...round, arrows }} context={`${loaded.session.title} · ${loaded.session.date}`} />

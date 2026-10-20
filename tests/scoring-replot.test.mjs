@@ -50,6 +50,7 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
   const modules = name => {
     if (name === "react") return react;
     if (name === "react-native") return { ActivityIndicator: "Spinner", Modal: "Modal", Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text", TextInput: "TextInput", View: "View", StyleSheet: { create: value => value } };
+    if (name === "react-native-safe-area-context") return { SafeAreaProvider: "SafeAreaProvider", SafeAreaView: "SafeAreaView" };
     if (name === "expo-router") return { useLocalSearchParams: () => ({ roundId: round.id }) };
     if (name === "../scoring-model" || name === "@arc-track/core/scoring") return scoring;
     if (name === "../web-arrow-queue") return { WebArrowQueue };

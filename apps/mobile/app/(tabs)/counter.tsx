@@ -19,6 +19,8 @@ export default function CounterScreen() {
   const padding = compact ? 12 : 18;
   const [counter, setCounter] = useState<CounterState>(DEFAULT_COUNTER);
   const [ready, setReady] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const writes = useRef(Promise.resolve());
   const currentCounter = useRef<CounterState>(DEFAULT_COUNTER);
@@ -32,12 +34,12 @@ export default function CounterScreen() {
       setCounter(state);
       setReady(true);
     }).catch(() => {
-      if (active) { setMessage("Saved counter could not be loaded."); setReady(true); }
+      if (active) { setMessage("Saved counter could not be loaded. Retry to keep your saved total and history."); setLoadFailed(true); }
     });
     return () => { active = false; };
-  }, []);
+  }, [loadAttempt]);
 
-  function apply(change: (current: CounterState) => CounterState) {
+  const apply = useCallback((change: (current: CounterState) => CounterState) => {
     if (!ready) return;
     const next = change(currentCounter.current);
     if (next === currentCounter.current) return;
@@ -45,12 +47,13 @@ export default function CounterScreen() {
     setCounter(next);
     writes.current = writes.current.catch(() => {}).then(() => AsyncStorage.setItem(COUNTER_STORAGE_KEY, JSON.stringify(next)));
     void writes.current.catch(() => setMessage("Counter could not be saved on this device."));
-  }
+  }, [ready]);
   const changeIncrement = useCallback((increment: number) => {
+    if (!ready) return;
     if (!shouldTickCounterWheel(currentCounter.current.increment, increment)) return;
     apply((current) => setIncrement(current, increment));
     void Haptics.selectionAsync().catch(() => {});
-  }, [ready]);
+  }, [apply, ready]);
 
   function reset() {
     Alert.alert("Reset counter?", "The total and Undo history will be cleared.", [
@@ -91,6 +94,10 @@ export default function CounterScreen() {
       </View>
     </View>
     {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
+    {loadFailed ? <Pressable accessibilityRole="button" accessibilityLabel="Retry loading saved counter"
+      onPress={() => { setLoadFailed(false); setMessage(null); setLoadAttempt(value => value + 1); }} style={styles.tool}>
+      <Text style={styles.toolText}>Retry</Text>
+    </Pressable> : null}
     <Pressable accessibilityRole="button" accessibilityLabel={`Add ${counter.increment} Arrows`} disabled={!ready}
       onPress={() => apply(addArrows)} style={({ pressed }) => [styles.clicker, compact && styles.compactClicker, pressed && styles.pressed]}>
       <Text style={[styles.arrow, compact && styles.compactArrow]}>↑</Text><Text style={styles.addText}>+{counter.increment}</Text>
@@ -135,54 +142,53 @@ function CounterWheel({ value, enabled, onChange }: { value: number; enabled: bo
   const list = useRef<FlatList<number>>(null);
   const [rangeStart, setRangeStart] = useState(() => counterWheelRangeStart(value));
   const rangeEnd = Math.min(Number.MAX_SAFE_INTEGER, rangeStart + COUNTER_WHEEL_WINDOW - 1);
-  const [selectedValue, setSelectedValue] = useState(value);
+  // Adjust the virtual window before committing an externally restored value.
+  if (value < rangeStart || value > rangeEnd) setRangeStart(counterWheelRangeStart(value));
   const selectedValueRef = useRef(value);
   const pendingCenter = useRef<number | null>(null);
   const initialized = useRef(false);
   const values = Array.from({ length: rangeEnd - rangeStart + 1 }, (_, index) => rangeStart + index);
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const selectValue = useCallback((next: number, scroll: boolean) => {
     if (!enabled) return;
-    const next = counterWheelValueFromOffset(event.nativeEvent.contentOffset.y, rangeStart, rangeEnd, selectedValueRef.current);
     if (next === selectedValueRef.current) return;
     selectedValueRef.current = next;
-    setSelectedValue(next);
     onChange(next);
-    if (shouldRecenterCounterWheel(next, rangeStart, rangeEnd)) {
+    const nextStart = counterWheelRangeStart(next);
+    if (shouldRecenterCounterWheel(next, rangeStart, rangeEnd) && nextStart !== rangeStart) {
       pendingCenter.current = next;
-      setRangeStart(counterWheelRangeStart(next));
+      setRangeStart(nextStart);
+    } else if (scroll) {
+      list.current?.scrollToOffset({ offset: (next - rangeStart) * COUNTER_WHEEL_ROW_HEIGHT, animated: false });
     }
   }, [enabled, onChange, rangeStart, rangeEnd]);
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    selectValue(counterWheelValueFromOffset(event.nativeEvent.contentOffset.y, rangeStart, rangeEnd, selectedValueRef.current), false);
+  }, [selectValue, rangeStart, rangeEnd]);
 
   useEffect(() => {
     if (!enabled) return;
-    const center = pendingCenter.current ?? (initialized.current ? null : value);
-    if (center !== null) {
+    const center = value;
+    if (center < rangeStart || center > rangeEnd) return;
+    if (pendingCenter.current !== null || !initialized.current || selectedValueRef.current !== value) {
       list.current?.scrollToOffset({ offset: Math.max(0, (center - rangeStart) * COUNTER_WHEEL_ROW_HEIGHT), animated: false });
       pendingCenter.current = null;
       initialized.current = true;
       selectedValueRef.current = center;
-      setSelectedValue(center);
     }
-  }, [enabled, rangeStart, value]);
-
-  useEffect(() => {
-    selectedValueRef.current = value;
-    setSelectedValue(value);
-    if (enabled && initialized.current && !shouldRecenterCounterWheel(value, rangeStart, rangeEnd)) return;
-    if (enabled && initialized.current) {
-      pendingCenter.current = value;
-      setRangeStart(counterWheelRangeStart(value));
-    }
-  }, [enabled]);
+  }, [enabled, rangeStart, rangeEnd, value]);
 
   return <>
     <FlatList
       ref={list}
       accessibilityRole="adjustable"
       accessibilityLabel="Arrow increment"
-      accessibilityValue={{ min: 1, max: Number.MAX_SAFE_INTEGER, now: selectedValue, text: `Add ${selectedValue} Arrows` }}
+      accessibilityValue={{ min: 1, max: Number.MAX_SAFE_INTEGER, now: value, text: `Add ${value} Arrows` }}
       accessibilityActions={[{ name: "increment", label: "Increase Arrow increment" }, { name: "decrement", label: "Decrease Arrow increment" }]}
-      onAccessibilityAction={(event) => onChange(Math.min(Number.MAX_SAFE_INTEGER, Math.max(1, selectedValue + (event.nativeEvent.actionName === "increment" ? 1 : -1))))}
+      onAccessibilityAction={(event) => {
+        const action = event.nativeEvent.actionName;
+        if (action !== "increment" && action !== "decrement") return;
+        selectValue(Math.min(Number.MAX_SAFE_INTEGER, Math.max(1, selectedValueRef.current + (action === "increment" ? 1 : -1))), true);
+      }}
       data={values}
       keyExtractor={(item) => String(item)}
       getItemLayout={(_, index) => ({ length: COUNTER_WHEEL_ROW_HEIGHT, offset: index * COUNTER_WHEEL_ROW_HEIGHT, index })}
@@ -196,7 +202,7 @@ function CounterWheel({ value, enabled, onChange }: { value: number; enabled: bo
       onScroll={handleScroll}
       style={styles.wheel}
       contentContainerStyle={styles.wheelContent}
-      renderItem={({ item }) => <View style={styles.wheelRow}><Text style={[styles.wheelValue, item === selectedValue && styles.wheelSelected]}>{item === selectedValue ? `+${item}` : item}</Text></View>}
+      renderItem={({ item }) => <View style={styles.wheelRow}><Text style={[styles.wheelValue, item === value && styles.wheelSelected]}>{item === value ? `+${item}` : item}</Text></View>}
       ListHeaderComponent={<View style={styles.wheelSpacer} />}
       ListFooterComponent={<View style={styles.wheelSpacer} />}
     />

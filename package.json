@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint . --max-warnings 0",
+    "lint:mobile": "eslint --config eslint.mobile.config.mjs apps/mobile/app apps/mobile/src --max-warnings 0",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
