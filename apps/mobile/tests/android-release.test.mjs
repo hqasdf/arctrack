@@ -48,4 +48,9 @@ test("release flags survive actual Expo config plugin evaluation with existing S
   assert.notEqual(property("expo.useLegacyPackaging"), "true");
   assert.ok(app.android.versionCode > 4);
   assert.ok(app.android.blockedPermissions.includes("android.permission.ACCESS_BACKGROUND_LOCATION"));
+  assert.ok(app.android.blockedPermissions.includes("android.permission.SYSTEM_ALERT_WINDOW"));
+  const overlay = evaluated._internal.modResults.android.manifest.manifest["uses-permission"]
+    .filter(permission => permission.$["android:name"] === "android.permission.SYSTEM_ALERT_WINDOW");
+  assert.equal(overlay.length, 1);
+  assert.equal(overlay[0].$["tools:node"], "remove");
 });
