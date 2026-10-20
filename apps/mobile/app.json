@@ -20,7 +20,13 @@
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.FOREGROUND_SERVICE_LOCATION"
       ],
-      "package": "com.arctrack.archery"
+      "package": "com.arctrack.archery",
+      "icon": "./assets/android/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android/adaptive-foreground.png",
+        "backgroundColor": "#563d30",
+        "monochromeImage": "./assets/android/adaptive-foreground.png"
+      }
     },
     "plugins": [
       [
