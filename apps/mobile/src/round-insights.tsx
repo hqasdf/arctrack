@@ -2,8 +2,7 @@ import type { RoundDraft } from "@arc-track/core/scoring";
 import { StyleSheet, Text, View } from "react-native";
 import { AnalysisTarget } from "./analysis-target";
 import { mobileRoundInsights } from "./mobile-analytics";
-import { colors } from "./theme";
-import { coachPalette } from "./coach-palette";
+import { createThemedStyles, useAppearance } from "./appearance";
 
 const number = (value: number | null) => value === null ? "—" : value.toFixed(2);
 const percent = (value: number | null) => value === null ? "—" : `${value.toFixed(1)}%`;
@@ -12,8 +11,9 @@ function axis(value: number, positive: string, negative: string, radiusCm: numbe
 }
 
 export function RoundInsights({ round, showTarget = true, showGroupPosition = true, coach = false }: { round: RoundDraft; showTarget?: boolean; showGroupPosition?: boolean; coach?: boolean }) {
+  const { colors, coachColors } = useAppearance();
   const insight = mobileRoundInsights(round);
-  const skin = coach ? coachStyles : styles;
+  const skin = makeStyles(coach ? coachColors : colors);
   const metrics = insight.grouping.metrics;
   const flyerIds = new Set(insight.mainGroup.flyers.map((arrow) => arrow.id));
   return <View style={skin.section}>
@@ -54,6 +54,9 @@ export function RoundInsights({ round, showTarget = true, showGroupPosition = tr
 
 /** Ordinary page content, outside NativeTarget's gesture responder. */
 export function RoundGroupPosition({ round }: { round: RoundDraft }) {
+  const { colors } = useAppearance();
+  const styles = makeStyles(colors);
+  const positionStyles = usePositionStyles();
   const metrics = mobileRoundInsights(round).grouping.metrics;
   return <View style={positionStyles.card} accessibilityLabel="Group Position">
     <Text style={styles.label}>GROUP POSITION</Text>
@@ -61,11 +64,11 @@ export function RoundGroupPosition({ round }: { round: RoundDraft }) {
   </View>;
 }
 
-const positionStyles = StyleSheet.create({
+const usePositionStyles = createThemedStyles((colors) => StyleSheet.create({
   card: { padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.surface },
-});
+}));
 
-function Metric({ label, value, skin }: { label: string; value: string; skin: typeof styles }) {
+function Metric({ label, value, skin }: { label: string; value: string; skin: ReturnType<typeof makeStyles> }) {
   return <View style={skin.metric}><Text style={skin.label}>{label}</Text><Text style={skin.value}>{value}</Text></View>;
 }
 
@@ -84,5 +87,3 @@ function makeStyles(palette: { border: string; text: string; surface: string; mu
   endLabel: { color: palette.text, fontSize: 13 },
   endValue: { color: palette.text, fontSize: 13, fontWeight: "700" },
 }); }
-const styles = makeStyles(colors);
-const coachStyles = makeStyles(coachPalette);

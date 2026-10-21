@@ -26,7 +26,7 @@ function runtime({ restoredId = null } = {}) {
     "expo-router": { useFocusEffect(callback) { focus = callback; } },
     "react-native": { Pressable: "Pressable", Text: "Text", View: "View", Platform: { OS: "android", Version: 36 },
       Alert: { alert: (...args) => alerts.push(args) }, AppState: { addEventListener: (_event, listener) => { onAppState = listener; return { remove() {} }; } } },
-    "../auth-ui": { authStyles: {} }, "../theme": { colors: {} },
+    "../auth-ui": { useAuthStyles: () => ({}) }, "../appearance": { useAppearance: () => ({ colors: {} }) },
     "../auth-native-prompt": { nativeAuthPrompt: prompt },
     "./feature": { canShowBiometricSignIn: () => true, canShowBiometricSignInSetting: () => true },
     "./prepared-ui": { BiometricSignInSetting: "Setting", BiometricSignInAction: "Action" },

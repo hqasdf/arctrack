@@ -1,15 +1,18 @@
+import { useAppearance } from "../../src/appearance";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Pressable, Text, TextInput } from "react-native";
 import { configError, mobileAuthentication, supabase } from "../../src/supabase";
 import { SIGNUP_STORAGE_KEY, parseSignupContext, safeAuthMessage, serializeSignupContext } from "../../src/auth-flow";
-import { AuthAction as Action, AuthField, AuthScreen, authColors, authStyles as styles } from "../../src/auth-ui";
+import { AuthAction as Action, AuthField, AuthScreen, useAuthStyles } from "../../src/auth-ui";
 import { OtpInput } from "../../src/otp-input";
 import { PasswordField } from "../../src/password-field";
 import { PrivacyPolicyLink } from "../../src/privacy-policy-link";
 
 export default function SignUpScreen() {
+  const styles = useAuthStyles();
+  const { colors: authColors } = useAppearance();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");

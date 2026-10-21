@@ -8,13 +8,14 @@ import * as scoring from "@arc-track/core/scoring";
 import * as geometry from "../src/native-target-geometry.ts";
 import * as scoringState from "../src/scoring-state.ts";
 
-function load(path, dependencies) {
+function load(path, dependencies, getPalette = () => ({})) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022,
   } }).outputText;
   const exports = {};
   new Function("require", "exports", compiled)(name => {
+    if (name.endsWith("/appearance")) return { useAppearance: () => ({ colors: getPalette() }), createThemedStyles: factory => () => factory(getPalette()) };
     if (name === "react/jsx-runtime") return jsx;
     assert.ok(name in dependencies, `Unexpected dependency: ${name}`);
     return dependencies[name];
@@ -53,6 +54,8 @@ const native = { View: "View", Text: "Text", Pressable: "Pressable", ScrollView:
 // Real target and real scoring-page callback, mocked native scrolling only.
 // These assertions verify event/command ordering, not Android/iOS touch physics.
 async function runtime(faceType = "full_face") {
+  let palette = { background: "#fbfaf8", accent: "#73513d", onPrimary: "#ffffff" };
+  const io = { roundReads: 0, endReads: 0, saves: [], deletes: 0 };
   const pageHooks = hooks();
   const round = { id: "round", name: "Practice", roundNumber: 1, division: "Recurve", distanceMetres: 70, faceDiameterCm: 122, faceType, ends: 1, arrowsPerEnd: 3, arrows: [] };
   const user = { id: "owner" };
@@ -62,12 +65,12 @@ async function runtime(faceType = "full_face") {
     "expo-router": { useLocalSearchParams: () => ({ roundId: "round" }) },
     "@arc-track/core/analytics": { targetFaceLabel: () => "Target" }, "@arc-track/core/presets": { DIVISIONS: ["Recurve"] }, "@arc-track/core/scoring": scoring,
     "../../../src/auth": { useAuth: () => ({ user }) }, "../../../src/scoring-state": scoringState,
-    "../../../src/sessions": { readOwnRound: async () => ({ session: { id: "session", title: "Practice", date: "2026-10-20" }, round }) },
-    "../../../src/arrow-writes": { readRoundEndIds: async () => new Map([[1, "end"]]), saveArrowRecord: async () => "saved", deleteArrowRecord: async () => {} },
+    "../../../src/sessions": { readOwnRound: async () => { io.roundReads++; return { session: { id: "session", title: "Practice", date: "2026-10-20" }, round }; } },
+    "../../../src/arrow-writes": { readRoundEndIds: async () => { io.endReads++; return new Map([[1, "end"]]); }, saveArrowRecord: async entry => { io.saves.push(structuredClone(entry)); return "saved"; }, deleteArrowRecord: async () => { io.deletes++; } },
     "../../../src/icons": { ArcIcon: "Icon" }, "../../../src/grouping-export": { GroupingExportButton: "Export" }, "../../../src/session-weather": { ScoringWeather: "Weather" },
     "../../../src/native-target": { NativeTarget: "Target" }, "../../../src/round-insights": { RoundInsights: "Insights", RoundGroupPosition: "GroupPosition" },
     "../../../src/round-update-model": { canConfigureRound: () => false }, "../../../src/writes": { roundUpdateEnabled: false }, "../../../src/theme": { colors: {}, PAGE_TOP_SPACING: 0 },
-  });
+  }, () => palette);
   const renderPage = () => pageHooks.render(() => page.default());
   renderPage(); await new Promise(setImmediate);
   const pageTree = renderPage();
@@ -88,7 +91,8 @@ async function runtime(faceType = "full_face") {
   const render = () => targetHooks.render(() => target.NativeTarget({ ...targetProps, onPlot: plot => plots.push(plot) }));
   const surface = () => nodes(render()).find(node => node.props?.accessibilityLabel === "Scoring target").props;
   return {
-    commands, plots, renderPage, render, surface,
+    commands, plots, renderPage, render, surface, io,
+    setPalette(next) { palette = next; },
     enabled: () => enabled, offset: () => offset,
     scroll(y) { if (enabled) { offset = y; pageTree.props.onScroll(eventWithOffset(y)); } },
     start(touches) { const e = event(touches); const props = surface(); props.onStartShouldSetResponderCapture?.(e); props.onResponderGrant(e); props.onTouchStart?.(e); },
@@ -220,5 +224,44 @@ for (const face of ["full_face", "six_ring", "triple_face"]) test(`${face}: repe
     assert.ok(Math.abs(plot.x) < 1e-12 && Math.abs(plot.y) < 1e-12);
     if (face === "triple_face") assert.equal(plot.faceIndex, 0);
     assert.equal(r.plots.length, 1, "Multi-touch must never place an Arrow");
+  } finally { r.dispose(); }
+});
+
+
+test("theme changes preserve active scoring positions, values, current slot and explicit edit selection without data IO", async () => {
+  const r = await runtime();
+  const target = tree => nodes(tree).find(node => node.type === "Target").props;
+  const current = tree => nodes(tree).find(node => node.type === "Text" && Array.isArray(node.props?.children) && node.props.children[0] === "End " && node.props.children[2] === " · Arrow ").props.children;
+  const arrowButton = tree => nodes(tree).find(node => node.props?.accessibilityLabel === "Arrow 1, 10X");
+  try {
+    target(r.renderPage()).onPlot({ x: 0, y: 0 });
+    await new Promise(setImmediate);
+    let before = r.renderPage();
+    assert.deepEqual(current(before), ["End ", 1, " · Arrow ", 2]);
+    assert.equal(target(before).arrows[0].score, "X");
+    const recorded = structuredClone(target(before).arrows);
+    const io = structuredClone(r.io);
+    r.setPalette({ background: "#191714", accent: "#e2bc9c", onPrimary: "#261c14" });
+    let after = r.renderPage();
+    await new Promise(setImmediate);
+    assert.equal(after.props.style.backgroundColor, "#191714");
+    assert.deepEqual(target(after).arrows, recorded);
+    assert.deepEqual(current(after), current(before));
+    assert.deepEqual(r.io, io);
+
+    arrowButton(after).props.onPress();
+    before = r.renderPage();
+    assert.deepEqual(current(before), ["End ", 1, " · Arrow ", 1]);
+    assert.equal(target(before).selectedId, recorded[0].id);
+    assert.equal(arrowButton(before).props.accessibilityState.selected, true);
+    r.setPalette({ background: "#fbfaf8", accent: "#73513d", onPrimary: "#ffffff" });
+    after = r.renderPage();
+    await new Promise(setImmediate);
+    assert.equal(after.props.style.backgroundColor, "#fbfaf8");
+    assert.deepEqual(target(after).arrows, recorded);
+    assert.deepEqual(current(after), current(before));
+    assert.equal(target(after).selectedId, recorded[0].id);
+    assert.equal(arrowButton(after).props.accessibilityState.selected, true);
+    assert.deepEqual(r.io, io);
   } finally { r.dispose(); }
 });

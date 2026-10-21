@@ -4,13 +4,16 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useAuth } from "@/src/auth";
-import { CoachNav, CoachState, coachStyles } from "@/src/coach-ui";
+import { CoachNav, CoachState, useCoachStyles } from "@/src/coach-ui";
 import { singaporeToday } from "@/src/mobile-analytics";
 import { readMobileCoachTrainingPlans, type MobileTrainingPlan } from "@/src/training-plans-read";
 import { singleTrainingPlanRouteParam } from "@/src/training-plan-route-params";
-import { Action, ui } from "@/src/training-plans-ui";
+import { Action, useTrainingPlanStyles } from "@/src/training-plans-ui";
 
 export default function CoachTrainingPlansScreen() {
+  const coachStyles = useCoachStyles();
+  const ui = useTrainingPlanStyles();
+
   const { organizationId: rawOrganizationId } = useLocalSearchParams<{ organizationId?: string | string[] }>();
   const organizationId = singleTrainingPlanRouteParam(rawOrganizationId);
   const { user } = useAuth();

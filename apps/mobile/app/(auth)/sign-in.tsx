@@ -1,14 +1,17 @@
+import { useAppearance } from "../../src/appearance";
 import { useState } from "react";
 import { router } from "expo-router";
 import { Pressable, Text, TextInput } from "react-native";
 import { useAuth } from "../../src/auth";
 import { safeAuthMessage } from "../../src/auth-flow";
-import { AuthAction, AuthField, AuthScreen, authColors, authStyles as styles } from "../../src/auth-ui";
+import { AuthAction, AuthField, AuthScreen, useAuthStyles } from "../../src/auth-ui";
 import { PasswordField } from "../../src/password-field";
 import { PrivacyPolicyLink } from "../../src/privacy-policy-link";
 import { SignInBiometricControl } from "../../src/passkeys/screen-controls";
 
 export default function SignInScreen() {
+  const styles = useAuthStyles();
+  const { colors: authColors } = useAppearance();
   const { configError, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

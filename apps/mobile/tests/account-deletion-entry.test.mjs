@@ -18,6 +18,8 @@ function profile(openURL) {
     "../../src/privacy-policy-link": { PrivacyPolicyLink: "PrivacyPolicyLink" },
     "../../src/passkeys/screen-controls": { ProfileBiometricControl: () => null },
     "../../src/theme": { colors: {}, PAGE_TOP_SPACING: 0 },
+    "../../src/appearance": { useAppearance: () => ({ colors: {} }), createThemedStyles: factory => () => factory({}) },
+    "../../src/appearance-settings": { AppearanceSettings: () => null },
   };
   const source = readFileSync(new URL("../app/(tabs)/profile.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;

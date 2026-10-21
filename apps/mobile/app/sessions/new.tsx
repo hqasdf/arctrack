@@ -4,10 +4,13 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../src/auth";
 import { singaporeToday } from "../../src/mobile-analytics";
-import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PAGE_TOP_SPACING } from "../../src/theme";
+import { createThemedStyles, useAppearance } from "../../src/appearance";
 import { createMobileSession } from "../../src/writes";
 
 export default function NewSessionScreen() {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => singaporeToday(new Date()));
@@ -47,26 +50,27 @@ export default function NewSessionScreen() {
       </View>
 
       <Text style={styles.label}>Session date</Text>
-      <TextInput accessibilityLabel="Session date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" autoCapitalize="none" keyboardType="numbers-and-punctuation" style={styles.input} />
+      <TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel="Session date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" autoCapitalize="none" keyboardType="numbers-and-punctuation" style={styles.input} />
 
       <Text style={styles.label}>{sessionType === "competition" ? "Competition name (optional)" : "Title (optional)"}</Text>
-      <TextInput accessibilityLabel={sessionType === "competition" ? "Competition name" : "Session title"} value={title} onChangeText={setTitle} maxLength={80} placeholder={sessionType === "competition" ? "National Championships" : "Evening practice"} style={styles.input} returnKeyType="done" />
+      <TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel={sessionType === "competition" ? "Competition name" : "Session title"} value={title} onChangeText={setTitle} maxLength={80} placeholder={sessionType === "competition" ? "National Championships" : "Evening practice"} style={styles.input} returnKeyType="done" />
 
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       <Pressable accessibilityRole="button" disabled={pending} onPress={() => void submit()} style={({ pressed }) => [styles.submit, (pressed || pending) && styles.pressed, pending && styles.disabled]}>
-        {pending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Create Session</Text>}
+        {pending ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.submitText}>Create Session</Text>}
       </Pressable>
     </ScrollView>
   </KeyboardAvoidingView>;
 }
 
 function TypeChoice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  const styles = useStyles();
   return <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={[styles.typeChoice, selected && styles.typeChoiceSelected]}>
     <Text style={[styles.typeText, selected && styles.typeTextSelected]}>{label}</Text>
   </Pressable>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { padding: 22, paddingTop: 22 + PAGE_TOP_SPACING, paddingBottom: 40, flexGrow: 1 },
   back: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start", marginBottom: 16, paddingRight: 14 },
@@ -77,13 +81,13 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 14, fontWeight: "700", marginBottom: 9, marginTop: 18 },
   typeChoices: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   typeChoice: { minHeight: 48, justifyContent: "center", paddingHorizontal: 15, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  typeChoiceSelected: { borderColor: colors.accent, backgroundColor: "#e7efeb" },
+  typeChoiceSelected: { borderColor: colors.accent, backgroundColor: colors.soft },
   typeText: { color: colors.muted, fontSize: 14, fontWeight: "600" },
   typeTextSelected: { color: colors.accent },
-  input: { minHeight: 50, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 14, color: colors.text, fontSize: 16 },
+  input: { minHeight: 50, borderRadius: 10, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.control, paddingHorizontal: 14, color: colors.text, fontSize: 16 },
   error: { color: colors.error, fontSize: 14, marginTop: 18, lineHeight: 20 },
   submit: { minHeight: 52, borderRadius: 10, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, marginTop: 28 },
-  submitText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  submitText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
   pressed: { opacity: 0.78 },
   disabled: { opacity: 0.65 },
-});
+}));

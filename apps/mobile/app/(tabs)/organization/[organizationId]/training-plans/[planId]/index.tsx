@@ -4,16 +4,20 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { useAuth } from "@/src/auth";
-import { CoachNav, CoachState, coachStyles } from "@/src/coach-ui";
+import { CoachNav, CoachState, useCoachPalette, useCoachStyles } from "@/src/coach-ui";
 import { singaporeToday } from "@/src/mobile-analytics";
 import { athleteLabel } from "@/src/organizations";
 import { readMobileCoachTrainingPlanProgress } from "@/src/training-plans-read";
 import { deleteMobileTrainingPlan } from "@/src/training-plans-write";
-import { Action, TrainingDailyProgress, TrainingGoalRing, ui, visibleTrainingWeek } from "@/src/training-plans-ui";
+import { Action, TrainingDailyProgress, TrainingGoalRing, useTrainingPlanStyles, visibleTrainingWeek } from "@/src/training-plans-ui";
 import { singleTrainingPlanRouteParam } from "@/src/training-plan-route-params";
 
 type Loaded = NonNullable<Awaited<ReturnType<typeof readMobileCoachTrainingPlanProgress>>>;
 export default function CoachTrainingPlanDetailScreen() {
+  const coachStyles = useCoachStyles();
+  const coachPalette = useCoachPalette();
+  const ui = useTrainingPlanStyles();
+
   const { organizationId: rawOrganizationId, planId: rawPlanId } = useLocalSearchParams<{
     organizationId?: string | string[]; planId?: string | string[];
   }>();
@@ -63,7 +67,7 @@ export default function CoachTrainingPlanDetailScreen() {
       {athletes.length ? athletes.map((athlete) => { const value = visibleTrainingWeek(athlete.progress, today); return <Pressable key={athlete.userId} accessibilityRole="button" accessibilityState={{ selected: selected?.userId === athlete.userId }} onPress={() => setSelectedId(athlete.userId)} style={coachStyles.card}>
         <Text style={coachStyles.cardTitle}>{athleteLabel(athlete)}</Text>
         <Text style={coachStyles.muted}>{value?.arrowTarget === null || !value ? "No weekly Arrow target" : `${value.arrowsCompleted} / ${value.arrowTarget} arrows · ${Math.round((value.progressRatio ?? 0) * 100)}% · ${value.goalReached ? value.amountAboveGoal ? `+${value.amountAboveGoal} above target` : "Goal complete" : `${value.arrowsRemaining} remaining`}`}</Text>
-        <View style={{ height: 6, borderRadius: 6, backgroundColor: "#c8cbc2", overflow: "hidden" }}><View style={{ width: `${(value?.visualRatio ?? 0) * 100}%`, height: 6, backgroundColor: "#306b60" }}/></View>
+        <View style={{ height: 6, borderRadius: 6, backgroundColor: coachPalette.border, overflow: "hidden" }}><View style={{ width: `${(value?.visualRatio ?? 0) * 100}%`, height: 6, backgroundColor: coachPalette.accent }}/></View>
       </Pressable>; }) : <Text style={coachStyles.muted}>No active assigned athletes are available.</Text>}
     </View>
     <View style={coachStyles.section}><Text style={coachStyles.heading}>Daily prescription{selected ? ` · ${athleteLabel(selected)}` : ""}</Text>

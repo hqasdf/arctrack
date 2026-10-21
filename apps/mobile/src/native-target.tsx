@@ -1,3 +1,4 @@
+import { createThemedStyles } from "./appearance";
 import { calculateGroupingForArrows, convexHull } from "@arc-track/core/insights";
 import type { ArrowEntry, Plot, TargetFaceType } from "@arc-track/core/scoring";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -40,6 +41,7 @@ function touchPair(event: GestureResponderEvent) {
 }
 
 export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDiameterCm, onPlot, onMultiTouchChange }: Props) {
+  const styles = useStyles();
   const [availableWidth, setAvailableWidth] = useState(320);
   const tap = useRef<Tap>(null);
   const gesture = useRef<Gesture>(null);
@@ -173,8 +175,8 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   container: { width: "100%", alignItems: "center", justifyContent: "center", overflow: "hidden" },
   reset: { alignSelf: "flex-end", minHeight: 40, justifyContent: "center", paddingHorizontal: 8 },
-  resetText: { color: "#306b60", fontSize: 13, fontWeight: "700" },
-});
+  resetText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
+}));

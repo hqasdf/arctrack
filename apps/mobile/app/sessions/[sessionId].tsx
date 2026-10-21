@@ -9,10 +9,13 @@ import { useAuth } from "../../src/auth";
 import { SessionWeatherHistory } from "../../src/session-weather";
 import { readOwnSession } from "../../src/sessions";
 import { scoreRoundHref } from "../../src/round-navigation";
-import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PAGE_TOP_SPACING } from "../../src/theme";
+import { createThemedStyles, useAppearance } from "../../src/appearance";
 import { createMobileRound, deleteMobileRound, deleteMobileSession, saveMobileSessionArrowCount } from "../../src/writes";
 
 export default function SessionDetailScreen() {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const { user } = useAuth();
   const [session, setSession] = useState<SessionDraft | null>(null);
@@ -94,13 +97,13 @@ export default function SessionDetailScreen() {
     <Text style={styles.eyebrow}>{session.sessionType === "competition" ? "COMPETITION" : "TRAINING"} · {formatDateOnly(session.date)}</Text>
     <Text style={styles.title}>{session.title}</Text>
     <Text style={styles.meta}>Arrow count: {session.arrowCount}</Text>
-    <View style={styles.countEdit}><TextInput accessibilityLabel="Session Arrow count" keyboardType="number-pad" value={arrowCountText}
+    <View style={styles.countEdit}><TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel="Session Arrow count" keyboardType="number-pad" value={arrowCountText}
       onChangeText={setArrowCountText} style={styles.countInput} selectTextOnFocus />
       <Pressable accessibilityRole="button" disabled={savingCount} onPress={() => void saveArrowCount()} style={styles.smallAction}><Text style={styles.actionText}>{savingCount ? "Saving…" : "Save count"}</Text></Pressable></View>
     <View style={styles.startPanel}>
       <Text style={styles.startHint}>Start a Round with Arc Track’s default setup.</Text>
       <Pressable accessibilityRole="button" disabled={startingRound} onPress={() => void startRound()} style={({ pressed }) => [styles.startButton, (pressed || startingRound) && styles.startPressed]}>
-        {startingRound ? <ActivityIndicator color="#fff" /> : <Text style={styles.startButtonText}>Start Round</Text>}
+        {startingRound ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.startButtonText}>Start Round</Text>}
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/sessions/[sessionId]/configure-round", params: { sessionId } })}
         style={styles.configureButton}><Text style={styles.configureText}>Configure Round</Text></Pressable>
@@ -121,14 +124,14 @@ export default function SessionDetailScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingTop: 20 + PAGE_TOP_SPACING, paddingBottom: 36 },
   eyebrow: { color: colors.accent, fontSize: 12, fontWeight: "700", letterSpacing: 1.5 },
   title: { color: colors.text, fontSize: 29, fontWeight: "700", marginTop: 8 },
   meta: { color: colors.muted, fontSize: 14, lineHeight: 20 },
   countEdit: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  countInput: { minWidth: 90, minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, backgroundColor: colors.surface, color: colors.text },
+  countInput: { minWidth: 90, minHeight: 44, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 8, paddingHorizontal: 10, backgroundColor: colors.control, color: colors.text },
   smallAction: { minHeight: 44, justifyContent: "center", paddingHorizontal: 8 },
   actionText: { color: colors.accent, fontWeight: "700" },
   deleteAction: { minHeight: 44, alignSelf: "flex-start", justifyContent: "center", marginTop: 6 },
@@ -136,7 +139,7 @@ const styles = StyleSheet.create({
   startPanel: { marginTop: 20, paddingTop: 17, borderTopWidth: 1, borderTopColor: colors.border, gap: 12 },
   startHint: { color: colors.muted, fontSize: 14, lineHeight: 20 },
   startButton: { minHeight: 50, borderRadius: 10, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
-  startButtonText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  startButtonText: { color: colors.onPrimary, fontSize: 15, fontWeight: "700" },
   startPressed: { opacity: 0.75 },
   configureButton: { minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, alignItems: "center", justifyContent: "center" },
   configureText: { color: colors.accent, fontWeight: "700" },
@@ -151,5 +154,5 @@ const styles = StyleSheet.create({
   state: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
   message: { color: colors.muted, fontSize: 15, textAlign: "center" },
   retry: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 22, paddingVertical: 14 },
-  retryText: { color: "#fff", fontWeight: "700" },
-});
+  retryText: { color: colors.onPrimary, fontWeight: "700" },
+}));

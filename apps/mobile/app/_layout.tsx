@@ -1,11 +1,12 @@
-import { Stack, usePathname } from "expo-router";
+import { Stack, usePathname, ThemeProvider, DarkTheme, DefaultTheme } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth";
-import { colors } from "../src/theme";
+import { AppearanceProvider, useAppearance } from "../src/appearance";
 
 function Routes() {
+  const { colors } = useAppearance();
   const { loading, user, recoveryRequired, authError, retry } = useAuth();
   const pathname = usePathname();
   useEffect(() => {
@@ -39,6 +40,12 @@ function Routes() {
   </Stack>;
 }
 
+function ThemedApp() {
+  const { colors, resolvedTheme } = useAppearance();
+  const base = resolvedTheme === "dark" ? DarkTheme : DefaultTheme;
+  const navigationTheme = { ...base, colors: { ...base.colors, primary: colors.accent, background: colors.background, card: colors.surface, text: colors.text, border: colors.border, notification: colors.error } };
+  return <ThemeProvider value={navigationTheme}><AuthProvider><StatusBar style={resolvedTheme === "dark" ? "light" : "dark"} /><Routes /></AuthProvider></ThemeProvider>;
+}
 export default function RootLayout() {
-  return <AuthProvider><StatusBar style="dark" /><Routes /></AuthProvider>;
+  return <AppearanceProvider><ThemedApp /></AppearanceProvider>;
 }

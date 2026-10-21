@@ -17,6 +17,7 @@ function load(file, dependencies) {
   } });
   const module = { exports: {} };
   new Function("require", "module", "exports", "__DEV__", outputText)(name => {
+    if (name.endsWith("/appearance")) return { useAppearance: () => ({ colors: {} }), createThemedStyles: factory => () => factory({}) };
     if (name === "react/jsx-runtime") return jsxRuntime;
     if (!(name in dependencies)) throw new Error(`Unmocked dependency ${name}`);
     return dependencies[name];

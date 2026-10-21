@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Pressable, TextInput, View, type TextInputProps } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { colors } from "./theme";
+import { useAppearance } from "./appearance";
 
 export function PasswordField({ style, accessibilityLabel = "Password", ...props }: TextInputProps) {
+  const { colors } = useAppearance();
   const [visible, setVisible] = useState(false);
   return <View style={{ position: "relative" }}>
     <TextInput {...props} accessibilityLabel={accessibilityLabel} secureTextEntry={!visible} style={[style, { paddingRight: 58 }]} />

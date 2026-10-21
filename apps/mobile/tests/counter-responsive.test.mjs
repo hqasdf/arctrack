@@ -11,6 +11,7 @@ import * as wheelModel from "../src/counter-wheel-model.ts";
 function counterRuntime({ getItem, renderWheel = false, storedState = { version: 2, totalArrows: 190, increment: 15, history: [] } } = {}) {
   let dimensions = { width: 390, height: 844 };
   let insets = { top: 24, right: 0, bottom: 34, left: 0 };
+  let palette = {};
   let cursor = 0;
   let effects = [];
   let reads = 0;
@@ -65,6 +66,7 @@ function counterRuntime({ getItem, renderWheel = false, storedState = { version:
   } }).outputText;
   const exports = {};
   new Function("require", "exports", compiled)(name => {
+    if (name.endsWith("/appearance")) return { useAppearance: () => ({ colors: palette }), createThemedStyles: factory => () => factory(palette) };
     assert.ok(name in dependencies, `Unexpected dependency ${name}`);
     return dependencies[name];
   }, exports);
@@ -85,6 +87,7 @@ function counterRuntime({ getItem, renderWheel = false, storedState = { version:
   };
   return {
     render, writes, alerts, reads: () => reads, ticks: () => ticks,
+    setPalette(next) { palette = next; },
     wheel: () => nodes(wheelTree).find(node => node.type === "FlatList"), offsets,
     resize(width, height, nextInsets = insets) { dimensions = { width, height }; insets = nextInsets; },
     async settle() { await new Promise(setImmediate); return render(); },
@@ -285,4 +288,24 @@ test("Counter wheel restores large values, recentres and respects accessibility 
     assert.equal(runtime.wheel().props.accessibilityValue.now, value);
     assert.equal(runtime.writes.length, count);
   }
+});
+
+
+test("Counter theme rerender updates presentation without reloading, persisting, haptics or changing the total", async () => {
+  const runtime = counterRuntime();
+  runtime.setPalette({ background: "#f8f9f7", text: "#17211d", accent: "#306b60", onPrimary: "#ffffff" });
+  runtime.render();
+  const light = await runtime.settle();
+  const reads = runtime.reads(), writes = runtime.writes.length, ticks = runtime.ticks();
+  const total = tree => nodes(tree).find(node => node.type === "Text" && node.props?.minimumFontScale === 0.55);
+  runtime.setPalette({ background: "#111b17", text: "#eef7ef", accent: "#a3d5bd", onPrimary: "#0a2417" });
+  const dark = runtime.render();
+  assert.equal(style(light.props.style).backgroundColor, "#f8f9f7");
+  assert.equal(style(dark.props.style).backgroundColor, "#111b17");
+  assert.equal(style(button(dark, "Add 15 Arrows").props.style({ pressed: false })).backgroundColor, "#a3d5bd");
+  assert.equal(total(light).props.children, 190);
+  assert.equal(total(dark).props.children, 190);
+  assert.equal(runtime.reads(), reads);
+  assert.equal(runtime.writes.length, writes);
+  assert.equal(runtime.ticks(), ticks);
 });

@@ -7,10 +7,12 @@ import {
   addArrows, COUNTER_STORAGE_KEY, DEFAULT_COUNTER, readCounter,
   resetCounter, setIncrement, undoLastAddition, type CounterState,
 } from "../../src/counter-model";
-import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PAGE_TOP_SPACING } from "../../src/theme";
+import { createThemedStyles } from "../../src/appearance";
 import { COUNTER_TOTAL_COLUMN_FLEX, COUNTER_WHEEL_COLUMN_FLEX, COUNTER_WHEEL_ROW_HEIGHT, COUNTER_WHEEL_VISIBLE_ROWS, COUNTER_WHEEL_WINDOW, counterWheelRangeStart, counterWheelValueFromOffset, shouldRecenterCounterWheel, shouldTickCounterWheel } from "../../src/counter-wheel-model";
 
 export default function CounterScreen() {
+  const styles = useStyles();
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -105,7 +107,7 @@ export default function CounterScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, padding: 18, gap: 10 },
   compactContent: { padding: 12, gap: 8 },
@@ -134,11 +136,12 @@ const styles = StyleSheet.create({
   compactClicker: { minHeight: 88 },
   compactArrow: { fontSize: 40 },
   pressed: { opacity: .8 },
-  arrow: { color: "#fff", fontSize: 58, fontWeight: "700" },
-  addText: { color: "#fff", fontSize: 22, fontWeight: "800" },
-});
+  arrow: { color: colors.onPrimary, fontSize: 58, fontWeight: "700" },
+  addText: { color: colors.onPrimary, fontSize: 22, fontWeight: "800" },
+}));
 
 function CounterWheel({ value, enabled, onChange }: { value: number; enabled: boolean; onChange: (value: number) => void }) {
+  const styles = useStyles();
   const list = useRef<FlatList<number>>(null);
   const [rangeStart, setRangeStart] = useState(() => counterWheelRangeStart(value));
   const rangeEnd = Math.min(Number.MAX_SAFE_INTEGER, rangeStart + COUNTER_WHEEL_WINDOW - 1);

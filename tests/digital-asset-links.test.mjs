@@ -10,11 +10,13 @@ const association = JSON.parse(read("../public/.well-known/assetlinks.json"));
 
 test("credential association trusts only the supplied Play signing certificate and existing Android app", () => {
   assert.deepEqual(association, [{
-    relation: ["delegate_permission/common.get_login_creds"],
+    relation: ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
     target: { namespace: "android_app", package_name: "com.arctrack.archery", sha256_cert_fingerprints: [fingerprint] },
   }]);
   assert.equal(JSON.parse(read("../apps/mobile/app.json")).expo.android.package, association[0].target.package_name);
-  assert.deepEqual(JSON.parse(read("../apps/mobile/docs/passkey-activation/assetlinks.json.template")), association);
+  const preparedTemplate = JSON.parse(read("../apps/mobile/docs/passkey-activation/assetlinks.json.template"));
+  assert.deepEqual(preparedTemplate[0].target, association[0].target);
+  assert.ok(preparedTemplate[0].relation.every(relation => association[0].relation.includes(relation)), "existing credential-sharing relations remain preserved");
 });
 
 test("documented native origin round-trips the exact 32 certificate bytes without enabling passkeys", () => {

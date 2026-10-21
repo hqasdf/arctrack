@@ -6,10 +6,11 @@ import { useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SvgXml, type Svg } from "react-native-svg";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { colors } from "./theme";
+import { createThemedStyles } from "./appearance";
 import { EXPORT_TOP_PADDING, mobileExportPreviewWidth, renderMobileGroupingExport } from "./grouping-export-report";
 
 export function GroupingExportButton({ round, context }: { round: RoundDraft; context: string }) {
+  const styles = useStyles();
   const [report, setReport] = useState<GroupingExport | null>(null);
   return <>
     <Pressable accessibilityRole="button" onPress={() => setReport(createGroupingExport(round, context))} style={styles.button}>
@@ -20,6 +21,7 @@ export function GroupingExportButton({ round, context }: { round: RoundDraft; co
 }
 
 function GroupingExportPreview({ report, onClose }: { report: GroupingExport; onClose: () => void }) {
+  const styles = useStyles();
   const image = useRef<Svg>(null);
   const [{ svg, width, height }] = useState(() => renderMobileGroupingExport(report));
   const screen = useWindowDimensions();
@@ -60,14 +62,14 @@ function GroupingExportPreview({ report, onClose }: { report: GroupingExport; on
   </Modal>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   button: { minHeight: 48, justifyContent: "center", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 9, backgroundColor: colors.accent },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 14, textAlign: "center" },
+  buttonText: { color: colors.onPrimary, fontWeight: "700", fontSize: 14, textAlign: "center" },
   toolbar: { padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
   back: { minHeight: 44, paddingHorizontal: 8, justifyContent: "center" }, backText: { color: colors.accent, fontWeight: "700" },
   title: { color: colors.text, fontWeight: "800", fontSize: 18, flexGrow: 1 },
   scroll: { flex: 1 },
   preview: { alignItems: "center", paddingHorizontal: 12, paddingTop: EXPORT_TOP_PADDING, paddingBottom: 32 },
   error: { color: colors.error, padding: 12 },
-});
+}));

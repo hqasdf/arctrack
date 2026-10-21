@@ -1,9 +1,9 @@
-﻿import type { RoundDraft } from "@arc-track/core/scoring";
+import { createCoachStyles } from "@/src/coach-ui";
+import type { RoundDraft } from "@arc-track/core/scoring";
 import { calculateRobustMainGroup, calculateRoundGroupingInsights } from "@arc-track/core/insights";
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
 import { AnalysisTarget } from "./analysis-target";
-import { coachPalette } from "./coach-ui";
 
 type Point = { x: number; y: number };
 const clamp = (value: number) => Math.max(1, Math.min(4, value));
@@ -14,6 +14,8 @@ function pair(event: GestureResponderEvent): { centre: Point; distance: number }
 }
 
 export function CoachReadonlyTarget({ round }: { round: RoundDraft }) {
+  const styles = useStyles();
+
   const grouping = calculateRoundGroupingInsights(round);
   const mainGroup = calculateRobustMainGroup(grouping.arrows, round.faceDiameterCm);
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
@@ -61,7 +63,7 @@ export function CoachReadonlyTarget({ round }: { round: RoundDraft }) {
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createCoachStyles((coachPalette) => StyleSheet.create({
   section: { backgroundColor: coachPalette.surface, borderRadius: 20, padding: 12, gap: 10, marginVertical: 12 },
   heading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   title: { color: coachPalette.text, fontSize: 18, fontWeight: "800", flexShrink: 1 },
@@ -69,4 +71,4 @@ const styles = StyleSheet.create({
   resetText: { color: coachPalette.accent, fontSize: 13, fontWeight: "700" },
   note: { color: coachPalette.muted, fontSize: 12 },
   viewport: { overflow: "hidden", borderRadius: 8 },
-});
+}));

@@ -112,8 +112,8 @@ test("both prepared controls remain hidden even if callers claim availability", 
   const ui = load("src/passkeys/prepared-ui.tsx", {
     "./feature": { canShowBiometricSignIn: () => false, canShowBiometricSignInSetting: () => false },
     "react-native": { Pressable: "Pressable", Text: "Text", View: "View" },
-    "../auth-ui": { AuthAction: () => { throw Error("Must not render"); }, authStyles: {} },
-    "../theme": { colors: {} },
+    "../auth-ui": { AuthAction: () => { throw Error("Must not render"); }, useAuthStyles: () => ({}) },
+    "../appearance": { useAppearance: () => ({ colors: {} }) },
   });
   const action = async () => { throw Error("No unfinished operation may run"); };
   assert.equal(ui.BiometricSignInAction({ available: true, onPress: action }), null);
@@ -128,7 +128,7 @@ test("actual screen boundaries mount no hooks, focus work, native probe or reque
     react: { useCallback: forbidden, useRef: forbidden, useState: forbidden },
     "expo-router": { useFocusEffect: forbidden },
     "react-native": { Platform: { OS: "android", get Version() { return forbidden(); } } },
-    "../auth-ui": {}, "../theme": {}, "./prepared-ui": {},
+    "../auth-ui": {}, "../appearance": {}, "./prepared-ui": {},
   });
   assert.equal(controls.SignInBiometricControl({ disabled: false, onError: forbidden }), null);
   assert.equal(controls.ProfileBiometricControl({ userId: "athlete-a" }), null);
@@ -143,7 +143,7 @@ test("activated controls are Android-only, remain idle on render, and keep regis
     "../auth-native-prompt": { nativeAuthPrompt: { active: false } },
     react: { useCallback: forbidden, useRef: forbidden, useState: forbidden },
     "expo-router": { useFocusEffect: forbidden },
-    "react-native": { Platform: platform }, "../auth-ui": {}, "../theme": {}, "./prepared-ui": {},
+    "react-native": { Platform: platform }, "../auth-ui": {}, "../appearance": {}, "./prepared-ui": {},
   });
   assert.ok(controls.SignInBiometricControl({ disabled: false, onError: forbidden }));
   assert.ok(controls.ProfileBiometricControl({ userId: "athlete-a" }));
@@ -159,7 +159,7 @@ test("activated labels are available with password fallback and registration onl
   let calls = 0;
   const ui = load("src/passkeys/prepared-ui.tsx", {
     "react-native": { Pressable: "Pressable", Text: "Text", View: "View" },
-    "../auth-ui": { AuthAction: "AuthAction", authStyles: {} }, "../theme": { colors: {} },
+    "../auth-ui": { AuthAction: "AuthAction", useAuthStyles: () => ({}) }, "../appearance": { useAppearance: () => ({ colors: {} }) },
   });
   const onPress = async () => { calls++; };
   const action = ui.BiometricSignInAction({ available: true, onPress });

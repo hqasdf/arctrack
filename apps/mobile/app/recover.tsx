@@ -1,3 +1,4 @@
+import { useAppearance } from "../src/appearance";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, Text, TextInput } from "react-native";
@@ -5,11 +6,13 @@ import { changeMobilePassword } from "../src/profile";
 import { useAuth } from "../src/auth";
 import { cancelRecovery, completeRecovery, safeAuthMessage } from "../src/auth-flow";
 import { configError, mobileAuthentication, supabase } from "../src/supabase";
-import { AuthAction as Action, AuthField, AuthScreen, authColors, authStyles as styles } from "../src/auth-ui";
+import { AuthAction as Action, AuthField, AuthScreen, useAuthStyles } from "../src/auth-ui";
 import { OtpInput } from "../src/otp-input";
 import { PasswordField } from "../src/password-field";
 
 export default function RecoverScreen() {
+  const styles = useAuthStyles();
+  const { colors: authColors } = useAppearance();
   const { recovery, recoveryRequired, setRecovery, signOut } = useAuth();
   const [email, setEmail] = useState(recovery?.email ?? "");
   const [code, setCode] = useState("");

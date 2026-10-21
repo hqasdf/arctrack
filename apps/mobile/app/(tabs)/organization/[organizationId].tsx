@@ -5,11 +5,13 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { athleteLabel } from "../../../src/organizations";
-import { CoachAccuracyTarget, CoachHeadline, CoachBars, CoachChoices, CoachLine, CoachMetric, CoachNav, CoachSection, CoachState, coachStyles } from "../../../src/coach-ui";
+import { CoachAccuracyTarget, CoachHeadline, CoachBars, CoachChoices, CoachLine, CoachMetric, CoachNav, CoachSection, CoachState, useCoachStyles } from "../../../src/coach-ui";
 import { useCoachWorkspace } from "../../../src/coach-workspace";
 import { singaporeToday } from "../../../src/mobile-analytics";
 
 export default function CoachOverviewScreen() {
+  const coachStyles = useCoachStyles();
+
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
   const { data, loading, error, reload } = useCoachWorkspace(organizationId);
   const [period, setPeriod] = useState<CoachPeriod>("30");
@@ -50,8 +52,12 @@ export default function CoachOverviewScreen() {
       <Text style={coachStyles.muted}>{result.summary.trainingSessions} Training · {result.summary.competitionSessions} Competition Sessions</Text>
     </CoachSection>
     <CoachSection title="Team Arrow Volume">
-      <Text style={coachStyles.muted}>Saved scored Arrows across active Archers.</Text>
+      <Text style={coachStyles.muted}>Keyed Session Arrow counts across active Archers.</Text>
       <CoachBars axis="Arrows" points={result.series.filter((point) => point.arrowCount > 0).map((point) => ({ label: point.label, value: point.arrowCount, detail: `${point.label}: ${point.arrowCount} Arrows` }))}/>
+    </CoachSection>
+    <CoachSection title="Score Distribution">
+      <Text style={coachStyles.muted}>From saved Arrow scores</Text>
+      {result.summary.scoredArrowCount ? <CoachBars axis="Scored Arrows" points={result.distribution.map((item) => ({ label: item.score, value: item.count, detail: `${item.score}: ${item.count} scored Arrows · ${item.percentage.toFixed(1)}%` }))}/> : <Text style={coachStyles.muted}>No scored Arrows in this period.</Text>}
     </CoachSection>
     <CoachSection title="Suggested Reviews">
       <Text style={coachStyles.muted}>Recent completed or Competition Sessions. Review status is not tracked yet.</Text>

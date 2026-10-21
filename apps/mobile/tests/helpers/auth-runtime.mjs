@@ -150,7 +150,8 @@ export function routingRuntime(authState) {
   Stack.Screen = () => null;
   Stack.Protected = () => null;
   const auth = { useAuth: () => authState, AuthProvider: ({ children }) => children };
-  const router = { Stack, usePathname: () => "/sign-in", Redirect: () => null };
+  const router = { Stack, usePathname: () => "/sign-in", Redirect: () => null,
+    ThemeProvider: ({ children }) => children, DarkTheme: { colors: {} }, DefaultTheme: { colors: {} } };
   const { default: RootLayout } = loadTs("app/_layout.tsx", {
     react: React,
     "expo-router": router,
@@ -159,6 +160,7 @@ export function routingRuntime(authState) {
     "../src/auth": auth,
     "../src/auth-flow": flow,
     "../src/theme": { colors: {} },
+    "../src/appearance": { AppearanceProvider: ({ children }) => children, useAppearance: () => ({ colors: {}, resolvedTheme: "light" }) },
   });
   renderToString(React.createElement(RootLayout));
   if (!stack) return { blocked: true };

@@ -21,7 +21,8 @@ import {
   type ArrowSlot,
 } from "../../../src/scoring-state";
 import { readOwnRound } from "../../../src/sessions";
-import { colors, PAGE_TOP_SPACING } from "../../../src/theme";
+import { PAGE_TOP_SPACING } from "../../../src/theme";
+import { createThemedStyles, useAppearance } from "../../../src/appearance";
 import { roundUpdateEnabled, updateMobileRoundSettings } from "../../../src/writes";
 
 type LoadedRound = { session: SessionDraft; round: RoundDraft };
@@ -29,17 +30,19 @@ const CORRECTION_SCORES: ScoreLabel[] = ["X", "10", "9", "8", "7", "6", "5", "4"
 
 function scoreText(score: ScoreLabel | null) { return score === "X" ? "10X" : score ?? "—"; }
 
-function scoreColours(score: ScoreLabel | null) {
+function scoreColours(score: ScoreLabel | null, colors: import("../../../src/theme").ThemeColors) {
   if (score === "X" || score === "10" || score === "9") return { backgroundColor: "#f5cf3d", color: "#332b17" };
   if (score === "8" || score === "7") return { backgroundColor: "#e65a55", color: "#fff" };
   if (score === "6" || score === "5") return { backgroundColor: "#429aca", color: "#fff" };
   if (score === "4" || score === "3") return { backgroundColor: "#262321", color: "#fff" };
   if (score === "2" || score === "1") return { backgroundColor: "#f3f0e9", color: "#332c27" };
   if (score === "M") return { backgroundColor: "#e9e4dc", color: "#594e46" };
-  return { backgroundColor: "#fff", color: colors.muted };
+  return { backgroundColor: colors.surface, color: colors.muted };
 }
 
 export default function ScoreRoundScreen() {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const { roundId } = useLocalSearchParams<{ roundId: string }>();
   const { user } = useAuth();
   const [loaded, setLoaded] = useState<LoadedRound | null>(null);
@@ -249,8 +252,8 @@ export default function ScoreRoundScreen() {
 
     <View style={styles.currentRow}>
       <View><Text style={styles.smallLabel}>CURRENT</Text><Text style={styles.currentText}>End {slot.end} · Arrow {slot.arrow}</Text></View>
-      <View style={styles.latestWrap}><View style={[styles.latestCircle, { backgroundColor: scoreColours(latest).backgroundColor }]}>
-        <Text style={[styles.latestText, { color: scoreColours(latest).color }]}>{scoreText(latest)}</Text>
+      <View style={styles.latestWrap}><View style={[styles.latestCircle, { backgroundColor: scoreColours(latest, colors).backgroundColor }]}>
+        <Text style={[styles.latestText, { color: scoreColours(latest, colors).color }]}>{scoreText(latest)}</Text>
       </View><Text style={styles.smallLabel}>LATEST SCORE</Text></View>
     </View>
 
@@ -258,7 +261,7 @@ export default function ScoreRoundScreen() {
       {Array.from({ length: round.arrowsPerEnd }, (_, index) => {
         const arrow = arrows.find((item) => item.end === slot.end && item.arrow === index + 1);
         const active = slot.arrow === index + 1 && (!arrow || selected !== null);
-        const palette = scoreColours(arrow?.score ?? null);
+        const palette = scoreColours(arrow?.score ?? null, colors);
         return <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Arrow ${index + 1}, ${arrow ? scoreText(arrow.score) : "empty"}${arrow?.syncState === "failed" ? ", save failed" : ""}`}
           accessibilityState={{ selected: active }} onPress={() => selectSlot({ end: slot.end, arrow: index + 1 }, true)}
           style={[styles.scoreSlot, { backgroundColor: palette.backgroundColor }, active && styles.scoreSlotSelected]}>
@@ -330,7 +333,7 @@ export default function ScoreRoundScreen() {
         </View>
         {configureDraft ? <>
           <Text style={styles.configureLabel}>ROUND NAME</Text>
-          <TextInput accessibilityLabel="Round name" value={configureDraft.name} maxLength={80}
+          <TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel="Round name" value={configureDraft.name} maxLength={80}
             onChangeText={(name) => setConfigureDraft((draft) => draft ? { ...draft, name } : draft)} style={styles.configureInput} />
           <Text style={styles.configureLabel}>DIVISION</Text>
           <View style={styles.configureChoices}>{DIVISIONS.map((division) => <Pressable key={division} accessibilityRole="button"
@@ -338,7 +341,7 @@ export default function ScoreRoundScreen() {
             style={[styles.configureChoice, configureDraft.division === division && styles.configureChoiceActive]}>
             <Text style={[styles.configureChoiceText, configureDraft.division === division && styles.configureChoiceTextActive]}>{division}</Text></Pressable>)}</View>
           {([["distanceMetres", "DISTANCE (M)"], ["faceDiameterCm", "FACE DIAMETER (CM)"], ["plannedEnds", "PLANNED ENDS"]] as const).map(([key, label]) => (
-            <View key={key}><Text style={styles.configureLabel}>{label}</Text><TextInput accessibilityLabel={label} keyboardType="number-pad" selectTextOnFocus
+            <View key={key}><Text style={styles.configureLabel}>{label}</Text><TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel={label} keyboardType="number-pad" selectTextOnFocus
               value={String(configureDraft[key])} onChangeText={(value) => setConfigureDraft((draft) => draft ? { ...draft, [key]: value === "" ? 0 : Number(value) } : draft)}
               style={styles.configureInput} /></View>))}
           <Text style={styles.configureNote}>Target layout and arrows per End stay fixed. Planned Ends can increase, not decrease.</Text>
@@ -346,7 +349,7 @@ export default function ScoreRoundScreen() {
           {configureError ? <Text accessibilityRole="alert" style={styles.configureError}>{configureError}</Text> : null}
           <Pressable accessibilityRole="button" disabled={!roundUpdateEnabled || savingConfigure} onPress={() => void saveConfigure()}
             style={[styles.configureSave, (!roundUpdateEnabled || savingConfigure) && styles.disabled]}>
-            {savingConfigure ? <ActivityIndicator color="#fff" /> : <Text style={styles.configureSaveText}>Save settings</Text>}
+            {savingConfigure ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.configureSaveText}>Save settings</Text>}
           </Pressable>
         </> : null}
       </ScrollView>
@@ -357,10 +360,11 @@ export default function ScoreRoundScreen() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return <View style={styles.metric}><Text style={styles.smallLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingTop: 16 + PAGE_TOP_SPACING, paddingBottom: 42, gap: 11 },
   eyebrow: { color: colors.accent, fontSize: 11, fontWeight: "700", letterSpacing: 1.2 },
@@ -390,7 +394,7 @@ const styles = StyleSheet.create({
   editActions: { flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 },
   corrections: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   correction: { minWidth: 42, minHeight: 42, paddingHorizontal: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  correctionSelected: { borderColor: colors.accent, backgroundColor: "#e7efeb" },
+  correctionSelected: { borderColor: colors.accent, backgroundColor: colors.soft },
   correctionText: { color: colors.text, fontWeight: "700" },
   editButton: { minHeight: 44, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", borderRadius: 9, borderWidth: 1, borderColor: colors.accent },
   editText: { color: colors.accent, fontWeight: "700" },
@@ -401,7 +405,7 @@ const styles = StyleSheet.create({
   history: { marginTop: 7, borderTopWidth: 1, borderColor: colors.border, paddingTop: 13 },
   historyTitle: { color: colors.text, fontSize: 16, fontWeight: "700", marginBottom: 6 },
   historyRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingRight: 24, borderBottomWidth: 1, borderColor: colors.border },
-  historyCurrent: { backgroundColor: "#edf2ed" },
+  historyCurrent: { backgroundColor: colors.soft },
   historyLabel: { color: colors.text, fontSize: 11, fontWeight: "800" },
   historyTotal: { color: colors.text, fontSize: 12, fontWeight: "700" },
   historyX: { color: colors.accent, fontSize: 11, fontWeight: "700" },
@@ -417,17 +421,17 @@ const styles = StyleSheet.create({
   closeButton: { minWidth: 56, minHeight: 44, alignItems: "center", justifyContent: "center" },
   closeText: { color: colors.accent, fontWeight: "700" },
   configureLabel: { color: colors.muted, fontSize: 11, fontWeight: "700", letterSpacing: .6, marginTop: 6 },
-  configureInput: { minHeight: 48, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 9, paddingHorizontal: 12, color: colors.text, fontSize: 16 },
+  configureInput: { minHeight: 48, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.control, borderRadius: 9, paddingHorizontal: 12, color: colors.text, fontSize: 16 },
   configureChoices: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   configureChoice: { minHeight: 42, justifyContent: "center", paddingHorizontal: 11, borderWidth: 1, borderColor: colors.border, borderRadius: 9 },
   configureChoiceActive: { borderColor: colors.accent, backgroundColor: colors.accent },
   configureChoiceText: { color: colors.text, fontWeight: "600" },
-  configureChoiceTextActive: { color: "#fff" },
+  configureChoiceTextActive: { color: colors.onPrimary },
   configureNote: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   configureError: { color: colors.error, fontSize: 13 },
   configureSave: { minHeight: 52, backgroundColor: colors.accent, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  configureSaveText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  configureSaveText: { color: colors.onPrimary, fontWeight: "800", fontSize: 16 },
   message: { color: colors.muted, fontSize: 14 },
   retry: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 22, paddingVertical: 14 },
-  retryText: { color: "#fff", fontWeight: "700" },
-});
+  retryText: { color: colors.onPrimary, fontWeight: "700" },
+}));

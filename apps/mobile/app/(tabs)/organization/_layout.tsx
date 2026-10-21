@@ -1,12 +1,15 @@
 import { Stack } from "expo-router";
-import { coachPalette } from "@/src/coach-ui";
-import { colors } from "@/src/theme";
+import { useCoachPalette } from "@/src/coach-ui";
+import { useAppearance } from "@/src/appearance";
 
 export default function OrganizationTabLayout() {
-  return <Stack screenOptions={{ headerShown: true, headerTintColor: colors.text, headerStyle: { backgroundColor: coachPalette.background } }}>
+  const coachPalette = useCoachPalette();
+  const { colors } = useAppearance();
+
+  return <Stack screenOptions={{ headerShown: true, headerTintColor: coachPalette.text, headerStyle: { backgroundColor: coachPalette.background } }}>
     <Stack.Screen name="index" options={{ headerShown: false }} />
-    <Stack.Screen name="manage" options={{ title: "Manage memberships", headerStyle: { backgroundColor: colors.background } }} />
-    <Stack.Screen name="member/[organizationId]" options={{ title: "Membership", headerStyle: { backgroundColor: colors.background } }} />
+    <Stack.Screen name="manage" options={{ title: "Manage memberships", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
+    <Stack.Screen name="member/[organizationId]" options={{ title: "Membership", headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background } }} />
     <Stack.Screen name="[organizationId]" options={{ title: "Coach's Workspace" }} />
     <Stack.Screen name="[organizationId]/athletes/index" options={{ title: "Athletes" }} />
     <Stack.Screen name="[organizationId]/reviews" options={{ title: "Reviews" }} />

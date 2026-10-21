@@ -7,20 +7,21 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWi
 import Svg, { Circle, Line, Polyline, Text as SvgText } from "react-native-svg";
 import { useAuth } from "./auth";
 import { readOwnOrganizations, type OwnOrganization } from "./organizations";
-import { coachPalette } from "./coach-palette";
+import { coachPalette, type CoachPalette } from "./coach-palette";
+import { useAppearance } from "./appearance";
 export { coachPalette } from "./coach-palette";
 
-export const coachStyles = StyleSheet.create({
+const makeCoachStyles = (coachPalette: CoachPalette) => StyleSheet.create({
   page: { flex: 1, backgroundColor: coachPalette.background }, content: { padding: 20, paddingBottom: 48, gap: 16 },
   title: { color: coachPalette.text, fontSize: 34, lineHeight: 39, fontWeight: "700", letterSpacing: -1 }, heading: { color: coachPalette.text, fontSize: 22, fontWeight: "700", letterSpacing: -.5 },
   muted: { color: coachPalette.muted, fontSize: 13, lineHeight: 20 }, eyebrow: { color: coachPalette.accent, fontSize: 10, fontWeight: "800", letterSpacing: 1.6 },
-  section: { paddingTop: 24, paddingBottom: 8, borderTopWidth: 1, borderColor: coachPalette.border, gap: 12 },
+  section: { padding: 19, borderWidth: 1, borderColor: coachPalette.border, borderRadius: 16, backgroundColor: coachPalette.surface, gap: 12, minWidth: 0 },
   card: { paddingVertical: 16, borderBottomWidth: 1, borderColor: coachPalette.border, gap: 6, minHeight: 48 },
   cardTitle: { color: coachPalette.text, fontSize: 18, fontWeight: "700", letterSpacing: -.3 }, link: { color: coachPalette.accent, fontSize: 13, fontWeight: "700", lineHeight: 22 },
   metrics: { flexDirection: "row", flexWrap: "wrap", paddingVertical: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: coachPalette.border }, metric: { width: "50%", minWidth: 112, flexGrow: 1, paddingVertical: 12, paddingRight: 12 },
   metricValue: { color: coachPalette.text, fontSize: 26, fontWeight: "600", letterSpacing: -.8, fontVariant: ["tabular-nums"] }, metricLabel: { color: coachPalette.muted, fontSize: 11, lineHeight: 16, marginTop: 4 },
   chips: { flexDirection: "row", gap: 6, paddingVertical: 3 }, chip: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 22, borderWidth: 1, borderColor: coachPalette.border, backgroundColor: coachPalette.surface, minHeight: 44, justifyContent: "center" },
-  chipActive: { backgroundColor: coachPalette.accent, borderColor: coachPalette.accent }, chipText: { color: coachPalette.text, fontWeight: "600", fontSize: 13 }, chipTextActive: { color: coachPalette.surface },
+  chipActive: { backgroundColor: coachPalette.accent, borderColor: coachPalette.accent }, chipText: { color: coachPalette.text, fontWeight: "600", fontSize: 13 }, chipTextActive: { color: coachPalette.onPrimary },
   navTab: { paddingHorizontal: 12, paddingVertical: 12, minHeight: 44, borderBottomWidth: 2, borderColor: "transparent", justifyContent: "center" }, navTabActive: { borderColor: coachPalette.accent },
   navEdge: { position: "absolute", top: 0, bottom: 0, width: 14, alignItems: "center", justifyContent: "center", backgroundColor: coachPalette.background, opacity: .85 },
   state: { flex: 1, backgroundColor: coachPalette.background, justifyContent: "center", alignItems: "center", padding: 24, gap: 12 },
@@ -30,8 +31,25 @@ export const coachStyles = StyleSheet.create({
   targetRates: { flexDirection: "row", width: "100%", gap: 20 }, targetRate: { flex: 1, gap: 4 }, targetValue: { color: coachPalette.accent, fontSize: 32, fontWeight: "600", letterSpacing: -1, fontVariant: ["tabular-nums"] },
 });
 
+/** Cached sheets follow the same resolved palette as the appearance provider. */
+export function createCoachStyles<T>(factory: (palette: CoachPalette) => T) {
+  const cache = new WeakMap<CoachPalette, T>();
+  return function useStyles() {
+    const { coachColors } = useAppearance();
+    let styles = cache.get(coachColors);
+    if (!styles) { styles = factory(coachColors); cache.set(coachColors, styles); }
+    return styles;
+  };
+}
+export function useCoachPalette() { return useAppearance().coachColors; }
+export const useCoachStyles = createCoachStyles(makeCoachStyles);
+export const coachStyles = makeCoachStyles(coachPalette);
+
 /** Decorative rings deliberately carry no pooled Arrow coordinates. */
 export function CoachAccuracyTarget({ tenPlusX, xRate }: { tenPlusX: string | null; xRate: string | null }) {
+  const coachStyles = useCoachStyles();
+  const coachPalette = useCoachPalette();
+
   return <View style={coachStyles.targetComposition}>
     <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: "100%", maxWidth: 220, aspectRatio: 1 }}>
       <Svg width="100%" height="100%" viewBox="0 0 220 220">
@@ -50,10 +68,15 @@ export function CoachAccuracyTarget({ tenPlusX, xRate }: { tenPlusX: string | nu
 }
 
 export function CoachHeadline({ value, label, context }: { value: string; label: string; context: string }) {
+  const coachStyles = useCoachStyles();
+
   return <View style={coachStyles.headline}><Text style={coachStyles.headlineValue}>{value}</Text><Text style={coachStyles.eyebrow}>{label}</Text><Text style={coachStyles.muted}>{context}</Text></View>;
 }
 
 export function CoachState({ loading, error, unavailable, retry }: { loading: boolean; error: string | null; unavailable?: string; retry: () => void }) {
+  const coachStyles = useCoachStyles();
+  const coachPalette = useCoachPalette();
+
   return <View style={coachStyles.state}>
     {loading ? <ActivityIndicator color={coachPalette.accent} accessibilityLabel="Loading Coach workspace"/> : <Text style={coachStyles.muted}>{error ?? unavailable ?? "Coach access is unavailable."}</Text>}
     {error ? <Pressable accessibilityRole="button" onPress={retry} style={coachStyles.chip}><Text style={coachStyles.link}>Retry</Text></Pressable> : null}
@@ -61,6 +84,9 @@ export function CoachState({ loading, error, unavailable, retry }: { loading: bo
 }
 
 export function CoachNav({ organizationId, current }: { organizationId: string; current: "overview" | "athletes" | "reviews" | "training-plans" | "analytics" | "settings" }) {
+  const coachStyles = useCoachStyles();
+  const coachPalette = useCoachPalette();
+
   const { user } = useAuth();
   const [workspaces, setWorkspaces] = useState<OwnOrganization[]>([]);
   const [switching, setSwitching] = useState(false);
@@ -124,15 +150,23 @@ export function CoachNav({ organizationId, current }: { organizationId: string; 
   </View>;
 }
 
-export function CoachMetric({ label, value }: { label: string; value: string | number }) { return <View style={coachStyles.metric}><Text style={coachStyles.metricValue}>{value}</Text><Text style={coachStyles.metricLabel}>{label}</Text></View>; }
-export function CoachSection({ title, children }: { title: string; children: ReactNode }) { return <View style={coachStyles.section}><Text style={coachStyles.heading}>{title}</Text>{children}</View>; }
+export function CoachMetric({ label, value }: { label: string; value: string | number }) {
+  const coachStyles = useCoachStyles();
+ return <View style={coachStyles.metric}><Text style={coachStyles.metricValue}>{value}</Text><Text style={coachStyles.metricLabel}>{label}</Text></View>; }
+export function CoachSection({ title, children }: { title: string; children: ReactNode }) {
+  const coachStyles = useCoachStyles();
+ return <View style={coachStyles.section}><Text style={coachStyles.heading}>{title}</Text>{children}</View>; }
 export function CoachChoices({ label, value, choices, change }: { label: string; value: string; choices: Array<[string, string]>; change: (value: string) => void }) {
+  const coachStyles = useCoachStyles();
+
   return <View style={{ gap: 4 }}><Text style={coachStyles.muted}>{label}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={coachStyles.chips}>
     {choices.map(([key, text]) => <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: key === value }} onPress={() => change(key)} style={[coachStyles.chip, key === value && coachStyles.chipActive]}><Text style={[coachStyles.chipText, key === value && coachStyles.chipTextActive]}>{text}</Text></Pressable>)}
   </ScrollView></View>;
 }
 
 export function CoachFilterPanel({ filters, setFilters, options, expanded = false }: { filters: CoachFilters; setFilters: (value: CoachFilters) => void; options: { distances: number[]; divisions: string[]; targetFaces: Array<{ value: string; label: string }> }; expanded?: boolean }) {
+  const coachStyles = useCoachStyles();
+
   const [open, setOpen] = useState(false);
   const update = (patch: Partial<CoachFilters>) => setFilters({ ...filters, ...patch });
   return <View style={{ gap: 8 }}>
@@ -149,6 +183,9 @@ export function CoachFilterPanel({ filters, setFilters, options, expanded = fals
 
 export type CoachChartPoint = { label: string; value: number | null; secondary?: number | null; detail: string; onPress?: () => void };
 export function CoachBars({ points, axis, secondary }: { points: CoachChartPoint[]; axis: string; secondary?: string }) {
+  const coachStyles = useCoachStyles();
+  const coachPalette = useCoachPalette();
+
   const [selected, setSelected] = useState<CoachChartPoint | null>(null);
   if (!points.length || !points.some((point) => point.value !== null)) return <Text style={coachStyles.muted}>No data for these filters.</Text>;
   const kind = axis.includes("%") || axis === "Percent" ? "percentage" : axis.includes("Avg") ? "score" : axis.includes("cm") ? "measurement" : "count";
@@ -166,6 +203,9 @@ export function CoachBars({ points, axis, secondary }: { points: CoachChartPoint
 }
 
 export function CoachLine({ points, axis, secondary }: { points: CoachChartPoint[]; axis: string; secondary?: string; maxValue?: number }) {
+  const coachStyles = useCoachStyles();
+  const coachPalette = useCoachPalette();
+
   const { width: screenWidth } = useWindowDimensions();
   const [selected, setSelected] = useState<CoachChartPoint | null>(null);
   if (!points.some((point) => point.value !== null)) return <Text style={coachStyles.muted}>No data for these filters.</Text>;

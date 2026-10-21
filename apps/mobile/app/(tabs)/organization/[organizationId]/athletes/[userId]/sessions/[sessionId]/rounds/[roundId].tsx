@@ -1,3 +1,4 @@
+import { createCoachStyles } from "@/src/coach-ui";
 ﻿import { summarizeCoachRound } from "@arc-track/core/coach-round";
 import { formatDateOnly } from "@arc-track/core/dates";
 import { roundTotal, xCount } from "@arc-track/core/scoring";
@@ -10,11 +11,14 @@ import { RoundInsights } from "@/src/round-insights";
 import { CoachReadonlyTarget } from "@/src/coach-readonly-target";
 import { CoachBars, CoachLine } from "@/src/coach-ui";
 import { PAGE_TOP_SPACING } from "@/src/theme";
-import { coachPalette } from "@/src/coach-ui";
+import { useCoachPalette } from "@/src/coach-ui";
 
 type Detail = NonNullable<Awaited<ReturnType<typeof readCoachRoundDetail>>>;
 
 export default function CoachRoundScreen() {
+  const coachPalette = useCoachPalette();
+  const styles = useStyles();
+
   const { organizationId, userId, sessionId, roundId } = useLocalSearchParams<{ organizationId: string; userId: string; sessionId: string; roundId: string }>();
   const { user } = useAuth();
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -70,7 +74,7 @@ export default function CoachRoundScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createCoachStyles((coachPalette) => StyleSheet.create({
   page: { flex: 1, backgroundColor: coachPalette.background }, content: { padding: 20, paddingTop: 20 + PAGE_TOP_SPACING, paddingBottom: 48, gap: 12 },
   state: { flex: 1, backgroundColor: coachPalette.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
   eyebrow: { color: coachPalette.accent, fontSize: 12, fontWeight: "700" }, title: { color: coachPalette.text, fontSize: 34, lineHeight: 39, fontWeight: "700", letterSpacing: -1 },
@@ -80,4 +84,4 @@ const styles = StyleSheet.create({
   endLabel: { color: coachPalette.text, fontSize: 12, fontWeight: "800", minWidth: 48 }, endTotal: { color: coachPalette.text, fontSize: 13, fontWeight: "700" },
   endArrows: { color: coachPalette.muted, fontSize: 13, flexShrink: 1 },
   progressRow: { flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 1, borderColor: coachPalette.border, paddingVertical: 7 },
-});
+}));

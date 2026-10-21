@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import * as diagnostics from "../src/passkeys/registration-diagnostics.ts";
 
 const source = readFileSync(new URL("../src/passkeys/native-adapter.ts", import.meta.url), "utf8");
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
 const fixtureModule = { exports: {} };
+const promptScope = { run: action => action() };
 new Function("require", "module", "exports", outputText)(name => {
   if (name === "react-native") return { Platform: { OS: "android", Version: 36 } };
-  if (name === "../auth-native-prompt") return { nativeAuthPrompt: { run: action => action() } };
+  if (name === "../auth-native-prompt") return { nativeAuthPrompt: promptScope };
+  if (name === "./registration-diagnostics.ts") return diagnostics;
   throw Error(`Unexpected eager dependency ${name}`);
 }, fixtureModule, fixtureModule.exports);
 const { createNativePasskeyAdapter } = fixtureModule.exports;
@@ -33,6 +36,27 @@ function runtime({ response = assertion, error, platform = { os: "android", vers
   return { adapter, calls, get loads() { return loads; }, get availabilityCalls() { return availabilityCalls; } };
 }
 const rejects = (promise, code) => assert.rejects(promise, error => error.code === code);
+
+test("creation resolution is logged before response validation; invalid response cannot reach success", async t => {
+  const events = []; t.mock.method(console, "info", (_tag, value) => events.push(JSON.parse(value)));
+  await rejects(runtime({ response: { id, response: {} } }).adapter.create(createOptions), "invalid_response");
+  assert.deepEqual(events.map(event => event.stage), ["native_create_started", "native_create_success", "native_prompt_returned", "native_response_error"]);
+});
+
+test("native creation rejection preserves its safe code in diagnostics, never its message", async t => {
+  const events = []; t.mock.method(console, "info", (_tag, value) => events.push(JSON.parse(value)));
+  await rejects(runtime({ error: { error: "RequestFailed", message: "secret credential" } }).adapter.create(createOptions), "native_error");
+  assert.equal(events[1].stage, "native_create_error"); assert.equal(events[1].code, "RequestFailed");
+  assert.ok(!events.some(event => event.stage === "native_create_success"));
+  assert.ok(!JSON.stringify(events).includes("secret"));
+});
+
+test("resolved creation followed by foreground rejection is distinct from native rejection", async t => {
+  const events = []; t.mock.method(console, "info", (_tag, value) => events.push(JSON.parse(value)));
+  t.mock.method(promptScope, "run", async action => { await action(); throw Error("Device authentication did not return to the active app."); });
+  await rejects(runtime({ response: registration }).adapter.create(createOptions), "native_error");
+  assert.deepEqual(events.map(event => event.stage), ["native_create_started", "native_create_success", "native_prompt_error"]);
+});
 
 test("construction and basic availability never load native module or check native provider", () => {
   const r = runtime(); assert.equal(r.adapter.isSupported(), true);

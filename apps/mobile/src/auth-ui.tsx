@@ -1,17 +1,16 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { createThemedStyles, useAppearance } from "./appearance";
+import { colors, type ThemeColors } from "./theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// The website's standard Light auth palette, scoped to these mobile forms only.
-export const authColors = {
-  background: "#f7f5f1", surface: "#fffefa", text: "#382a24", muted: "#75665c",
-  primary: "#563d30", border: "#ded6cd", inputBorder: "#9f9083",
-  error: "#8b2920", errorBackground: "#fff0ed", errorBorder: "#c68478",
-} as const;
+// Static Light exports remain available for non-rendering consumers.
+export const authColors = colors;
 
 export function AuthScreen({ title, description, nativeHeader = false, children }: {
   title: string; description?: string; nativeHeader?: boolean; children: ReactNode;
 }) {
+  const authStyles = useAuthStyles();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const horizontal = width < 360 ? 16 : 24;
@@ -41,6 +40,7 @@ export function AuthScreen({ title, description, nativeHeader = false, children 
 }
 
 export function AuthField({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  const authStyles = useAuthStyles();
   return <View style={authStyles.field}>
     <Text style={authStyles.label}>{label}</Text>
     {children}
@@ -51,15 +51,17 @@ export function AuthField({ label, hint, children }: { label: string; hint?: str
 export function AuthAction({ label, busy, onPress, secondary = false, disabled = false }: {
   label: string; busy: boolean; onPress: () => void; secondary?: boolean; disabled?: boolean;
 }) {
+  const authStyles = useAuthStyles();
+  const { colors } = useAppearance();
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     accessibilityState={{ disabled: busy || disabled, busy }} disabled={busy || disabled} onPress={onPress}
     style={({ pressed }) => [authStyles.button, secondary && authStyles.secondary, (busy || disabled || pressed) && authStyles.dim]}>
-    {busy && !secondary ? <ActivityIndicator color="#fff" />
+    {busy && !secondary ? <ActivityIndicator color={colors.onPrimary} />
       : <Text style={[authStyles.buttonText, secondary && authStyles.link]}>{label}</Text>}
   </Pressable>;
 }
 
-export const authStyles = StyleSheet.create({
+const makeAuthStyles = (authColors: ThemeColors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: authColors.background },
   content: { flexGrow: 1, justifyContent: "flex-start" },
   panel: { width: "100%", maxWidth: 480, alignSelf: "center", gap: 20 },
@@ -75,10 +77,13 @@ export const authStyles = StyleSheet.create({
   hint: { color: authColors.muted, fontSize: 12, lineHeight: 18 },
   button: { backgroundColor: authColors.primary, minHeight: 52, padding: 12, borderRadius: 8, justifyContent: "center", alignItems: "center" },
   secondary: { backgroundColor: authColors.surface, borderWidth: 1, borderColor: authColors.border },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 16, textAlign: "center" },
+  buttonText: { color: authColors.onPrimary, fontWeight: "600", fontSize: 16, textAlign: "center" },
   dim: { opacity: 0.65 },
   back: { minHeight: 44, justifyContent: "center", alignItems: "center", paddingVertical: 8 },
   link: { color: authColors.primary, fontWeight: "600", fontSize: 14, textDecorationLine: "underline", textAlign: "center" },
   error: { color: authColors.error, backgroundColor: authColors.errorBackground, borderColor: authColors.errorBorder,
     borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 14, lineHeight: 20 },
 });
+
+export const authStyles = makeAuthStyles(colors);
+export const useAuthStyles = createThemedStyles(makeAuthStyles);

@@ -1,3 +1,4 @@
+import { createCoachStyles } from "@/src/coach-ui";
 ﻿import { targetFaceLabel } from "@arc-track/core/analytics";
 import { calculateOverview } from "@arc-track/core/analytics";
 import { summarizeCoachRound } from "@arc-track/core/coach-round";
@@ -10,11 +11,14 @@ import { readCoachAthleteSessionIndex, readCoachSessionDetail } from "@/src/coac
 import { coachSessionNeighbors } from "@/src/coach-mobile-model";
 import { athleteLabel } from "@/src/organizations";
 import { PAGE_TOP_SPACING } from "@/src/theme";
-import { coachPalette } from "@/src/coach-ui";
+import { useCoachPalette } from "@/src/coach-ui";
 
 type Detail = NonNullable<Awaited<ReturnType<typeof readCoachSessionDetail>>>;
 
 export default function CoachSessionScreen() {
+  const coachPalette = useCoachPalette();
+  const styles = useStyles();
+
   const { organizationId, userId, sessionId } = useLocalSearchParams<{ organizationId: string; userId: string; sessionId: string }>();
   const { user } = useAuth();
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -70,7 +74,7 @@ export default function CoachSessionScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createCoachStyles((coachPalette) => StyleSheet.create({
   page: { flex: 1, backgroundColor: coachPalette.background }, content: { padding: 20, paddingTop: 20 + PAGE_TOP_SPACING, paddingBottom: 48, gap: 12 },
   state: { flex: 1, backgroundColor: coachPalette.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
   eyebrow: { color: coachPalette.accent, fontSize: 12, fontWeight: "700" }, title: { color: coachPalette.text, fontSize: 34, lineHeight: 39, fontWeight: "700", letterSpacing: -1 },
@@ -79,4 +83,4 @@ const styles = StyleSheet.create({
   summary: { paddingVertical: 24, borderTopWidth: 1, borderBottomWidth: 1, borderColor: coachPalette.border, gap: 8 },
   pager: { flexDirection: "row", justifyContent: "space-between", gap: 8 }, pagerButton: { minHeight: 44, justifyContent: "center" },
   roundName: { color: coachPalette.text, fontSize: 20, fontWeight: "700", letterSpacing: -.4 }, score: { color: coachPalette.text, fontSize: 22, fontWeight: "600", fontVariant: ["tabular-nums"] },
-});
+}));

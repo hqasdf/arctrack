@@ -8,8 +8,10 @@ import { useMemo, useRef, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet,
   Text, TextInput, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
-import { coachPalette } from "./coach-palette";
-import { colors } from "./theme";
+import { coachPalette, type CoachPalette } from "./coach-palette";
+import { createCoachStyles, useCoachPalette } from "./coach-ui";
+import { useAppearance } from "./appearance";
+
 import type { MobileTrainingPlan } from "./training-plans-read";
 import { saveMobileTrainingPlan } from "./training-plans-write";
 
@@ -18,6 +20,10 @@ export function visibleTrainingWeek(progress: TrainingPlanProgress, today: strin
 }
 
 export function TrainingGoalRing({ week, coach = false, compact = false }: { week: TrainingPlanWeekProgress | null; coach?: boolean; compact?: boolean }) {
+  const coachPalette = useCoachPalette();
+  const ui = useTrainingPlanStyles();
+  const { colors } = useAppearance();
+
   const palette = coach ? coachPalette : colors;
   if (!week || week.arrowTarget === null) return <Text style={{ color: palette.muted }}>No weekly Arrow target. Daily requirements may still apply.</Text>;
   const circumference = 2 * Math.PI * 69;
@@ -41,6 +47,10 @@ export function TrainingGoalRing({ week, coach = false, compact = false }: { wee
 }
 
 export function TrainingDailyProgress({ days, today, coach = false }: { days: TrainingPlanDayProgress[]; today: string; coach?: boolean }) {
+  const coachPalette = useCoachPalette();
+  const ui = useTrainingPlanStyles();
+  const { colors } = useAppearance();
+
   const palette = coach ? coachPalette : colors;
   return <View>{days.map((day) => {
     const status = day.date > today ? "Upcoming" : day.noTrackedRequirement ? "No tracked requirement" : day.dayComplete ? "Complete" : day.date < today ? "Incomplete" : "In Progress";
@@ -65,6 +75,9 @@ export function MobileTrainingPlanForm({ organizationId, plan, today, athletes }
   organizationId: string; plan: MobileTrainingPlan | null; today: string;
   athletes: Array<{ userId: string; name: string }>;
 }) {
+  const coachPalette = useCoachPalette();
+  const ui = useTrainingPlanStyles();
+
   const eligibleIds = useMemo(() => new Set(athletes.map((athlete) => athlete.userId)), [athletes]);
   const [form, setForm] = useState(() => initialInput(plan, today, eligibleIds));
   const [search, setSearch] = useState("");
@@ -131,24 +144,33 @@ export function MobileTrainingPlanForm({ organizationId, plan, today, athletes }
 }
 
 function Field({ label, value, change, keyboard, multiline = false }: { label: string; value: string; change: (value: string) => void; keyboard?: "number-pad" | "numbers-and-punctuation"; multiline?: boolean }) {
+  const coachPalette = useCoachPalette();
+  const ui = useTrainingPlanStyles();
+
   return <View style={{ gap: 5 }}><Text style={ui.muted}>{label}</Text><TextInput accessibilityLabel={label} value={value} onChangeText={change} keyboardType={keyboard} multiline={multiline} maxLength={multiline ? 2000 : undefined} placeholderTextColor={coachPalette.muted} style={[ui.input, multiline && { minHeight: 82, textAlignVertical: "top" }]}/></View>;
 }
 
 export function Action({ label, press, secondary = false, disabled = false }: { label: string; press: () => void; secondary?: boolean; disabled?: boolean }) {
+  const coachPalette = useCoachPalette();
+  const ui = useTrainingPlanStyles();
+
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={press} style={[ui.action, secondary && ui.actionSecondary, disabled && { opacity: .5 }]}><Text style={[ui.actionText, secondary && { color: coachPalette.accent }]}>{label}</Text></Pressable>;
 }
 
-export const ui = StyleSheet.create({
+const makeTrainingPlanStyles = (coachPalette: CoachPalette) => StyleSheet.create({
   formContent: { padding: 20, paddingBottom: 64, gap: 14 }, eyebrow: { color: coachPalette.accent, fontSize: 11, fontWeight: "800", letterSpacing: 1.6 },
   title: { color: coachPalette.text, fontSize: 33, fontWeight: "700", letterSpacing: -1 }, heading: { color: coachPalette.text, fontSize: 21, fontWeight: "700", marginTop: 15 },
   body: { color: coachPalette.text, fontSize: 15, fontWeight: "600" }, muted: { color: coachPalette.muted, fontSize: 13, lineHeight: 19 },
-  input: { backgroundColor: coachPalette.surface, borderColor: coachPalette.border, borderWidth: 1, borderRadius: 9, minHeight: 48, paddingHorizontal: 12, paddingVertical: 10, color: coachPalette.text, fontSize: 15 },
+  input: { backgroundColor: coachPalette.surface, borderColor: coachPalette.inputBorder, borderWidth: 1, borderRadius: 9, minHeight: 48, paddingHorizontal: 12, paddingVertical: 10, color: coachPalette.text, fontSize: 15 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 9 }, action: { backgroundColor: coachPalette.accent, borderRadius: 9, minHeight: 48, paddingHorizontal: 17, paddingVertical: 12, justifyContent: "center", alignItems: "center" },
-  actionSecondary: { borderColor: coachPalette.border, borderWidth: 1, backgroundColor: "transparent" }, actionText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  actionSecondary: { borderColor: coachPalette.border, borderWidth: 1, backgroundColor: "transparent" }, actionText: { color: coachPalette.onPrimary, fontWeight: "700", fontSize: 14 },
   pickRow: { minHeight: 48, justifyContent: "center", borderBottomColor: coachPalette.border, borderBottomWidth: 1, paddingVertical: 8 },
   dayEditor: { borderTopColor: coachPalette.border, borderTopWidth: 1 }, dayTrigger: { minHeight: 48, justifyContent: "center" },
-  day: { borderTopWidth: 1, paddingVertical: 14, gap: 5 }, error: { color: colors.error, fontSize: 14, fontWeight: "700" },
+  day: { borderTopWidth: 1, paddingVertical: 14, gap: 5 }, error: { color: coachPalette.error, fontSize: 14, fontWeight: "700" },
   goalWrap: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 18, paddingVertical: 12 }, goalNumber: { fontSize: 28, fontWeight: "700", fontVariant: ["tabular-nums"], letterSpacing: -1 },
 });
 
 export { trainingPlanStatus };
+
+export const useTrainingPlanStyles = createCoachStyles(makeTrainingPlanStyles);
+export const ui = makeTrainingPlanStyles(coachPalette);

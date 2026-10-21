@@ -1,5 +1,6 @@
 import { createClient, type PasskeyListItem, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import type { NativePasskeyAdapter } from "./native-adapter";
+import { registrationDiagnostic } from "./registration-diagnostics.ts";
 
 export class PreparedPasskeyError extends Error {
   constructor(public readonly code: "blocked" | "adoption_disabled" | "authentication_required" | "stale" |
@@ -159,20 +160,34 @@ export function createPreparedPasskeyService(dependencies: PreparedPasskeyDepend
     async register() {
       guard(); if (ceremonyPending) fail("blocked");
       ceremonyPending = true;
+      registrationDiagnostic("registration_started");
       try {
         return await withOwner(async (auth, check) => {
           if (!dependencies.native.isSupported()) fail("blocked");
+          registrationDiagnostic("registration_options_started");
           const started = await auth.passkey.startRegistration(); check();
-          if (started.error || !started.data?.challenge_id) fail("server_error");
-          if (started.data.options?.rp?.id !== dependencies.environment.relyingPartyId) fail("blocked");
+          if (started.error || !started.data?.challenge_id) {
+            registrationDiagnostic("registration_options_error", started.error); fail("server_error");
+          }
+          registrationDiagnostic("registration_options_success");
+          if (started.data.options?.rp?.id !== dependencies.environment.relyingPartyId) {
+            registrationDiagnostic("registration_rp_error"); fail("blocked");
+          }
           const credential = await dependencies.native.create(started.data.options); check();
+          registrationDiagnostic("verification_started");
           const result = await auth.passkey.verifyRegistration({ challengeId: started.data.challenge_id, credential }); check();
-          if (result.error || !result.data) fail("server_error");
+          if (result.error || !result.data) {
+            registrationDiagnostic("verification_error", result.error); fail("server_error");
+          }
+          registrationDiagnostic("verification_success");
+          registrationDiagnostic("enrollment_refresh_started");
           const confirmed = (await listOwned(auth, check)).find(item => item.id === result.data.id);
           if (!confirmed) fail("invalid_response");
+          registrationDiagnostic("enrollment_refresh_success");
           return confirmed;
         });
-      } finally { ceremonyPending = false; }
+      } catch (error) { registrationDiagnostic("registration_error", error); throw error; }
+      finally { ceremonyPending = false; }
     },
     // The diagnostic retains its original cleanup-only behavior.
     verifyAuthenticationWithoutAdoption: () => verifyAuthentication(false),

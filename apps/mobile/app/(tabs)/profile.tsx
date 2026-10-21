@@ -1,15 +1,19 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { createThemedStyles, useAppearance } from "../../src/appearance";
+import { AppearanceSettings } from "../../src/appearance-settings";
 import { useAuth } from "../../src/auth";
 import { safeAuthMessage } from "../../src/auth-flow";
 import { changeMobilePassword, DIVISIONS, EMPTY_PROFILE, EXPERIENCE_LEVELS, readMobileProfile, saveMobileProfile, SHOOTING_HANDS, type MobileProfile } from "../../src/profile";
 import { PasswordField } from "../../src/password-field";
-import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PAGE_TOP_SPACING } from "../../src/theme";
 import { PrivacyPolicyLink } from "../../src/privacy-policy-link";
 import { ProfileBiometricControl } from "../../src/passkeys/screen-controls";
 
 export default function ProfileScreen() {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const { user, signOut } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +55,7 @@ export default function ProfileScreen() {
     <Text style={styles.email}>{user?.email ?? "Arc Track account"}</Text>
     {!profileLoaded ? <Pressable accessibilityRole="button" onPress={() => void load()}><Text style={styles.link}>Retry loading profile</Text></Pressable> : editing ? <>
       {([ ["display_name", "Display name"], ["club_or_team", "Club / Team"] ] as const).map(([field, label]) =>
-        <View key={field}><Text style={styles.label}>{label}</Text><TextInput accessibilityLabel={label} value={profile[field] ?? ""}
+        <View key={field}><Text style={styles.label}>{label}</Text><TextInput accessibilityLabel={label} placeholderTextColor={colors.muted} value={profile[field] ?? ""}
           onChangeText={(value) => setProfile((current) => ({ ...current, [field]: value }))} style={styles.input} /></View>)}
       {([ ["division", "Division", DIVISIONS], ["shooting_hand", "Shooting hand", SHOOTING_HANDS], ["experience_level", "Experience", EXPERIENCE_LEVELS] ] as const).map(([field, label, choices]) =>
         <View key={field}><Text style={styles.label}>{label}</Text><View style={styles.choices}>
@@ -77,6 +81,7 @@ export default function ProfileScreen() {
       <PasswordField accessibilityLabel="Confirm new password" placeholder="Confirm new password" autoCapitalize="none" value={confirmPassword} onChangeText={setConfirmPassword} style={styles.input} />
       <Pressable accessibilityRole="button" disabled={busy} onPress={() => void updatePassword()} style={styles.button}><Text style={styles.buttonText}>Update password</Text></Pressable>
     </> : null}
+    <AppearanceSettings />
     <ProfileBiometricControl userId={user?.id ?? null} />
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Pressable accessibilityRole="button" onPress={submit} disabled={busy} style={styles.button}><Text style={styles.buttonText}>{busy ? "Signing out…" : "Sign out"}</Text></Pressable>
@@ -87,7 +92,7 @@ export default function ProfileScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { padding: 24, paddingTop: 40 + PAGE_TOP_SPACING, paddingBottom: 40, gap: 12 },
   title: { color: colors.text, fontSize: 30, fontWeight: "700", marginBottom: 24 },
@@ -99,9 +104,9 @@ const styles = StyleSheet.create({
   input: { minHeight: 48, borderColor: colors.border, borderWidth: 1, borderRadius: 9, paddingHorizontal: 12, backgroundColor: colors.surface, color: colors.text },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 5 },
   choice: { minHeight: 42, justifyContent: "center", borderColor: colors.border, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9 },
-  selected: { borderColor: colors.accent, backgroundColor: "#e3eee9" },
+  selected: { borderColor: colors.accent, backgroundColor: colors.soft },
   choiceText: { color: colors.text, fontSize: 13 },
   error: { color: colors.error, fontSize: 14 },
   button: { alignSelf: "flex-start", backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 15, marginTop: 22 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-});
+  buttonText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
+}));

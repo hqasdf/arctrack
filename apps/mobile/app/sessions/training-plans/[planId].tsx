@@ -7,10 +7,12 @@ import { singaporeToday } from "@/src/mobile-analytics";
 import { readMobileOwnTrainingPlanProgress } from "@/src/training-plans-read";
 import { singleTrainingPlanRouteParam } from "@/src/training-plan-route-params";
 import { TrainingDailyProgress, TrainingGoalRing, visibleTrainingWeek } from "@/src/training-plans-ui";
-import { colors } from "@/src/theme";
+import { createThemedStyles, useAppearance } from "@/src/appearance";
 
 type OwnPlan = Awaited<ReturnType<typeof readMobileOwnTrainingPlanProgress>>[number];
 export default function AthleteTrainingPlanScreen() {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const { planId: rawPlanId } = useLocalSearchParams<{ planId?: string | string[] }>();
   const planId = singleTrainingPlanRouteParam(rawPlanId);
   const { user } = useAuth();
@@ -41,11 +43,11 @@ export default function AthleteTrainingPlanScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background }, content: { padding: 20, paddingBottom: 48, gap: 13 },
   state: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 12 },
   back: { minHeight: 44, justifyContent: "center" }, link: { color: colors.accent, fontWeight: "700" },
   title: { color: colors.text, fontSize: 32, fontWeight: "700", letterSpacing: -1 }, heading: { color: colors.text, fontSize: 21, fontWeight: "700" },
   muted: { color: colors.muted, fontSize: 14, lineHeight: 21 }, section: { borderTopWidth: 1, borderColor: colors.border, paddingTop: 18, gap: 10 },
   week: { borderTopWidth: 1, borderColor: colors.border, paddingVertical: 10, gap: 3 },
-});
+}));

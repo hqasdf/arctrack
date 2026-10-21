@@ -5,6 +5,7 @@ import { buildCoachAthleteInsights, buildCoachTeamAnalytics, DEFAULT_COACH_FILTE
 import { summarizeCoachRound } from "@arc-track/core/coach-round";
 import { coachSessionNeighbors, filterCoachDirectory } from "../src/coach-mobile-model.ts";
 import ts from "typescript";
+import { getCoachPalette } from "../src/coach-palette.ts";
 
 function coachNavRuntime(current = "overview") {
   const source = readFileSync(new URL("../src/coach-ui.tsx", import.meta.url), "utf8");
@@ -12,6 +13,12 @@ function coachNavRuntime(current = "overview") {
   const declaration = ast.statements.find(item => ts.isFunctionDeclaration(item) && item.name?.text === "CoachNav");
   assert.ok(declaration);
   const compiled = ts.transpileModule(declaration.getText(ast), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  let palette = getCoachPalette("light");
+  const helperNames = ["makeCoachStyles", "createCoachStyles", "useCoachPalette", "useCoachStyles"];
+  const helpers = ast.statements.filter(item => ts.isFunctionDeclaration(item) ? helperNames.includes(item.name?.text) : ts.isVariableStatement(item) && item.declarationList.declarations.some(declaration => helperNames.includes(declaration.name.getText(ast))));
+  const helperCode = ts.transpileModule(helpers.map(item => item.getText(ast)).join("\n"), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+  const themeExports = {};
+  const themeHooks = new Function("exports", "StyleSheet", "useAppearance", helperCode + "; return { useCoachStyles: exports.useCoachStyles, useCoachPalette }; ")(themeExports, { create: value => value }, () => ({ coachColors: palette }));
   const hooks = [], pushes = [];
   let cursor = 0;
   const useState = initial => {
@@ -22,8 +29,8 @@ function coachNavRuntime(current = "overview") {
   const useRef = initial => { const slot = cursor++; return hooks[slot] ?? (hooks[slot] = { current: initial }); };
   const jsx = (type, props) => ({ type, props });
   const exports = {};
-  const names = ["useAuth", "useState", "useRef", "useFocusEffect", "useCallback", "readOwnOrganizations", "router", "coachStyles", "coachPalette", "View", "Text", "ScrollView", "Pressable", "Svg", "Polyline"];
-  const values = [() => ({ user: null }), useState, useRef, () => {}, fn => fn, async () => [], { push: value => pushes.push(value), replace() {} }, {}, {}, "View", "Text", "ScrollView", "Pressable", "Svg", "Polyline"];
+  const names = ["useAuth", "useState", "useRef", "useFocusEffect", "useCallback", "readOwnOrganizations", "router", "useCoachStyles", "useCoachPalette", "View", "Text", "ScrollView", "Pressable", "Svg", "Polyline"];
+  const values = [() => ({ user: null }), useState, useRef, () => {}, fn => fn, async () => [], { push: value => pushes.push(value), replace() {} }, themeHooks.useCoachStyles, themeHooks.useCoachPalette, "View", "Text", "ScrollView", "Pressable", "Svg", "Polyline"];
   new Function("require", "exports", ...names, compiled)(() => ({ jsx, jsxs: jsx }), exports, ...values);
   function render() {
     cursor = 0;
@@ -36,7 +43,7 @@ function coachNavRuntime(current = "overview") {
       tabs: nodes.filter(node => node.type === "Pressable" && node.props.accessibilityState?.selected !== undefined),
     };
   }
-  return { render, pushes };
+  return { render, pushes, setTheme(mode) { palette = getCoachPalette(mode); }, styles: themeHooks.useCoachStyles };
 }
 
 test("Coach nav cues follow actual scroll availability and update when orientation or content width changes", () => {
@@ -75,6 +82,27 @@ test("Coach nav keeps all six tab destinations, organisation parameters, and act
     "/organization/[organizationId]/training-plans", "/organization/[organizationId]/analytics", "/organization/[organizationId]/settings",
   ]);
   assert.ok(runtime.pushes.every(item => item.params.organizationId === "test-org"));
+});
+
+test("Coach nav updates resolved appearance without losing scroll state or selected destination", () => {
+  const runtime = coachNavRuntime("reviews");
+  let view = runtime.render();
+  view.scroll.props.onLayout({ nativeEvent: { layout: { width: 320 } } });
+  view.scroll.props.onContentSizeChange(620);
+  view.scroll.props.onScroll({ nativeEvent: { contentOffset: { x: 150 } } });
+  const lightStyles = runtime.styles();
+  assert.equal(lightStyles.page.backgroundColor, getCoachPalette("light").background);
+  runtime.setTheme("dark");
+  view = runtime.render();
+  const darkStyles = runtime.styles();
+  assert.equal(darkStyles.page.backgroundColor, getCoachPalette("dark").background);
+  assert.equal(darkStyles.chipTextActive.color, getCoachPalette("dark").onPrimary);
+  assert.equal(view.tabs[2].props.style[1].borderColor, getCoachPalette("dark").accent);
+  assert.deepEqual(view.edges.map(edge => edge.props.style[1]), [{ left: 0 }, { right: 0 }]);
+  assert.equal(view.tabs[2].props.accessibilityState.selected, true);
+  runtime.setTheme("light");
+  assert.equal(runtime.styles(), lightStyles);
+  assert.notEqual(darkStyles, lightStyles);
 });
 
 const arrow = (id, end, arrowNumber, score, x = 0, y = 0) => ({ id, end, arrow: arrowNumber, score, plot: { x, y } });

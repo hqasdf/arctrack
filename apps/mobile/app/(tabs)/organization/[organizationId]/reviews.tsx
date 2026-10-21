@@ -3,12 +3,14 @@ import { formatDateOnly } from "@arc-track/core/dates";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text } from "react-native";
-import { CoachChoices, CoachNav, CoachSection, CoachState, coachStyles } from "@/src/coach-ui";
+import { CoachChoices, CoachNav, CoachSection, CoachState, useCoachStyles } from "@/src/coach-ui";
 import { useCoachWorkspace } from "@/src/coach-workspace";
 import { singaporeToday } from "@/src/mobile-analytics";
 import { athleteLabel } from "@/src/organizations";
 
 export default function CoachReviewsScreen() {
+  const coachStyles = useCoachStyles();
+
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
   const { data, loading, error, reload } = useCoachWorkspace(organizationId);
   const [period, setPeriod] = useState<CoachPeriod>("30");

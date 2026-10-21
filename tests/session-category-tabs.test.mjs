@@ -66,7 +66,7 @@ test("web tabs switch by click and keyboard, keep both panels mounted, and consu
 
 test("Expo tabs support taps and horizontal swipes while yielding vertical scroll, short drags and multiple touches", async () => {
   const native = { View: "View", Text: "Text", Pressable: "Pressable", StyleSheet: { create: value => value }, PanResponder: { create: value => ({ panHandlers: value }) } };
-  const ui = await load("../apps/mobile/src/session-category-tabs.tsx", { "react-native": native, "./theme": { colors: {} } });
+  const ui = await load("../apps/mobile/src/session-category-tabs.tsx", { "react-native": native, "./theme": { colors: {} }, "./appearance": { createThemedStyles: factory => () => factory({}) } });
   const render = () => ui.render(({ SessionCategoryTabs }) => SessionCategoryTabs({ children: category => React.createElement("Content", { category }) }));
   const category = () => nodes(render()).find(node => node.type === "Content").props.category;
   const tabs = () => nodes(render()).filter(node => node.props?.accessibilityRole === "tab");
@@ -132,6 +132,7 @@ test("Expo filters the existing loaded list and keeps Plan content and navigatio
     "react-native": { View: "View", Text: "Text", Pressable: "Pressable", FlatList: "FlatList", ActivityIndicator: "Loading", StyleSheet: { create: value => value } },
     "expo-router": { router: { push: value => routes.push(value) }, useFocusEffect: fn => { uiHooks(fn); } },
     "../../src/auth": { useAuth: () => ({ user }) }, "../../src/sessions": { readOwnSessions: async () => { reads++; return sessions; } },
+    "../../src/appearance": { useAppearance: () => ({ colors: {} }), createThemedStyles: factory => () => factory({}) },
     "../../src/theme": { colors: {}, PAGE_TOP_SPACING: 0 }, "../../src/session-category-tabs": { SessionCategoryTabs: "CategoryTabs" },
     "../../src/mobile-analytics": { singaporeToday: () => "2026-10-17" },
     "../../src/training-plans-read": { readMobileOwnTrainingPlanProgress: async () => { planReads++; return []; } },

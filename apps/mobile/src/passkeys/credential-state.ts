@@ -1,4 +1,5 @@
 import type { PasskeyListItem } from "@supabase/supabase-js";
+import { registrationDiagnostic } from "./registration-diagnostics.ts";
 
 export type CredentialStorage = {
   getItem(key: string): Promise<string | null>;
@@ -64,18 +65,24 @@ export function createDeviceCredentialState(input: {
   return {
     reconcile: () => run(async check => reconcile(await list(check), check)),
     register: () => run(async check => {
-      const current = await reconcile(await list(check), check);
-      if (current.registeredHere) return current;
-      const registered = await input.server.register(); check();
-      const credentials = await list(check);
-      if (!uuid.test(registered.id) || !credentials.some(item => item.id === registered.id))
-        throw Error("Registration could not be confirmed.");
-      const binding: Binding = { version: 1, ownerId, origin, relyingPartyId, credentialId: registered.id };
-      await input.storage.setItem(key, JSON.stringify(binding)); check();
-      const saved = await read(check);
-      if (saved?.credentialId !== registered.id) throw Error("Credential state could not be saved.");
-      // Do not return Enabled if the credential disappeared while persisting.
-      return reconcile(await list(check), check);
+      try {
+        const current = await reconcile(await list(check), check);
+        if (current.registeredHere) return current;
+        const registered = await input.server.register(); check();
+        const credentials = await list(check);
+        if (!uuid.test(registered.id) || !credentials.some(item => item.id === registered.id))
+          throw Error("Registration could not be confirmed.");
+        const binding: Binding = { version: 1, ownerId, origin, relyingPartyId, credentialId: registered.id };
+        registrationDiagnostic("enrollment_storage_started");
+        await input.storage.setItem(key, JSON.stringify(binding)); check();
+        const saved = await read(check);
+        if (saved?.credentialId !== registered.id) throw Error("Credential state could not be saved.");
+        registrationDiagnostic("enrollment_storage_success");
+        // Do not return Enabled if the credential disappeared while persisting.
+        const state = await reconcile(await list(check), check);
+        registrationDiagnostic(state.registeredHere === registered.id ? "enrollment_success" : "enrollment_error");
+        return state;
+      } catch (error) { registrationDiagnostic("enrollment_error", error); throw error; }
     }),
     remove: (id: string) => run(async check => {
       if (!uuid.test(id)) throw Error("Invalid credential.");

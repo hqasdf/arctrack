@@ -2,12 +2,14 @@ import { buildCoachTeamAnalytics, coachFilterOptions, DEFAULT_COACH_FILTERS, typ
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { CoachBars, CoachFilterPanel, CoachLine, CoachMetric, CoachNav, CoachSection, CoachState, coachStyles } from "@/src/coach-ui";
+import { CoachBars, CoachFilterPanel, CoachLine, CoachMetric, CoachNav, CoachSection, CoachState, useCoachStyles } from "@/src/coach-ui";
 import { useCoachWorkspace } from "@/src/coach-workspace";
 import { singaporeToday } from "@/src/mobile-analytics";
 import { athleteLabel } from "@/src/organizations";
 
 export default function CoachAnalyticsScreen() {
+  const coachStyles = useCoachStyles();
+
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
   const { data, loading, error, reload } = useCoachWorkspace(organizationId);
   const [filters, setFilters] = useState<CoachFilters>(DEFAULT_COACH_FILTERS);

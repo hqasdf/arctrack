@@ -16,13 +16,16 @@ import {
   type AnalyticsFilters, type VolumeInterval,
 } from "../../src/mobile-analytics";
 import { readOwnAnalyticsSessions } from "../../src/sessions";
-import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PAGE_TOP_SPACING } from "../../src/theme";
+import { createThemedStyles, useAppearance } from "../../src/appearance";
 
 const average = (value: number | null) => value === null ? "—" : value.toFixed(2);
 const percentage = (value: number | null) => value === null ? "—" : `${value.toFixed(1)}%`;
 const faceNames: Record<TargetFaceType, string> = { full_face: "Full face", six_ring: "6-ring", triple_face: "Triple face" };
 
 export default function AnalyticsScreen() {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionDraft[]>([]);
   const [filters, setFilters] = useState<AnalyticsFilters>(DEFAULT_ANALYTICS_FILTERS);
@@ -149,18 +152,23 @@ export default function AnalyticsScreen() {
 }
 
 function ChoiceRow({ label, value, choices, onChange }: { label: string; value: string; choices: [string, string][]; onChange: (value: string) => void }) {
+  const styles = useStyles();
   return <View><Text style={styles.label}>{label.toUpperCase()}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>
     {choices.map(([key, text]) => <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: value === key }} onPress={() => onChange(key)}
       style={[styles.choice, value === key && styles.choiceActive]}><Text style={[styles.choiceText, value === key && styles.choiceTextActive]}>{text}</Text></Pressable>)}
   </ScrollView></View>;
 }
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const styles = useStyles();
   return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{children}</View>;
 }
 function Metric({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return <View style={styles.metric}><Text style={styles.label}>{label.toUpperCase()}</Text><Text style={styles.metricValue}>{value}</Text></View>;
 }
 function TrendChart({ points }: { points: { id: string; date: string; roundName: string; average: number; arrowCount: number }[] }) {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const width = Math.max(380, points.length * 34 + 68);
   const left = 50, right = width - 18, top = 18, bottom = 160;
   const [selected, setSelected] = useState<string | null>(null);
@@ -183,6 +191,7 @@ function TrendChart({ points }: { points: { id: string; date: string; roundName:
   </View>;
 }
 function VolumeBars({ points, interval }: { points: { key: string; startDate: string; endDate: string; arrowCount: number }[]; interval: VolumeInterval }) {
+  const styles = useStyles();
   const [selected, setSelected] = useState<string | null>(null);
   const { max, ticks } = chartAxis(points.map((point) => point.arrowCount), "count", true);
   const dateLabel = (point: (typeof points)[number]) => interval === "daily"
@@ -204,7 +213,7 @@ function VolumeBars({ points, interval }: { points: { key: string; startDate: st
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingTop: 16 + PAGE_TOP_SPACING, paddingBottom: 35, gap: 10 },
   title: { color: colors.text, fontSize: 28, fontWeight: "800" },
@@ -215,7 +224,7 @@ const styles = StyleSheet.create({
   choice: { minHeight: 40, paddingHorizontal: 12, borderRadius: 20, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, justifyContent: "center" },
   choiceActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   choiceText: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  choiceTextActive: { color: "#fff" },
+  choiceTextActive: { color: colors.onPrimary },
   context: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   section: { gap: 10, paddingTop: 14, marginTop: 8, borderTopWidth: 1, borderColor: colors.border },
   sectionTitle: { color: colors.text, fontSize: 19, fontWeight: "800" },
@@ -239,5 +248,5 @@ const styles = StyleSheet.create({
   bar: { width: 24, backgroundColor: colors.accent, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
   state: { flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center", padding: 22, gap: 15 },
   retry: { minHeight: 44, backgroundColor: colors.accent, borderRadius: 9, justifyContent: "center", paddingHorizontal: 20 },
-  retryText: { color: "#fff", fontWeight: "700" },
-});
+  retryText: { color: colors.onPrimary, fontWeight: "700" },
+}));

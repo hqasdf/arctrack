@@ -6,7 +6,8 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "
 import { useAuth } from "../../src/auth";
 import { SessionCategoryTabs } from "../../src/session-category-tabs";
 import { readOwnSessions, type MobileSession } from "../../src/sessions";
-import { colors, PAGE_TOP_SPACING } from "../../src/theme";
+import { PAGE_TOP_SPACING } from "../../src/theme";
+import { createThemedStyles, useAppearance } from "../../src/appearance";
 import { singaporeToday } from "../../src/mobile-analytics";
 import { readMobileOwnTrainingPlanProgress } from "../../src/training-plans-read";
 import { TrainingGoalRing, visibleTrainingWeek } from "../../src/training-plans-ui";
@@ -14,6 +15,8 @@ import { TrainingGoalRing, visibleTrainingWeek } from "../../src/training-plans-
 type OwnPlan = Awaited<ReturnType<typeof readMobileOwnTrainingPlanProgress>>[number];
 
 export default function SessionsScreen() {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const { user } = useAuth();
   const [sessions, setSessions] = useState<MobileSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,12 +78,12 @@ export default function SessionsScreen() {
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background, paddingTop: 34 + PAGE_TOP_SPACING, paddingHorizontal: 20 },
   eyebrow: { color: colors.accent, fontSize: 12, fontWeight: "700", letterSpacing: 2 },
   title: { color: colors.text, fontSize: 30, fontWeight: "700", marginTop: 7, marginBottom: 22 },
   newButton: { alignSelf: "flex-start", backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 13, marginBottom: 16, minHeight: 48, justifyContent: "center" },
-  newButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  newButtonText: { color: colors.onPrimary, fontWeight: "700", fontSize: 15 },
   list: { gap: 10, paddingBottom: 28, flexGrow: 1 },
   row: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 14, padding: 17, gap: 5 },
   pressed: { opacity: 0.72 },
@@ -93,5 +96,5 @@ const styles = StyleSheet.create({
   planLink: { color: colors.accent, fontWeight: "700", fontSize: 14 },
   message: { color: colors.muted, fontSize: 15 },
   retry: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 22, paddingVertical: 14 },
-  retryText: { color: "#fff", fontWeight: "700" },
-});
+  retryText: { color: colors.onPrimary, fontWeight: "700" },
+}));

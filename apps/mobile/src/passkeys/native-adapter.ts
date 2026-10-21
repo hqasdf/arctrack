@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { nativeAuthPrompt } from "../auth-native-prompt";
+import { registrationDiagnostic } from "./registration-diagnostics.ts";
 import type { PasskeyAuthenticationOptionsResponse, PasskeyRegistrationOptionsResponse,
   VerifyPasskeyAuthenticationParams, VerifyPasskeyRegistrationParams } from "@supabase/supabase-js";
 import type { PasskeyCreateRequest, PasskeyGetRequest } from "react-native-passkey";
@@ -130,12 +131,31 @@ export function createNativePasskeyAdapter({
   return {
     isSupported,
     async create(options) {
-      validateOptions(options, "create");
+      try { validateOptions(options, "create"); }
+      catch (error) { registrationDiagnostic("native_options_error", error); throw error; }
+      let native: NativeBridge;
+      try { native = await bridge(); }
+      catch (error) { registrationDiagnostic("native_bridge_error", error); throw safeError(error); }
+      let response: unknown;
       try {
-        const native = await bridge();
-        return normalizeResponse(await nativeAuthPrompt.run(() => native.create(options as PasskeyCreateRequest)), "create");
+        response = await nativeAuthPrompt.run(async () => {
+          registrationDiagnostic("native_create_started");
+          try {
+            const result = await native.create(options as PasskeyCreateRequest);
+            // This marks Passkey.create() resolution, before the foreground guard
+            // or our response validation. It does not claim server enrollment.
+            registrationDiagnostic("native_create_success");
+            return result;
+          } catch (error) { registrationDiagnostic("native_create_error", error); throw error; }
+        });
+        registrationDiagnostic("native_prompt_returned");
+      } catch (error) { registrationDiagnostic("native_prompt_error", error); throw safeError(error); }
+      try {
+        const credential = normalizeResponse(response, "create");
+        registrationDiagnostic("native_response_success");
+        return credential;
       }
-      catch (error) { throw safeError(error); }
+      catch (error) { registrationDiagnostic("native_response_error", error); throw safeError(error); }
     },
     async get(options) {
       validateOptions(options, "get");

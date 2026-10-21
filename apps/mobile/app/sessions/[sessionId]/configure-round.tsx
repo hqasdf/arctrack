@@ -5,7 +5,8 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { buildRoundRpcArgs, configFromPreset, type RoundConfig } from "../../../src/round-config";
 import { scoreRoundHref } from "../../../src/round-navigation";
-import { colors, PAGE_TOP_SPACING } from "../../../src/theme";
+import { PAGE_TOP_SPACING } from "../../../src/theme";
+import { createThemedStyles, useAppearance } from "../../../src/appearance";
 import { createMobileRound } from "../../../src/writes";
 
 type NumericField = "distanceMetres" | "faceDiameterCm" | "ends" | "arrowsPerEnd";
@@ -18,6 +19,8 @@ function numberTexts(config: RoundConfig) {
 }
 
 export default function ConfigureRoundScreen() {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const [config, setConfig] = useState<RoundConfig>(configFromPreset);
   const [numbers, setNumbers] = useState(() => numberTexts(configFromPreset()));
@@ -62,7 +65,7 @@ export default function ConfigureRoundScreen() {
       {ROUND_PRESETS.map((preset) => <Choice key={preset.id} label={preset.name} active={selectedPreset === preset.id} onPress={() => choosePreset(preset)} />)}
     </ScrollView>
     <Text style={styles.label}>ROUND NAME</Text>
-    <TextInput accessibilityLabel="Round name" value={config.name} onChangeText={(name) => { setConfig((current) => ({ ...current, name })); setSelectedPreset(null); }} maxLength={80} style={styles.input} />
+    <TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel="Round name" value={config.name} onChangeText={(name) => { setConfig((current) => ({ ...current, name })); setSelectedPreset(null); }} maxLength={80} style={styles.input} />
     <Text style={styles.label}>DIVISION</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>
       {DIVISIONS.map((division) => <Choice key={division} label={division} active={config.division === division}
@@ -70,7 +73,7 @@ export default function ConfigureRoundScreen() {
     </ScrollView>
     {numericLabels.filter(([key]) => key !== "faceDiameterCm").map(([key, label]) => <View key={key} style={styles.field}>
       <Text style={styles.label}>{label.toUpperCase()}</Text>
-      <TextInput accessibilityLabel={label} value={numbers[key]} onChangeText={(value) => editNumber(key, value)}
+      <TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel={label} value={numbers[key]} onChangeText={(value) => editNumber(key, value)}
         keyboardType="number-pad" style={styles.input} selectTextOnFocus />
     </View>)}
     <Text style={styles.label}>TARGET FACE</Text>
@@ -80,7 +83,7 @@ export default function ConfigureRoundScreen() {
         onPress={() => { setConfig((current) => ({ ...current, faceType: option.faceType })); setNumbers((current) => ({ ...current, faceDiameterCm: String(option.diameterCm) })); setSelectedPreset(null); }} />)}
     </ScrollView>
     <View style={styles.field}><Text style={styles.label}>FACE DIAMETER (CM)</Text>
-      <TextInput accessibilityLabel="Face diameter in centimetres" value={numbers.faceDiameterCm}
+      <TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel="Face diameter in centimetres" value={numbers.faceDiameterCm}
         onChangeText={(value) => editNumber("faceDiameterCm", value)} keyboardType="number-pad" selectTextOnFocus style={styles.input} /></View>
     <Text style={styles.label}>FACE LAYOUT</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>
@@ -90,16 +93,17 @@ export default function ConfigureRoundScreen() {
     </ScrollView>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     <Pressable accessibilityRole="button" disabled={busy} onPress={() => void start()} style={styles.start}>
-      {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.startText}>Start Round</Text>}
+      {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.startText}>Start Round</Text>}
     </Pressable>
   </ScrollView>;
 }
 
 function Choice({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress}
     style={[styles.choice, active && styles.choiceActive]}><Text style={[styles.choiceText, active && styles.choiceTextActive]}>{label}</Text></Pressable>;
 }
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { padding: 18, paddingTop: 18 + PAGE_TOP_SPACING, paddingBottom: 38, gap: 10 },
   title: { color: colors.text, fontSize: 25, fontWeight: "800", marginBottom: 6 },
@@ -108,10 +112,10 @@ const styles = StyleSheet.create({
   choice: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, justifyContent: "center", backgroundColor: colors.surface },
   choiceActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   choiceText: { color: colors.text, fontSize: 13, fontWeight: "600" },
-  choiceTextActive: { color: "#fff" },
+  choiceTextActive: { color: colors.onPrimary },
   field: { gap: 7 },
-  input: { minHeight: 48, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 9, paddingHorizontal: 12, color: colors.text, fontSize: 16 },
+  input: { minHeight: 48, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.control, borderRadius: 9, paddingHorizontal: 12, color: colors.text, fontSize: 16 },
   error: { color: colors.error, fontSize: 13 },
   start: { minHeight: 54, backgroundColor: colors.accent, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 12 },
-  startText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-});
+  startText: { color: colors.onPrimary, fontSize: 16, fontWeight: "800" },
+}));

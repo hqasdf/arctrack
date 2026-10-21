@@ -10,7 +10,7 @@ async function privacyLink(openURL) {
     react: { useState: () => [error, value => { error = value; }] },
     "react/jsx-runtime": jsx,
     "react-native": { Pressable: "Pressable", Text: "Text", View: "View", StyleSheet: { create: value => value }, Linking: { openURL } },
-    "./theme": { colors: { accent: "#306b60" } },
+    "./appearance": { useAppearance: () => ({ colors: { accent: "#306b60" } }), createThemedStyles: factory => () => factory({ accent: "#306b60" }) },
   };
   const source = await readFile(new URL("../src/privacy-policy-link.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;

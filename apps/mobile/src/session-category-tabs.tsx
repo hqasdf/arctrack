@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "./theme";
+import { createThemedStyles } from "./appearance";
 
 type Category = "training" | "competition";
 
 export function SessionCategoryTabs({ children }: { children: (category: Category) => ReactNode }) {
+  const styles = useStyles();
   const [category, setCategory] = useState<Category>("training");
   const vertical = useRef(false);
   const responder = useMemo(() => PanResponder.create({
@@ -29,11 +30,11 @@ export function SessionCategoryTabs({ children }: { children: (category: Categor
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
   content: { flex: 1, minWidth: 0 },
   tabs: { flexDirection: "row", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 28, padding: 4, gap: 4, marginBottom: 16 },
   tab: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 24, paddingHorizontal: 10 },
   active: { backgroundColor: colors.accent },
   label: { color: colors.muted, fontSize: 14, fontWeight: "700" },
-  activeLabel: { color: "#fff" },
-});
+  activeLabel: { color: colors.onPrimary },
+}));

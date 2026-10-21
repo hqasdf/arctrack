@@ -10,6 +10,7 @@ import * as jsx from "react/jsx-runtime";
 // These checks cover component contracts/state, not native text drawing or keyboard geometry.
 const mobile = fileURLToPath(new URL("..", import.meta.url));
 function runtime({ platform = "android", recovery = null, pendingSignup = null } = {}) {
+  let palette = null;
   let dimensions = { width: 390, height: 844 };
   let insets = { top: 24, right: 0, bottom: 34, left: 0 };
   let owner = "", cursor = 0;
@@ -61,6 +62,7 @@ function runtime({ platform = "android", recovery = null, pendingSignup = null }
     } }).outputText;
     new Function("require", "exports", code)(name => {
       if (name in mocks) return mocks[name];
+      if (name.endsWith("/appearance")) return { useAppearance: () => ({ colors: palette ?? load("src/theme.ts").colors }), createThemedStyles: factory => () => factory(palette ?? load("src/theme.ts").colors) };
       if (name.endsWith("/auth")) return { useAuth: () => auth };
       if (name.endsWith("/supabase")) return { configError: null, mobileAuthentication: {
         signUp: request("signUp"), verifyOtp: request("verifyOtp"),
@@ -71,6 +73,7 @@ function runtime({ platform = "android", recovery = null, pendingSignup = null }
       if (name.endsWith("/privacy-policy-link")) return { PrivacyPolicyLink: () => jsx.jsx("Text", { children: "Privacy Policy" }) };
       assert.ok(name.startsWith("."), `Unexpected import ${name}`);
       const base = path.resolve(path.dirname(filename), name);
+      if (/\.tsx?$/.test(base)) return load(base);
       let extension;
       for (const candidate of [".tsx", ".ts"]) { try { readFileSync(base + candidate); extension = candidate; break; } catch {} }
       assert.ok(extension, `Missing module ${name}`);
@@ -89,6 +92,7 @@ function runtime({ platform = "android", recovery = null, pendingSignup = null }
   }
   return {
     calls, load,
+    setPalette(next) { palette = next; },
     render(relative, props) {
       const tree = expand(jsx.jsx(typeof relative === "string" ? load(relative).default : relative, props ?? {}));
       effects.splice(0).forEach(effect => effect());
@@ -289,4 +293,27 @@ test("recovery request and new-password input state survive resize without trans
     assert.equal(input(tree, label).props.secureTextEntry, true);
   }
   assert.deepEqual(password.calls, []);
+});
+
+
+test("changing appearance updates signed-out inputs, shell and busy action while preserving entered credentials", () => {
+  const app = runtime();
+  const route = "app/(auth)/sign-in.tsx";
+  let tree = app.render(route);
+  input(tree, "Email").props.onChangeText("synthetic@example.test");
+  input(tree, "Password").props.onChangeText("Synthetic-passphrase-123");
+  const dark = { ...app.load("src/theme.ts").colors,
+    background: "#201a17", surface: "#2b2420", text: "#f4e8de", muted: "#bdaca0",
+    primary: "#e6b99d", onPrimary: "#382a24", inputBorder: "#806e60" };
+  app.setPalette(dark);
+  tree = app.render(route);
+  assert.equal(style(find(tree, "ScrollView").props.style).backgroundColor, dark.background);
+  assert.equal(style(input(tree, "Email").props.style).color, dark.text);
+  assert.equal(input(tree, "Email").props.placeholderTextColor, dark.muted);
+  assert.equal(input(tree, "Email").props.value, "synthetic@example.test");
+  assert.equal(input(tree, "Password").props.value, "Synthetic-passphrase-123");
+  const { AuthAction } = app.load("src/auth-ui.tsx");
+  const busy = app.render(AuthAction, { label: "Sign in", busy: true, onPress() {} });
+  assert.equal(find(busy, "ActivityIndicator").props.color, dark.onPrimary);
+  assert.deepEqual(app.calls, []);
 });

@@ -5,7 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import { createClient } from "@supabase/supabase-js";
 
-const require = createRequire(import.meta.url);
+const require = createRequire(new URL("../src/passkeys/service.ts", import.meta.url));
 const fixtureModule = { exports: {} };
 const source = readFileSync(new URL("../src/passkeys/service.ts", import.meta.url), "utf8");
 new Function("require", "module", "exports", ts.transpileModule(source, { compilerOptions: {
@@ -146,6 +146,24 @@ function runtime(t, adoption = {}) {
     expireOwner() { const next = issue(alice, true); owner = { userId: alice, accessToken: next.access_token, refreshToken: next.refresh_token }; },
   };
 }
+
+test("registration diagnostics distinguish options, verification and server-confirmed refresh", async t => {
+  const events = []; t.mock.method(console, "info", (_tag, value) => events.push(JSON.parse(value)));
+  const r = runtime(t); await r.service.register();
+  assert.deepEqual(events.map(event => event.stage), ["registration_started", "registration_options_started",
+    "registration_options_success", "verification_started", "verification_success", "enrollment_refresh_started", "enrollment_refresh_success"]);
+});
+
+test("Supabase returned error property records safe verification code and prevents enrollment success", async t => {
+  const events = []; t.mock.method(console, "info", (_tag, value) => events.push(JSON.parse(value)));
+  const r = runtime(t); r.controls.failVerify = true;
+  await assert.rejects(r.service.register(), error => error.code === "server_error");
+  assert.deepEqual(events.find(event => event.stage === "verification_error"), {
+    stage: "verification_error", code: "webauthn_verification_failed", status: 400,
+  });
+  assert.ok(!events.some(event => event.stage === "verification_success"));
+  assert.equal(r.server.credentials.length, 0);
+});
 
 test("service creation is idle and public sign-in rejects adoption before HTTP, native or client creation", async t => {
   const r = runtime(t); assert.equal(r.factories, 0);

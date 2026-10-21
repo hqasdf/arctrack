@@ -33,6 +33,7 @@
     "expo-secure-store": "~57.0.4",
     "expo-sharing": "~57.0.22",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
     "react": "19.3.0",
     "react-native": "0.86.3",
     "react-native-passkey": "3.6.2",

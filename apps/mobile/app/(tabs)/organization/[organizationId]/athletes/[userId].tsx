@@ -5,16 +5,18 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useAuth } from "@/src/auth";
-import { CoachHeadline, CoachBars, CoachFilterPanel, CoachLine, CoachMetric, CoachNav, CoachSection, coachStyles } from "@/src/coach-ui";
+import { useCoachPalette, CoachHeadline, CoachBars, CoachFilterPanel, CoachLine, CoachMetric, CoachNav, CoachSection, useCoachStyles } from "@/src/coach-ui";
 import { singaporeToday } from "@/src/mobile-analytics";
 import { athleteLabel, readCoachAthleteSessions, readCoachAthletes, type CoachAthlete } from "@/src/organizations";
-import { colors } from "@/src/theme";
 import { readMobileCoachAthleteTrainingPlanProgress } from "@/src/training-plans-read";
 import { visibleTrainingWeek } from "@/src/training-plans-ui";
 import { singleTrainingPlanRouteParam } from "@/src/training-plan-route-params";
 import type { CoachAnalyticsSession } from "@arc-track/core/coach-analytics";
 
 export default function CoachAthleteScreen() {
+  const coachPalette = useCoachPalette();
+  const coachStyles = useCoachStyles();
+
   const { organizationId: rawOrganizationId, userId: rawUserId } = useLocalSearchParams<{
     organizationId?: string | string[]; userId?: string | string[];
   }>();
@@ -49,7 +51,7 @@ export default function CoachAthleteScreen() {
   const today = singaporeToday(new Date());
   const options = useMemo(() => coachFilterOptions(sessions, today, filters), [sessions, today, filters]);
   const insights = useMemo(() => athlete ? buildCoachAthleteInsights({ userId: athlete.userId, name: athleteLabel(athlete) }, sessions, filters, today) : null, [athlete, sessions, filters, today]);
-  if (loading) return <View style={coachStyles.state}><ActivityIndicator color={colors.accent}/></View>;
+  if (loading) return <View style={coachStyles.state}><ActivityIndicator color={coachPalette.accent}/></View>;
   if (error || !athlete || !insights || !organizationId || !userId) return <View style={coachStyles.state}><Text style={coachStyles.muted}>{error ?? "This athlete is not available in your active roster."}</Text>{error ? <Pressable onPress={() => void load()}><Text style={coachStyles.link}>Retry</Text></Pressable> : null}</View>;
   const openSession = (sessionId: string) => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]", params: { organizationId, userId, sessionId } });
   const openRound = (sessionId: string, roundId: string) => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]/rounds/[roundId]", params: { organizationId, userId, sessionId, roundId } });

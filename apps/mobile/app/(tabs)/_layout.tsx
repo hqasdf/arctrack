@@ -2,9 +2,10 @@ import { Tabs } from "expo-router";
 import { Text } from "react-native";
 import { ArcIcon } from "../../src/icons";
 import { MAIN_TAB_ICONS } from "../../src/navigation-model";
-import { colors } from "../../src/theme";
+import { useAppearance } from "../../src/appearance";
 
 export default function TabsLayout() {
+  const { colors } = useAppearance();
   return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.accent, tabBarInactiveTintColor: colors.muted, tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border } }}>
     <Tabs.Screen name="sessions" options={{ title: "Sessions", tabBarIcon: ({ color }) => <ArcIcon name={MAIN_TAB_ICONS.sessions} color={String(color)} /> }} />
     <Tabs.Screen name="counter" options={{ title: "Counter", tabBarIcon: ({ color }) => <ArcIcon name={MAIN_TAB_ICONS.counter} color={String(color)} /> }} />

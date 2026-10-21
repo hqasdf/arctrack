@@ -4,7 +4,7 @@ import type { WeatherState } from "@arc-track/core/weather-collector";
 import { useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, G, Path, Text as SvgText } from "react-native-svg";
-import { colors } from "./theme";
+import { createThemedStyles, useAppearance } from "./appearance";
 import { useSessionWeather } from "./use-session-weather";
 
 const measurement = (value: number | null, unit: string) => value === null ? "—" : `${value}${unit}`;
@@ -12,6 +12,8 @@ function observedTime(value: string) {
   return `${new Date(Date.parse(value) + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ")} SGT`;
 }
 function WindCompass({ degrees }: { degrees: number | null }) {
+  const styles = useStyles();
+  const { colors } = useAppearance();
   if (degrees === null || !Number.isFinite(degrees) || degrees < 0 || degrees > 360) return <Text style={styles.directionUnavailable}>Direction unavailable</Text>;
   const towardDegrees = (degrees + 180) % 360;
   const from = compassDirection(degrees);
@@ -31,6 +33,7 @@ function WindCompass({ degrees }: { degrees: number | null }) {
   </View>;
 }
 function CompactReading({ reading, stale }: { reading: WeatherSnapshot; stale: boolean }) {
+  const styles = useStyles();
   return <View style={styles.historyReading}>
     <View style={styles.historyReadingColumns}>
       <View style={styles.historyReadingMetric}><Text style={styles.historyValue}>{measurement(reading.temperatureC, "°C")}</Text><Text style={styles.historyLabel}>{conditionDescription(reading.conditionCode)}</Text></View>
@@ -40,6 +43,7 @@ function CompactReading({ reading, stale }: { reading: WeatherSnapshot; stale: b
   </View>;
 }
 function WeatherPanel({ state }: { state: WeatherState }) {
+  const styles = useStyles();
   const reading = state.readings[0];
   const stale = reading && (state.status === "unavailable" || Date.now() - Date.parse(reading.observedAt) >= WEATHER_REFRESH_MS);
   return <View style={styles.panel} accessibilityLabel="Shooting conditions">
@@ -83,6 +87,7 @@ function ActiveWeather({ session, round, arrows }: { session: SessionDraft; roun
   return <WeatherPanel state={state}/>;
 }
 export function SessionWeatherHistory({ session }: { session: SessionDraft }) {
+  const styles = useStyles();
   const state = useSessionWeather(session);
   const [expanded, setExpanded] = useState(false);
   const readings = [...state.readings].sort((a, b) => Date.parse(b.retrievedAt) - Date.parse(a.retrievedAt));
@@ -100,19 +105,19 @@ export function SessionWeatherHistory({ session }: { session: SessionDraft }) {
     </View> : null}
   </View>;
 }
-const styles = StyleSheet.create({
-  panel: { minWidth: 0, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 14, padding: 14, gap: 10, shadowColor: "#382a24", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 2 },
+const useStyles = createThemedStyles((colors) => StyleSheet.create({
+  panel: { minWidth: 0, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 14, padding: 14, gap: 10, shadowColor: colors.text, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 2 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   titleGroup: { flexDirection: "row", alignItems: "center", gap: 9 },
-  weatherIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#f0eee9", alignItems: "center", justifyContent: "center" },
+  weatherIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.soft, alignItems: "center", justifyContent: "center" },
   weatherIconText: { color: colors.accent, fontSize: 20 },
   heading: { color: colors.text, fontSize: 15, fontWeight: "800" },
   subheading: { color: colors.muted, fontSize: 11, marginTop: 2 },
   status: { overflow: "hidden", borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5, fontSize: 9, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
-  statusCurrent: { color: colors.accent, borderColor: "#b9d0c8" },
+  statusCurrent: { color: colors.accent, borderColor: colors.border },
   statusStale: { color: colors.muted },
   primaryGrid: { flexDirection: "row", gap: 8 },
-  primaryMetric: { flex: 1, minWidth: 0, borderRadius: 10, backgroundColor: "#f6f4ef", padding: 10 },
+  primaryMetric: { flex: 1, minWidth: 0, borderRadius: 10, backgroundColor: colors.soft, padding: 10 },
   metricLabel: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 1 },
   temperature: { color: colors.text, fontSize: 32, fontWeight: "800", letterSpacing: -1.5, marginTop: 4 },
   condition: { color: colors.muted, fontSize: 12, marginTop: 3 },
@@ -142,4 +147,4 @@ const styles = StyleSheet.create({
   historyValue: { color: colors.text, fontSize: 12, fontWeight: "700" },
   historyLabel: { color: colors.muted, fontSize: 10 },
   historyMeta: { color: colors.muted, fontSize: 9, lineHeight: 14 },
-});
+}));

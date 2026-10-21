@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
-import { AuthAction, authStyles } from "../auth-ui";
-import { colors } from "../theme";
+import { AuthAction, useAuthStyles } from "../auth-ui";
+import { useAppearance } from "../appearance";
 import { canShowBiometricSignInSetting, canShowBiometricSignIn } from "./feature";
 
 export function BiometricSignInAction({ available = false, busy = false, onPress }: {
@@ -14,6 +14,8 @@ export function BiometricSignInSetting({ available = false, serverConfirmed = fa
   available?: boolean; serverConfirmed?: boolean; busy?: boolean;
   onEnable: () => Promise<void>; onRemove: () => Promise<void>;
 }) {
+  const { colors } = useAppearance();
+  const authStyles = useAuthStyles();
   if (!canShowBiometricSignInSetting() || !available) return null;
   return <View>
     <Text style={{ color: colors.text, fontWeight: "700" }}>Biometric Sign-In</Text>

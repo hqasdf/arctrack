@@ -2,8 +2,8 @@ import { useCallback, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { Alert, AppState, Platform, Pressable, Text, View } from "react-native";
 import type { PasskeyListItem } from "@supabase/supabase-js";
-import { authStyles } from "../auth-ui";
-import { colors } from "../theme";
+import { useAuthStyles } from "../auth-ui";
+import { useAppearance } from "../appearance";
 import { nativeAuthPrompt } from "../auth-native-prompt";
 import { canShowBiometricSignIn, canShowBiometricSignInSetting } from "./feature";
 import { BiometricSignInAction, BiometricSignInSetting } from "./prepared-ui";
@@ -47,6 +47,8 @@ export function ProfileBiometricControl({ userId }: { userId: string | null }) {
 }
 
 function ProfilePasskeySettings({ userId }: { userId: string }) {
+  const { colors } = useAppearance();
+  const authStyles = useAuthStyles();
   const management = useRef<ReturnType<typeof createPasskeyManagement> | null>(null);
   const [credentials, setCredentials] = useState<PasskeyListItem[]>([]);
   const [registeredHere, setRegisteredHere] = useState<string | null>(null);
