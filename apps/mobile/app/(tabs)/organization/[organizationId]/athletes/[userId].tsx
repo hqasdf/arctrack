@@ -2,12 +2,13 @@ import { buildCoachAthleteInsights, coachFilterOptions, DEFAULT_COACH_FILTERS, t
 import { formatDateOnly } from "@arc-track/core/dates";
 import { trainingPlanStatus } from "@arc-track/core/training-plan";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useAuth } from "@/src/auth";
 import { useCoachPalette, CoachHeadline, CoachBars, CoachFilterPanel, CoachLine, CoachMetric, CoachNav, CoachSection, useCoachStyles } from "@/src/coach-ui";
 import { singaporeToday } from "@/src/mobile-analytics";
 import { athleteLabel, readCoachAthleteSessions, readCoachAthletes, type CoachAthlete } from "@/src/organizations";
+import { MobileSessionFeedbackHistory } from "@/src/notes-feedback-ui";
 import { readMobileCoachAthleteTrainingPlanProgress } from "@/src/training-plans-read";
 import { visibleTrainingWeek } from "@/src/training-plans-ui";
 import { singleTrainingPlanRouteParam } from "@/src/training-plan-route-params";
@@ -31,37 +32,48 @@ export default function CoachAthleteScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const request = useRef(0), loadedScopeRef = useRef("");
+  const [loadedScope, setLoadedScope] = useState("");
+  const scope = `${user?.id ?? ""}:${organizationId}:${userId}`;
+  const activeScope = useRef(scope);
+  useEffect(() => { activeScope.current = scope; const pending = request; return () => { pending.current++; }; }, [scope]);
   const load = useCallback(async () => {
     if (!user || !organizationId || !userId) { setLoading(false); return; }
-    setLoading(true); setError(null);
+    const ticket = ++request.current, requestedScope = scope;
+    const current = () => ticket === request.current && activeScope.current === requestedScope;
+    if (loadedScopeRef.current !== requestedScope) setLoading(true); setError(null);
     try {
       const roster = await readCoachAthletes(user.id, organizationId);
+      if (!current()) return;
       const match = roster?.find((item) => item.userId === userId) ?? null;
-      if (!match) { setAthlete(null); setSessions([]); return; }
+      if (!match) { setAthlete(null); setSessions([]); loadedScopeRef.current = requestedScope; setLoadedScope(requestedScope); return; }
       const [loaded, plans] = await Promise.all([
         readCoachAthleteSessions(user.id, organizationId, userId, roster ?? undefined),
         readMobileCoachAthleteTrainingPlanProgress(user.id, organizationId, userId, singaporeToday(new Date())).catch(() => null),
       ]);
-      setAthlete(match); setSessions((loaded ?? []).map((session) => ({ ...session, userId })));
+      if (!current()) return;
+      setAthlete(match); setSessions((loaded ?? []).map((session) => ({ ...session, userId }))); loadedScopeRef.current = requestedScope; setLoadedScope(requestedScope);
       setTrainingPlans(plans ?? []); setTrainingPlansError(plans === null);
-    } catch { setError("Athlete performance could not be loaded. Try again."); }
-    finally { setLoading(false); }
-  }, [user, organizationId, userId]);
+    } catch { if (current()) setError("Athlete performance could not be loaded. Try again."); }
+    finally { if (current()) setLoading(false); }
+  }, [user, organizationId, userId, scope]);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
   const today = singaporeToday(new Date());
   const options = useMemo(() => coachFilterOptions(sessions, today, filters), [sessions, today, filters]);
   const insights = useMemo(() => athlete ? buildCoachAthleteInsights({ userId: athlete.userId, name: athleteLabel(athlete) }, sessions, filters, today) : null, [athlete, sessions, filters, today]);
-  if (loading) return <View style={coachStyles.state}><ActivityIndicator color={coachPalette.accent}/></View>;
-  if (error || !athlete || !insights || !organizationId || !userId) return <View style={coachStyles.state}><Text style={coachStyles.muted}>{error ?? "This athlete is not available in your active roster."}</Text>{error ? <Pressable onPress={() => void load()}><Text style={coachStyles.link}>Retry</Text></Pressable> : null}</View>;
+  if (loading || (loadedScope !== scope && !error && organizationId && userId)) return <View style={coachStyles.state}><ActivityIndicator color={coachPalette.accent}/></View>;
+  if (!user || !athlete || !insights || !organizationId || !userId || loadedScope !== scope) return <View style={coachStyles.state}><Text style={coachStyles.muted}>{error ?? "This athlete is not available in your active roster."}</Text>{error ? <Pressable onPress={() => void load()}><Text style={coachStyles.link}>Retry</Text></Pressable> : null}</View>;
   const openSession = (sessionId: string) => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]", params: { organizationId, userId, sessionId } });
   const openRound = (sessionId: string, roundId: string) => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]/rounds/[roundId]", params: { organizationId, userId, sessionId, roundId } });
   const best = insights.overview.bestRound;
   const activePlans = trainingPlans.filter(({ plan }) => trainingPlanStatus(plan.startDate, plan.endDate, today) === "Active");
   return <ScrollView style={coachStyles.page} contentContainerStyle={coachStyles.content}>
+    {error ? <Text accessibilityRole="alert" style={coachStyles.muted}>{error}</Text> : null}
     <CoachNav organizationId={organizationId} current="athletes"/>
-    <Text style={coachStyles.eyebrow}>ATHLETE PERFORMANCE · READ ONLY</Text><Text style={coachStyles.title}>{athleteLabel(athlete)}</Text>
+    <Text style={coachStyles.eyebrow}>ATHLETE PERFORMANCE · SCORING RECORDS ARE READ ONLY</Text><Text style={coachStyles.title}>{athleteLabel(athlete)}</Text>
     {trainingPlansError && <Text style={coachStyles.muted}>Training Plan progress could not be loaded. Reopen this page to retry.</Text>}
     {activePlans.length === 1 ? (() => { const { plan, progress } = activePlans[0]; const week = visibleTrainingWeek(progress, today); return <CoachSection title="Weekly training"><Text style={coachStyles.cardTitle}>{plan.title}</Text><Text style={coachStyles.muted}>{week?.arrowTarget === null || !week ? "No weekly Arrow target" : `${week.arrowsCompleted} / ${week.arrowTarget} arrows · ${Math.round((week.progressRatio ?? 0) * 100)}% · ${week.goalReached ? week.amountAboveGoal ? `+${week.amountAboveGoal} above target` : "Goal complete" : `${week.arrowsRemaining} remaining`}`}</Text><Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/training-plans/[planId]", params: { organizationId, planId: plan.id } })}><Text style={coachStyles.link}>View Plan →</Text></Pressable></CoachSection>; })() : activePlans.length > 1 ? <CoachSection title={`${activePlans.length} Active Training Plans`}>{activePlans.map(({ plan }) => <Pressable key={plan.id} accessibilityRole="button" onPress={() => router.push({ pathname: "/organization/[organizationId]/training-plans/[planId]", params: { organizationId, planId: plan.id } })} style={coachStyles.card}><Text style={coachStyles.link}>{plan.title} →</Text></Pressable>)}</CoachSection> : null}
+    <MobileSessionFeedbackHistory key={scope} userId={user.id} organizationId={organizationId} athleteId={userId}/>
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen((open) => !open)} style={coachStyles.chip}><Text style={coachStyles.chipText}>Filters{[filters.period !== DEFAULT_COACH_FILTERS.period, filters.sessionType !== "all", filters.distance !== "all", filters.division !== "all", filters.targetFace !== "all"].filter(Boolean).length ? ` · ${[filters.period !== DEFAULT_COACH_FILTERS.period, filters.sessionType !== "all", filters.distance !== "all", filters.division !== "all", filters.targetFace !== "all"].filter(Boolean).length} active` : ""}</Text></Pressable>
     {filtersOpen ? <CoachFilterPanel filters={filters} setFilters={setFilters} options={options} expanded/> : null}
     <CoachHeadline value={insights.overview.averagePerArrow?.toFixed(2) ?? "—"} label="AVG / ARROW" context={`${insights.summary.scoredArrowCount} scored Arrows · ${insights.summary.sessionCount} Sessions`}/>

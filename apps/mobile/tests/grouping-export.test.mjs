@@ -18,7 +18,7 @@ test("mobile preview has safe-area support, 100px padding, scrolling and a stati
   assert.match(source, /<ScrollView.*horizontal={false}/);
   assert.match(source, /renderMobileGroupingExport\(report\)/);
   assert.match(source, /SvgXml xml={svg}/);
-  assert.match(source, /toDataURL\(resolve, { width, height }\)/);
+  assert.match(source, /toDataURL\([\s\S]*?\{ width, height \}\)/);
   assert.match(source, /Sharing.shareAsync\(file/);
   assert.doesNotMatch(source, /onResponder|onPlot|scoreFromPlot/);
   for (const width of [320, 360, 375, 390, 414, 430]) assert.ok(mobileExportPreviewWidth(width) + 24 <= width);

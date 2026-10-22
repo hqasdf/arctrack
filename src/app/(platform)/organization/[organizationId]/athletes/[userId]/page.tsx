@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireUser } from "@/lib/auth/session.server";
 import { notFound } from "next/navigation";
 import { CoachAthleteDetail } from "@/features/organizations/components/coach-athlete-detail";
 import { readCoachAthleteSessions, readCoachAthletes, requireCoachOrganization } from "@/features/organizations/coach-read.server";
@@ -15,10 +16,11 @@ export default async function CoachAthletePage({ params }: {
   const athletes = await readCoachAthletes(organizationId);
   const athlete = athletes.find((item) => item.userId === userId);
   if (!athlete) notFound();
+  const user = await requireUser();
   const today = singaporeDate(new Date());
   const [sessions, trainingPlans] = await Promise.all([
     readCoachAthleteSessions(organizationId, userId),
     readCoachAthleteTrainingPlanProgress(organizationId, userId, today).catch(() => null),
   ]);
-  return <CoachAthleteDetail organization={organization} athlete={athlete} sessions={sessions} today={today} trainingPlans={trainingPlans}/>;
+  return <CoachAthleteDetail organization={organization} athlete={athlete} sessions={sessions} today={today} trainingPlans={trainingPlans} viewerId={user?.id}/>;
 }

@@ -3,7 +3,7 @@ import { formatDateOnly } from "@arc-track/core/dates";
 import { roundTotal } from "@arc-track/core/scoring";
 import type { SessionDraft } from "@arc-track/core/scoring";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../src/auth";
 import { SessionWeatherHistory } from "../../src/session-weather";
@@ -12,11 +12,14 @@ import { scoreRoundHref } from "../../src/round-navigation";
 import { PAGE_TOP_SPACING } from "../../src/theme";
 import { createThemedStyles, useAppearance } from "../../src/appearance";
 import { createMobileRound, deleteMobileRound, deleteMobileSession, saveMobileSessionArrowCount } from "../../src/writes";
+import { MobileCoachFeedback, MobileSessionNotes } from "../../src/notes-feedback-ui";
+import { singleTrainingPlanRouteParam } from "../../src/training-plan-route-params";
 
 export default function SessionDetailScreen() {
   const styles = useStyles();
   const { colors } = useAppearance();
-  const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
+  const { sessionId: rawSessionId } = useLocalSearchParams<{ sessionId?: string | string[] }>();
+  const sessionId = singleTrainingPlanRouteParam(rawSessionId);
   const { user } = useAuth();
   const [session, setSession] = useState<SessionDraft | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,15 +30,23 @@ export default function SessionDetailScreen() {
   const [savingCount, setSavingCount] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const starting = useRef(false);
+  const request = useRef(0);
+  const scope = `${user?.id ?? ""}:${sessionId ?? ""}`;
+  const activeScope = useRef(scope);
+  useEffect(() => { activeScope.current = scope; const pending = request; return () => { pending.current++; }; }, [scope]);
+  const loadedScopeRef = useRef("");
+  const [loadedScope, setLoadedScope] = useState("");
 
   const load = useCallback(async () => {
-    if (!user || !sessionId) return;
-    setLoading(true);
+    if (!user || !sessionId) { setSession(null); setLoading(false); return; }
+    const ticket = ++request.current, requestedScope = scope;
+    const current = () => ticket === request.current && activeScope.current === requestedScope;
+    if (loadedScopeRef.current !== requestedScope) setLoading(true);
     setError(null);
-    try { const loaded = await readOwnSession(user.id, sessionId); setSession(loaded); if (loaded) setArrowCountText(String(loaded.arrowCount)); }
-    catch { setError("This Session could not be loaded. Check your connection and try again."); }
-    finally { setLoading(false); }
-  }, [user, sessionId]);
+    try { const loaded = await readOwnSession(user.id, sessionId); if (!current()) return; setSession(loaded); loadedScopeRef.current = requestedScope; setLoadedScope(requestedScope); if (loaded) setArrowCountText(String(loaded.arrowCount)); }
+    catch { if (current()) setError("This Session could not be loaded. Check your connection and try again."); }
+    finally { if (current()) setLoading(false); }
+  }, [user, sessionId, scope]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
@@ -89,11 +100,12 @@ export default function SessionDetailScreen() {
     ]);
   }
 
-  if (loading) return <View style={styles.state}><ActivityIndicator color={colors.accent} accessibilityLabel="Loading Session" /></View>;
-  if (error) return <View style={styles.state}><Text style={styles.message}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void load()} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable></View>;
-  if (!session) return <View style={styles.state}><Text style={styles.message}>Session not found or you do not have access.</Text></View>;
+  if (loading || (loadedScope !== scope && !error && user && sessionId)) return <View style={styles.state}><ActivityIndicator color={colors.accent} accessibilityLabel="Loading Session" /></View>;
+  if (error && (!session || loadedScope !== scope)) return <View style={styles.state}><Text style={styles.message}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void load()} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable></View>;
+  if (!session || !user || !sessionId) return <View style={styles.state}><Text style={styles.message}>Session not found or you do not have access.</Text></View>;
 
   return <ScrollView style={styles.page} contentContainerStyle={styles.content}>
+    {error ? <Text accessibilityRole="alert" style={styles.startError}>{error}</Text> : null}
     <Text style={styles.eyebrow}>{session.sessionType === "competition" ? "COMPETITION" : "TRAINING"} · {formatDateOnly(session.date)}</Text>
     <Text style={styles.title}>{session.title}</Text>
     <Text style={styles.meta}>Arrow count: {session.arrowCount}</Text>
@@ -120,6 +132,8 @@ export default function SessionDetailScreen() {
       </Pressable><Pressable accessibilityRole="button" disabled={deleting} onPress={() => confirmDeleteRound(round.id, round.name)} style={styles.deleteAction}><Text style={styles.deleteText}>Delete Round</Text></Pressable></View>;
     })}
     <SessionWeatherHistory key={session.id} session={session}/>
+    <MobileSessionNotes key={`notes:${scope}`} userId={user.id} sessionId={sessionId}/>
+    <MobileCoachFeedback key={`feedback:${scope}`} userId={user.id} sessionId={sessionId}/>
     <Pressable accessibilityRole="button" disabled={deleting} onPress={confirmDeleteSession} style={styles.deleteAction}><Text style={styles.deleteText}>Delete Session</Text></Pressable>
   </ScrollView>;
 }

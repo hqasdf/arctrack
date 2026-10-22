@@ -26,7 +26,7 @@ async function load(path, mocks = {}) {
   };
   const script = ts.transpileModule(await readFile(new URL(path, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
   const compiled = { exports: {} };
-  const imports = name => name === "react" ? react : mocks[name] ?? (name === "expo-router" ? { useFocusEffect: fn => react.useEffect(fn, [fn]) } : name.endsWith(".css") ? { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) } : require(name));
+  const imports = name => name === "react" ? react : mocks[name] ?? (name.includes("notes-feedback") ? { SessionNotesPanel: () => null, CoachFeedbackPanel: () => null, AthleteFeedbackHistory: () => null, confirmDraftNavigation: () => true } : name === "expo-router" ? { useFocusEffect: fn => react.useEffect(fn, [fn]) } : name.endsWith(".css") ? { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) } : require(name));
   new Function("require", "module", "exports", "getComputedStyle", script)(imports, compiled, compiled.exports, node => ({ overflowX: node.overflowX ?? "visible" }));
   return { exports: compiled.exports, render(fn) { cursor = 0; const tree = fn(compiled.exports); while (effects.length) effects.shift()(); return tree; } };
 }
@@ -147,7 +147,7 @@ test("Expo filters the existing loaded list and keeps Plan content and navigatio
   for (const category of ["training", "competition", "training"]) {
     const body = nodes(categoryView(category)), list = body.find(node => node.type === "FlatList").props;
     assert.deepEqual(list.data.map(item => item.type), [category]);
-    assert.equal(list.ListHeaderComponent.props.style?.display === "none", category === "competition");
+    assert.equal(nodes(list.ListHeaderComponent).find(node => node.props?.style?.display === "none")?.props.style?.display === "none", category === "competition");
     list.renderItem({ item: list.data[0] }).props.onPress();
     assert.equal(routes.at(-1).params.sessionId, list.data[0].id);
   }

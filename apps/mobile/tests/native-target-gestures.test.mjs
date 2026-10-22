@@ -92,6 +92,7 @@ async function runtime(faceType = "full_face") {
   const surface = () => nodes(render()).find(node => node.props?.accessibilityLabel === "Scoring target").props;
   return {
     commands, plots, renderPage, render, surface, io,
+    layout(width) { render().props.onLayout({ nativeEvent: { layout: { width } } }); },
     setPalette(next) { palette = next; },
     enabled: () => enabled, offset: () => offset,
     scroll(y) { if (enabled) { offset = y; pageTree.props.onScroll(eventWithOffset(y)); } },
@@ -263,5 +264,60 @@ test("theme changes preserve active scoring positions, values, current slot and 
     assert.equal(target(after).selectedId, recorded[0].id);
     assert.equal(arrowButton(after).props.accessibilityState.selected, true);
     assert.deepEqual(r.io, io);
+  } finally { r.dispose(); }
+});
+
+function matrixOf(r) { return nodes(r.render()).find(n => n.type === "G" && n.props.transform?.startsWith("matrix")).props.transform; }
+const scaleOf = r => Number(matrixOf(r).slice(7).split(" ")[0]);
+for (const finger of [0, 1]) test(`finger ${finger} leaving measured bounds freezes zoom and pan until a fresh pair`, async () => {
+ const r=await runtime(); try {
+  r.layout(348); r.start([point(100,120),point(180,120,1)]); r.move([point(90,135),point(210,135,1)]); const last=matrixOf(r);
+  const outside=[point(90,135),point(210,135,1)]; outside[finger]=point(finger?349:-1,160,finger);
+  r.move(outside); assert.equal(matrixOf(r),last);
+  r.move([point(80,150),point(230,150,1)]); assert.equal(matrixOf(r),last); assert.equal(r.enabled(),false);
+  r.end([point(80,150)],[point(230,150,1)]); r.move([point(85,155)]); assert.equal(matrixOf(r),last);
+  r.addFinger([point(85,155),point(205,155,2)]); assert.equal(matrixOf(r),last);
+  r.move([point(65,155),point(225,155,2)]); assert.equal(scaleOf(r),2);
+  r.end(); assert.equal(r.plots.length,0); assert.equal(r.enabled(),true);
+  r.start([point(174,174)]); r.end([],[point(174,174)]); assert.equal(r.plots.length,1);
+ } finally {r.dispose();}
+});
+for (const invalid of [point(120,-1),point(120,321),point(NaN,100),point(Infinity,100)]) test(`invalid pinch coordinate ${invalid.locationX},${invalid.locationY} preserves transform`,async()=>{
+ const r=await runtime();try{r.start([point(110,100),point(190,100,1)]);r.move([point(100,110),point(220,110,1)]);const last=matrixOf(r);r.move([invalid,point(230,120,1)]);assert.equal(matrixOf(r),last);r.surface().onTouchCancel(event([]));r.end();assert.equal(r.plots.length,0);assert.equal(r.enabled(),true);}finally{r.dispose();}
+});
+test("resize cancels the pinch baseline without resetting the current zoom",async()=>{
+ const r=await runtime();try{r.start([point(100,120),point(180,120,1)]);r.move([point(80,120),point(200,120,1)]);const scale=scaleOf(r);r.layout(418);r.end();assert.equal(r.size().width,418);assert.equal(scaleOf(r),scale);assert.equal(r.enabled(),true);assert.equal(r.plots.length,0);}finally{r.dispose();}
+});
+test("target enlarges within measured width and keeps face proportions and controls",async()=>{
+ for(const screen of [320,360,390,430,768,820]) for(const face of ["full_face","six_ring","triple_face"]){
+  const r=await runtime(face);try{
+   assert.ok(nodes(r.renderPage()).some(n=>n.type==="View"&&n.props.style?.marginHorizontal===-10));r.layout(screen-12);const size=r.size(),view=geometry.targetViews[face];assert.ok(size.width<=screen-12);assert.ok(Math.abs(size.height/size.width-view.height/view.width)<1e-12);
+   const previous=face==="triple_face"?Math.min((screen-32)*.52,185):Math.min(screen-32,420),increase=(size.width/previous)**2-1;assert.ok(increase>=.1&&increase<=.21,`${screen}/${face}: ${increase}`);
+   assert.ok(nodes(r.renderPage()).some(n=>n.props?.accessibilityLabel==="Scores in End 1"));assert.ok(nodes(r.renderPage()).some(n=>n.type==="Text"&&n.props.children==="Next"));
+  }finally{r.dispose();}
+ }
+});
+
+test("repeated interrupted pinches preserve the viewport and never become Arrow taps", async () => {
+  const r = await runtime();
+  try {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const pair = [point(120, 160), point(200, 160, 1)];
+      const before = matrixOf(r);
+      r.start(pair);
+      assert.equal(matrixOf(r), before);
+      r.move([point(100, 160), point(220, 160, 1)]);
+      const frozen = matrixOf(r);
+      r.move([point(100, 160), point(321, 160, 1)]);
+      r.move(pair);
+      assert.equal(matrixOf(r), frozen);
+      r.end([], pair);
+      assert.equal(matrixOf(r), frozen);
+      assert.equal(r.enabled(), true);
+      assert.equal(r.plots.length, 0);
+    }
+    r.start([point(160, 160)]);
+    r.end();
+    assert.equal(r.plots.length, 1);
   } finally { r.dispose(); }
 });

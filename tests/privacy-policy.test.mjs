@@ -21,7 +21,7 @@ new Function("require", "exports", compiled)(name => {
 test("Privacy Policy renders as public HTML without auth, cookies, user data or network reads", () => {
   const html = renderToStaticMarkup(React.createElement(pageExports.default));
   assert.match(html, /<h1>Privacy Policy<\/h1>/);
-  assert.match(html, /dateTime="2026-10-17"/);
+  assert.match(html, /dateTime="2026-10-22"/);
   assert.match(html, /foreground location/);
   assert.match(html, /two decimal places/);
   assert.match(html, /Open-Meteo/);

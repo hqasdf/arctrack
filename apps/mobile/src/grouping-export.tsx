@@ -7,6 +7,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 import { SvgXml, type Svg } from "react-native-svg";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { createThemedStyles } from "./appearance";
+import { saveGroupingImage } from "./grouping-image-save";
 import { EXPORT_TOP_PADDING, mobileExportPreviewWidth, renderMobileGroupingExport } from "./grouping-export-report";
 
 export function GroupingExportButton({ round, context }: { round: RoundDraft; context: string }) {
@@ -26,31 +27,48 @@ function GroupingExportPreview({ report, onClose }: { report: GroupingExport; on
   const [{ svg, width, height }] = useState(() => renderMobileGroupingExport(report));
   const screen = useWindowDimensions();
   const previewWidth = mobileExportPreviewWidth(screen.width);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"save" | "share" | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busyRef = useRef(false);
-  async function save() {
+  async function capturePng() {
+    if (!FileSystem.cacheDirectory) throw new Error("Image storage is unavailable.");
+    const base64 = await new Promise<string>((resolve, reject) => {
+      if (!image.current) { reject(new Error("Image unavailable")); return; }
+      const timer = setTimeout(() => reject(new Error("Image capture timed out.")), 15000);
+      try {
+        image.current.toDataURL((data) => { clearTimeout(timer); if (data) resolve(data); else reject(new Error("Image unavailable")); }, { width, height });
+      } catch (issue) { clearTimeout(timer); reject(issue); }
+    });
+    const file = `${FileSystem.cacheDirectory}arc-track-grouping-${report.round.id}.png`;
+    await FileSystem.writeAsStringAsync(file, base64, { encoding: FileSystem.EncodingType.Base64 });
+    return file;
+  }
+  async function perform(action: "save" | "share") {
     if (busyRef.current) return;
-    busyRef.current = true; setBusy(true); setError(null);
+    busyRef.current = true; setBusy(action); setError(null); setNotice(null);
     try {
-      if (!FileSystem.cacheDirectory || !await Sharing.isAvailableAsync()) throw new Error("Sharing unavailable");
-      const base64 = await new Promise<string>((resolve, reject) => {
-        if (!image.current) { reject(new Error("Image unavailable")); return; }
-        image.current.toDataURL(resolve, { width, height });
-      });
-      const file = `${FileSystem.cacheDirectory}arc-track-grouping-${report.round.id}.png`;
-      await FileSystem.writeAsStringAsync(file, base64, { encoding: FileSystem.EncodingType.Base64 });
-      await Sharing.shareAsync(file, { mimeType: "image/png", UTI: "public.png", dialogTitle: "Save or share grouping image" });
-    } catch { setError("The image could not be shared. Please try again on your device."); }
-    finally { busyRef.current = false; setBusy(false); }
+      if (action === "share" && !await Sharing.isAvailableAsync()) throw new Error("Sharing is not available on this device.");
+      const file = await capturePng().catch(() => { throw new Error("The PNG image could not be prepared. Please try again."); });
+      if (action === "save") {
+        await saveGroupingImage(file);
+        setNotice("Image saved to Photos / Gallery.");
+      } else {
+        await Sharing.shareAsync(file, { mimeType: "image/png", UTI: "public.png", dialogTitle: "Share grouping image" });
+      }
+    } catch (issue) {
+      setError(action === "save" && issue instanceof Error ? issue.message : "The image could not be shared. Please try again on your device.");
+    } finally { busyRef.current = false; setBusy(null); }
   }
   return <Modal visible animationType="slide" onRequestClose={() => { if (!busy) onClose(); }}>
     <SafeAreaProvider style={styles.page}>
     <SafeAreaView style={styles.page} edges={["top", "right", "bottom", "left"]}>
-      <View style={styles.toolbar}><Pressable accessibilityRole="button" disabled={busy} onPress={onClose} style={styles.back}><Text style={styles.backText}>Back</Text></Pressable>
+      <View style={styles.toolbar}><Pressable accessibilityRole="button" disabled={busy !== null} onPress={onClose} style={styles.back}><Text style={styles.backText}>Back</Text></Pressable>
         <Text style={styles.title}>Grouping Export</Text>
-        <Pressable accessibilityRole="button" disabled={busy} onPress={() => void save()} style={styles.button}><Text style={styles.buttonText}>{busy ? "Saving…" : "Save / Share PNG"}</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={busy !== null} onPress={() => void perform("save")} style={styles.button}><Text style={styles.buttonText}>{busy === "save" ? "Saving..." : "Save to Device"}</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={busy !== null} onPress={() => void perform("share")} style={styles.button}><Text style={styles.buttonText}>{busy === "share" ? "Sharing..." : "Share Image"}</Text></Pressable>
       </View>
+      {notice && <Text accessibilityRole="alert" style={styles.notice}>{notice}</Text>}
       {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.preview} horizontal={false}>
         <SvgXml xml={svg} override={{ ref: image, width: previewWidth, height: height * previewWidth / width,
@@ -71,5 +89,6 @@ const useStyles = createThemedStyles((colors) => StyleSheet.create({
   title: { color: colors.text, fontWeight: "800", fontSize: 18, flexGrow: 1 },
   scroll: { flex: 1 },
   preview: { alignItems: "center", paddingHorizontal: 12, paddingTop: EXPORT_TOP_PADDING, paddingBottom: 32 },
+  notice: { color: colors.text, padding: 12 },
   error: { color: colors.error, padding: 12 },
 }));

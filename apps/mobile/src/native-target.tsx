@@ -6,7 +6,7 @@ import { AppState, Pressable, StyleSheet, Text, View, type GestureResponderEvent
 import Svg, { Circle, G, Polygon } from "react-native-svg";
 import {
   initialViewport, plotFromTransformedNativeTouch, shouldCommitNativeTap, targetViews, tripleCentres,
-  zoomAndPanViewport, type TargetViewport,
+  nativeTargetSize, withinNativeTarget, zoomAndPanViewport, type TargetViewport,
 } from "./native-target-geometry";
 
 const fullRings = [1, .9, .8, .7, .6, .5, .4, .3, .2, .1];
@@ -29,14 +29,18 @@ type Props = {
 };
 
 type Tap = { startX: number; startY: number; moved: boolean; hadMultiTouch: boolean } | null;
-type Gesture = { viewport: TargetViewport; centre: { x: number; y: number }; distance: number } | null;
+type Gesture = { viewport: TargetViewport; centre: { x: number; y: number }; distance: number; ids: string[] } | null;
 
-function touchPair(event: GestureResponderEvent) {
+function touchPair(event: GestureResponderEvent, width: number, height: number) {
   const [a, b] = event.nativeEvent.touches;
-  if (!a || !b) return null;
+  if (!a || !b || event.nativeEvent.touches.length !== 2
+    || !withinNativeTarget(a.locationX, a.locationY, width, height)
+    || !withinNativeTarget(b.locationX, b.locationY, width, height)) return null;
+  const distance = Math.hypot(a.locationX - b.locationX, a.locationY - b.locationY);
+  if (distance < 1) return null;
   return {
     centre: { x: (a.locationX + b.locationX) / 2, y: (a.locationY + b.locationY) / 2 },
-    distance: Math.hypot(a.locationX - b.locationX, a.locationY - b.locationY),
+    distance, ids: [a.identifier, b.identifier].sort(),
   };
 }
 
@@ -45,10 +49,12 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
   const [availableWidth, setAvailableWidth] = useState(320);
   const tap = useRef<Tap>(null);
   const gesture = useRef<Gesture>(null);
+  const interruptedPinch = useRef(false);
   const multiTouch = useRef(false);
   const finishGesture = useCallback(() => {
     tap.current = null;
     gesture.current = null;
+    interruptedPinch.current = false;
     if (multiTouch.current) { multiTouch.current = false; onMultiTouchChange?.(false); }
   }, [onMultiTouchChange]);
   useEffect(() => {
@@ -58,8 +64,7 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
   const [viewport, setViewport] = useState<TargetViewport>(initialViewport);
   const viewportRef = useRef<TargetViewport>(initialViewport);
   const view = targetViews[faceType];
-  const width = faceType === "triple_face" ? Math.min(availableWidth * .52, 185) : Math.min(availableWidth, 420);
-  const height = width * view.height / view.width;
+  const { width, height } = nativeTargetSize(availableWidth, faceType);
   const grouping = useMemo(() => calculateGroupingForArrows(arrows, faceType, faceDiameterCm), [arrows, faceType, faceDiameterCm]);
   const plotted = useMemo(() => arrows.filter((item) => item.plot !== null), [arrows]);
   const ordered = [
@@ -80,8 +85,15 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
   function trackTouch(event: GestureResponderEvent) {
     if (event.nativeEvent.touches.length > 1) {
       captureMultiTouch(event);
-      const pair = touchPair(event);
-      if (pair && !gesture.current) gesture.current = { viewport: viewportRef.current, ...pair };
+      const pair = touchPair(event, width, height);
+      if (!pair) { interruptedPinch.current = true; gesture.current = null; return; }
+      if (interruptedPinch.current) return;
+      if (!gesture.current || pair.ids.some((id, index) => id !== gesture.current!.ids[index])) {
+        gesture.current = { viewport: viewportRef.current, ...pair };
+        return;
+      }
+      if (pair.distance === gesture.current.distance && pair.centre.x === gesture.current.centre.x
+        && pair.centre.y === gesture.current.centre.y) return;
       if (pair && gesture.current) {
         const next = zoomAndPanViewport(
           gesture.current.viewport, gesture.current.centre, pair.centre,
@@ -117,7 +129,10 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
   const panY = viewport.panY / height * view.height;
   const transform = `matrix(${viewport.scale} 0 0 ${viewport.scale} ${centreX + panX - centreX * viewport.scale} ${centreY + panY - centreY * viewport.scale})`;
 
-  return <View style={styles.container} onLayout={(event) => setAvailableWidth(event.nativeEvent.layout.width)}>
+  return <View style={styles.container} onLayout={(event) => {
+    const measuredWidth = event.nativeEvent.layout.width;
+    if (measuredWidth !== availableWidth) { finishGesture(); setAvailableWidth(measuredWidth); }
+  }}>
     <View style={{ width, height }}>
       <Svg width={width} height={height} viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`} pointerEvents="none">
         <G transform={transform}>
@@ -161,7 +176,10 @@ export function NativeTarget({ arrows, selectedId, currentEnd, faceType, faceDia
         onResponderStart={trackTouch}
         onTouchStart={trackTouch}
         onTouchMove={trackTouch}
-        onTouchEnd={(event) => { if (!event.nativeEvent.touches.length) finishGesture(); else if (multiTouch.current) gesture.current = null; }}
+        onTouchEnd={(event) => {
+          if (!event.nativeEvent.touches.length) finishGesture();
+          else if (multiTouch.current) { gesture.current = null; interruptedPinch.current = false; }
+        }}
         onTouchCancel={finishGesture}
         onResponderRelease={release}
         onResponderTerminate={finishGesture}

@@ -21,6 +21,7 @@ export default async function DeleteAccountPage() {
       <h1 id="deletion-heading">Delete your Arc Track account</h1>
       <p className={styles.hint}>Deletion removes your account, profile, Sessions, Rounds, Ends, Arrows, organisation memberships, assigned Training Plan links, and operation-budget records.</p>
       <p className={styles.hint}>Shared organisations and their Training Plans, plan days, and other athletes’ records remain. Your creator and assigner references are cleared. An organisation can remain without a Head Coach.</p>
+      <p className={styles.hint}>Your Session Notes and coach feedback addressed to you are deleted. Feedback you authored for other athletes remains shared with those athletes, using a Former coach label after your author reference is cleared.</p>
       <p className={styles.hint}>Ownership is verified using your signed-in account and current password. Successful deletion is confirmed on this page. This operation removes live application records; backup and provider-log retention must be confirmed in the published privacy policy.</p>
       {unavailable && <p role="alert" className={styles.error}>Account verification is temporarily unavailable. Please try again.</p>}
       <AccountDeletionForm email={user?.email ?? null} />
@@ -47,12 +48,14 @@ export default async function DeleteAccountPage() {
       <ul>
         <li>Your Supabase Auth account and saved profile.</li>
         <li>Your Training and Competition Sessions, Rounds, Ends and Arrows, including scores and plotted coordinates. Derived score, grouping and progress views no longer have those deleted records as inputs.</li>
+        <li>Your athlete-authored Session Notes and all coach feedback addressed to you.</li>
         <li>Weather snapshots and collection-state records associated with your Sessions.</li>
         <li>Your organisation memberships, athlete Training Plan assignment links and account-linked operation-budget records.</li>
       </ul>
 
       <h3>Data that may remain</h3>
       <p>Shared organisations, Training Plans and plan days remain for other members. Your creator/assigner account references are cleared, but shared titles, notes and coach notes can remain. Other athletes’ records are not deleted. The app does not define an automatic expiry period for these shared records; contact support about personal information in shared text.</p>
+      <p>Coach feedback you previously shared with other athletes remains available to its recipients, with the deleted coach reference cleared and a Former coach label. Deleting an individual Session removes its Session Notes; Session-specific feedback remains in the recipient history and is labelled as referring to a deleted Session. Deleting an organisation or ending membership does not erase an historical feedback for the athlete; former coaches lose access.</p>
       <p>The web deletion page also attempts to clear the Arrow Counter in that browser. It does not remotely erase other devices’ local counters or caches, downloaded PNGs, or copies you shared with other people or apps. Those copies remain until removed through the relevant device, browser or recipient’s controls.</p>
       <p>Provider backups and operational/security logs are separate from live application records. Their retention reasons, applicable periods and any legal exceptions require operator confirmation; immediate removal from every backup or log is not guaranteed.</p>
       <p className={pageStyles.pending}>[Backup, authentication-log, hosting-log and abuse-prevention retention reasons and periods, and any legal exceptions — to be confirmed before publication.]</p>

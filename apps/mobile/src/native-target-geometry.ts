@@ -11,6 +11,17 @@ export const tripleCentres = [-110, 0, 110] as const;
 export type TargetViewport = { scale: number; panX: number; panY: number };
 export const initialViewport: TargetViewport = { scale: 1, panX: 0, panY: 0 };
 
+export function nativeTargetSize(availableWidth: number, faceType: TargetFaceType) {
+  const available = Math.max(0, availableWidth);
+  const width = faceType === "triple_face" ? Math.min(available * .52, 203) : Math.min(available, 460);
+  return { width, height: width * targetViews[faceType].height / targetViews[faceType].width };
+}
+
+export function withinNativeTarget(x: number, y: number, width: number, height: number) {
+  return Number.isFinite(x) && Number.isFinite(y) && width > 0 && height > 0
+    && x >= 0 && x <= width && y >= 0 && y <= height;
+}
+
 export function untransformTouch(x: number, y: number, width: number, height: number, viewport: TargetViewport) {
   return {
     x: width / 2 + (x - width / 2 - viewport.panX) / viewport.scale,

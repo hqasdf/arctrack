@@ -18,6 +18,7 @@
     "./training-plan-input": "./src/training-plan-input.ts",
     "./round-order": "./src/round-order-model.ts",
     "./grouping-export": "./src/grouping-export.ts",
+    "./notes-feedback": "./src/notes-feedback.ts",
     "./weather": "./src/weather-model.ts",
     "./weather-collector": "./src/weather-collector.ts"
   },

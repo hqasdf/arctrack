@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { requireUser } from "@/lib/auth/session.server";
+import { SessionNotesPanel } from "@/features/notes-feedback/session-notes-panel";
+import { CoachFeedbackPanel } from "@/features/notes-feedback/coach-feedback-panel";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { targetFaceLabel } from "@arc-track/core/analytics";
@@ -15,6 +18,7 @@ export default async function CoachSessionPage({ params }: {
   params: Promise<{ organizationId: string; userId: string; sessionId: string }>;
 }) {
   const { organizationId, userId, sessionId } = await params;
+  const user = await requireUser();
   const [organization, athletes, detail, index] = await Promise.all([
     requireCoachOrganization(organizationId), readCoachAthletes(organizationId),
     readCoachSessionDetail(organizationId, userId, sessionId), readCoachAthleteSessionIndex(organizationId, userId),
@@ -30,13 +34,15 @@ export default async function CoachSessionPage({ params }: {
   return <div className={styles.workspace}>
     <header className={`${styles.heading} ${styles.sessionHeading}`}>
       <nav className={styles.breadcrumbs} aria-label="Breadcrumb"><Link href={`/organization/${organizationId}`}>{organization.name}</Link><span>/</span><Link href={athleteBase}>{athleteName(athlete)}</Link><span>/</span><span>{session.title}</span></nav>
-      <p className={styles.eyebrow}>{athleteName(athlete)} · {organization.name} · Read only</p>
+      <p className={styles.eyebrow}>{athleteName(athlete)} · {organization.name} · Scoring records are read only</p>
       <h1>{session.title}</h1>
       <p>{formatDateOnly(session.date)} · {session.sessionType === "competition" ? "Competition" : "Training"} · {session.arrowCount} Session arrows</p>
       <p>Recorded {detail.createdAt.slice(0, 16).replace("T", " ")} UTC</p>
     </header>
     <section className={styles.supportingMetrics} aria-label="Session summary"><div><strong>{overview.totalArrows}</strong><span>Scored Arrows</span></div><div><strong>{overview.averagePerArrow?.toFixed(2) ?? "—"}</strong><span>Avg / Arrow</span></div><div><strong>{overview.tenPlusXPercentage === null ? "—" : `${overview.tenPlusXPercentage.toFixed(1)}%`}</strong><span>10+X rate</span></div><div><strong>{overview.xCount}</strong><span>X count</span></div><div><strong>{rounds.length}</strong><span>Rounds</span></div></section>
     <nav className={styles.sessionPager} aria-label="Athlete Sessions">{older ? <Link href={`${athleteBase}/sessions/${older.id}`}>← Previous Session</Link> : <span/>}{newer ? <Link href={`${athleteBase}/sessions/${newer.id}`}>Next Session →</Link> : <span/>}</nav>
+    <SessionNotesPanel key={`notes:${user.id}:${organizationId}:${userId}:${sessionId}`} context={{viewerId:user.id,organizationId,athleteUserId:userId,sessionId}} readOnly/>
+    <CoachFeedbackPanel key={`feedback:${user.id}:${organizationId}:${userId}:${sessionId}`} context={{viewerId:user.id,organizationId,athleteUserId:userId,sessionId}}/>
     <section className={`${styles.section} ${styles.leadSection}`}>
       <h2>Rounds</h2>
       {rounds.length === 0 ? <p className={styles.empty}>No Rounds in this Session yet.</p> :

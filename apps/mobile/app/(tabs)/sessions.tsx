@@ -1,4 +1,5 @@
 import { formatDateOnly } from "@arc-track/core/dates";
+import { MobileSessionFeedbackHistory } from "@/src/notes-feedback-ui";
 import { trainingPlanStatus } from "@arc-track/core/training-plan";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -61,6 +62,7 @@ export default function SessionsScreen() {
 
   return <View style={styles.page}>
     <Text style={styles.title}>Sessions</Text>
+    {user ? <MobileSessionFeedbackHistory key={user.id} userId={user.id}/> : null}
     <SessionCategoryTabs>{category => <>
     <Pressable accessibilityRole="button" onPress={() => router.push("/sessions/new")} style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}>
       <Text style={styles.newButtonText}>+ New Session</Text>

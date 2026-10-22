@@ -244,8 +244,8 @@ export default function ScoreRoundScreen() {
     </View>
     <Text style={styles.meta}>{round.division} · {round.distanceMetres} m · {targetFaceLabel(round)}</Text>
 
-    <NativeTarget arrows={arrows} selectedId={selected?.id ?? null} currentEnd={slot.end}
-      faceType={round.faceType} faceDiameterCm={round.faceDiameterCm} onPlot={handlePlot} onMultiTouchChange={setTargetMultiTouch} />
+    <View style={styles.targetArea}><NativeTarget arrows={arrows} selectedId={selected?.id ?? null} currentEnd={slot.end}
+      faceType={round.faceType} faceDiameterCm={round.faceDiameterCm} onPlot={handlePlot} onMultiTouchChange={setTargetMultiTouch} /></View>
 
     <RoundGroupPosition round={{ ...round, arrows }} />
     <GroupingExportButton round={{ ...round, arrows }} context={`${loaded.session.title} · ${loaded.session.date}`} />
@@ -367,6 +367,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 const useStyles = createThemedStyles((colors) => StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingTop: 16 + PAGE_TOP_SPACING, paddingBottom: 42, gap: 11 },
+  targetArea: { marginHorizontal: -10 },
   eyebrow: { color: colors.accent, fontSize: 11, fontWeight: "700", letterSpacing: 1.2 },
   title: { color: colors.text, fontSize: 25, fontWeight: "700" },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
