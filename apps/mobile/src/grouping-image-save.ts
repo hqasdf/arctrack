@@ -4,6 +4,11 @@ import { PermissionsAndroid, Platform } from "react-native";
 export async function saveGroupingImage(fileUri: string): Promise<void> {
   if (!fileUri.startsWith("file://") || !fileUri.endsWith(".png")) throw new Error("The PNG image could not be prepared. Please try again.");
   try {
+    const files = await import("expo-file-system/legacy");
+    const info = await files.getInfoAsync(fileUri);
+    if (!info.exists || info.isDirectory || info.size === 0) {
+      throw new Error("The PNG file is missing or empty. Please export the image again.");
+    }
     if (Platform.OS === "android") {
       if (Number(Platform.Version) < 30) {
         const permission = PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE;
@@ -35,6 +40,7 @@ export async function saveGroupingImage(fileUri: string): Promise<void> {
     const message = issue instanceof Error ? issue.message : "";
     if (/Cannot find native module|native module.*(unavailable|not found)/i.test(message)) throw new Error("Gallery saving needs the updated Arc Track native app build. You can still use Share Image.");
     if (/You can still use Share Image/.test(message)) throw issue;
+    if (message === "The PNG file is missing or empty. Please export the image again.") throw issue;
     throw new Error("The image could not be saved to Photos or Gallery. Check available storage and photo-saving permission, then try again.");
   }
 }

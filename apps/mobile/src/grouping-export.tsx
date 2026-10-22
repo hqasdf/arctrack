@@ -37,7 +37,11 @@ function GroupingExportPreview({ report, onClose }: { report: GroupingExport; on
       if (!image.current) { reject(new Error("Image unavailable")); return; }
       const timer = setTimeout(() => reject(new Error("Image capture timed out.")), 15000);
       try {
-        image.current.toDataURL((data) => { clearTimeout(timer); if (data) resolve(data); else reject(new Error("Image unavailable")); }, { width, height });
+        image.current.toDataURL((data) => {
+          clearTimeout(timer);
+          if (typeof data === "string" && data.startsWith("iVBORw0KGgo")) resolve(data);
+          else reject(new Error("Image capture did not return a PNG."));
+        }, { width, height });
       } catch (issue) { clearTimeout(timer); reject(issue); }
     });
     const file = `${FileSystem.cacheDirectory}arc-track-grouping-${report.round.id}.png`;
