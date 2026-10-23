@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo";
 import { readIdentity } from "@/lib/auth/session.server";
 import { AccountDeletionForm } from "@/features/profile/components/account-deletion-form";
 import authStyles from "@/features/auth/components/auth.module.css";
@@ -7,11 +7,11 @@ import styles from "@/features/profile/components/profile.module.css";
 import pageStyles from "./delete-account.module.css";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = {
-  title: "Delete account",
-  description: "How to delete your Arc Track account and associated data, with or without the mobile app.",
-  alternates: { canonical: "https://archery-website.vercel.app/delete-account" },
-};
+export const metadata = publicPageMetadata(
+  "/delete-account",
+  "Delete account",
+  "How to delete your Arc Track account and associated data, with or without the mobile app.",
+);
 
 export default async function DeleteAccountPage() {
   const { user, unavailable } = await readIdentity();

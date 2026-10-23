@@ -5,6 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as jsx from "react/jsx-runtime";
 import ts from "typescript";
+import * as seo from "../src/lib/seo.ts";
 
 const source = await readFile(new URL("../src/app/delete-account/page.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -12,6 +13,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 async function renderPage(identity) {
   const emails = [], pageExports = {};
   new Function("require", "exports", compiled)(name => {
+    if (name === "@/lib/seo") return seo;
     if (name === "next/link") return { __esModule: true, default: ({ prefetch, ...props }) => { void prefetch; return React.createElement("a", props); } };
     if (name === "react/jsx-runtime") return jsx;
     if (name === "@/lib/auth/session.server") return { readIdentity: async () => identity };

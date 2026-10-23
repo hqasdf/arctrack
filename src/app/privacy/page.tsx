@@ -1,14 +1,13 @@
-import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { Icon } from "@/components/ui/icon";
 import styles from "./privacy.module.css";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: "How Arc Track handles account information, archery records, organisation sharing and optional weather location.",
-  alternates: { canonical: "https://archery-website.vercel.app/privacy" },
-  robots: { index: true, follow: true },
-};
+export const metadata = publicPageMetadata(
+  "/privacy",
+  "Privacy Policy",
+  "How Arc Track handles account information, archery records, organisation sharing and optional weather location.",
+);
 
 export default function PrivacyPage() {
   return <main id="main-content" className={styles.page}>

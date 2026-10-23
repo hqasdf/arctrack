@@ -5,12 +5,14 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import * as seo from "../src/lib/seo.ts";
 
 const require = createRequire(import.meta.url);
 const source = await readFile(new URL("../src/app/privacy/page.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 const pageExports = {};
 new Function("require", "exports", compiled)(name => {
+  if (name === "@/lib/seo") return seo;
   if (name === "next/link") return { __esModule: true, default: ({ prefetch, ...props }) => { void prefetch; return React.createElement("a", props); } };
   if (name === "@/components/ui/icon") return { Icon: () => React.createElement("svg", { "aria-hidden": true }) };
   if (name.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };

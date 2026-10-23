@@ -1,10 +1,14 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuthPanel } from "@/features/auth/components/auth-panel";
 import { readIdentity } from "@/lib/auth/session.server";
+import { publicPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata = publicPageMetadata(
+  "/sign-in",
+  "Sign In to Your Archery Training Journal",
+  "Sign in to Arc Track to record archery Sessions, score Rounds, review shooting performance and follow your Training Plans.",
+);
 const notices: Record<string, string> = {
   "invalid-link":
     "This link is invalid or has expired. Open the latest email in the browser where you requested it, or request a fresh password reset.",
@@ -29,7 +33,7 @@ export default async function SignInPage({
     <AuthPanel
       mode="sign-in"
       title="Welcome back."
-      description="Sign in to your archery journal."
+      description="Arc Track is your archery training journal. Record Sessions, score Rounds, review shooting performance and follow your Training Plans."
       notice={notice}
     >
       <Link href="/forgot-password">Forgot your password?</Link>
