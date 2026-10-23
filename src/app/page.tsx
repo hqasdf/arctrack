@@ -21,7 +21,7 @@ export default function HomePage() {
     <header className={styles.header}>
       <Link href="/" aria-label="Arc Track home" className={styles.brand}><Icon name="target" size={27} /><span>ARC TRACK</span></Link>
       <nav aria-label="Homepage navigation" className={styles.nav}><a href="#precision">The precision</a><a href="#performance">The insights</a><a href="#training">The progress</a><a href="#coaching">For coaches</a></nav>
-      <Link href="/sign-in" className={styles.signIn}>Sign in <span aria-hidden="true">↗</span></Link>
+      <Link href="/sign-in" className={styles.signIn}>Sign in <span aria-hidden="true" className={styles.directionUp}><Icon name="arrow" size={14} /></span></Link>
     </header>
 
     <div className={styles.story} data-archery-story>
@@ -31,9 +31,9 @@ export default function HomePage() {
           <p className={styles.eyebrow}><span className={styles.liveDot} /> A MORE INTENTIONAL WAY TO TRAIN</p>
           <h1 id="hero-heading">EVERY ARROW.<br />EVERY INSIGHT.<br /><em>EVERY STEP<br className={styles.mobileBreak} /> FORWARD.</em></h1>
           <p className={styles.heroDescription}>Your practice has a story.<br />See it clearly. Share the perspective with your coach.</p>
-          <div className={styles.actions}><Link href="/sign-up" className={styles.primary}>Get started <Icon name="arrow" size={19} /></Link><a href="#precision" className={styles.textLink}>Explore Arc Track <span aria-hidden="true">↓</span></a></div>
+          <div className={styles.actions}><Link href="/sign-up" className={styles.primary}>Get started <Icon name="arrow" size={19} /></Link><a href="#precision" className={styles.textLink}>Explore Arc Track <span aria-hidden="true" className={styles.directionDown}><Icon name="arrow" size={14} /></span></a></div>
         </div>
-        <div className={styles.heroBottom}><span>BUILT FOR RECURVE &amp; COMPOUND</span><a href="#precision">SCROLL TO DISCOVER <span aria-hidden="true">↓</span></a><span>01 — THE PURSUIT</span></div>
+        <div className={styles.heroBottom}><span>BUILT FOR RECURVE &amp; COMPOUND</span><a href="#precision">SCROLL TO DISCOVER <span aria-hidden="true" className={styles.directionDown}><Icon name="arrow" size={14} /></span></a><span>01 — THE PURSUIT</span></div>
       </section>
 
       <section className={styles.storyChapter} id="precision" aria-labelledby="precision-heading">
@@ -41,14 +41,14 @@ export default function HomePage() {
       </section>
 
       <section className={styles.storyChapter} aria-labelledby="grouping-heading">
-        <div className={styles.chapterCopy}><p className={styles.eyebrow}>02 / PERSPECTIVE</p><h2 id="grouping-heading">Find the pattern<br /><em>in your practice.</em></h2><p>Bring your saved shots together. Explore group centres, spread and consistency with Round Insights and grouping reports.</p><a href="#performance" className={styles.textLink}>Look a little closer <span aria-hidden="true">↘</span></a><p className={styles.sceneNote}>Procedural scene · illustrative Arrow positions</p></div>
+        <div className={styles.chapterCopy}><p className={styles.eyebrow}>02 / PERSPECTIVE</p><h2 id="grouping-heading">Find the pattern<br /><em>in your practice.</em></h2><p>Bring your saved shots together. Explore group centres, spread and consistency with Round Insights and grouping reports.</p><a href="#performance" className={styles.textLink}>Look a little closer <span aria-hidden="true" className={styles.directionDiagonal}><Icon name="arrow" size={14} /></span></a><p className={styles.sceneNote}>Procedural scene · illustrative Arrow positions</p></div>
       </section>
     </div>
 
     <section className={styles.performance} id="performance" aria-labelledby="performance-heading">
       <div className={styles.sectionTop}><span>THE PRACTICE, MADE VISIBLE.</span><span>ARC TRACK / ROUND INSIGHTS</span></div>
       <div className={styles.performanceLayout}>
-        <div className={styles.sectionCopy}><p className={styles.eyebrow}>03 / UNDERSTANDING</p><h2 id="performance-heading">Less guesswork.<br /><em>More perspective.</em></h2><p>Follow every End. Review your score, average per Arrow and X count. Keep the number and the picture together.</p><p className={styles.subtle}>Try the sample End selector. It uses Arc Track’s shared scoring calculations, without creating or changing any records.</p><Link href="/sign-up" className={styles.textLink}>Start your own journal <span aria-hidden="true">↗</span></Link></div>
+        <div className={styles.sectionCopy}><p className={styles.eyebrow}>03 / UNDERSTANDING</p><h2 id="performance-heading">Less guesswork.<br /><em>More perspective.</em></h2><p>Follow every End. Review your score, average per Arrow and X count. Keep the number and the picture together.</p><p className={styles.subtle}>Try the sample End selector. It uses Arc Track’s shared scoring calculations, without creating or changing any records.</p><Link href="/sign-up" className={styles.textLink}>Start your own journal <span aria-hidden="true" className={styles.directionUp}><Icon name="arrow" size={14} /></span></Link></div>
         <PrecisionDemo />
       </div>
       <div className={styles.featureLine}><span><Icon name="target" size={20} /> Plotted Arrows</span><span>End-by-End scores</span><span>Round Insights</span><span>Downloadable grouping reports</span></div>
@@ -71,7 +71,7 @@ export default function HomePage() {
 
     <CoachShowcase />
 
-    <section className={styles.final} aria-labelledby="final-heading"><div className={styles.finalMark} aria-hidden="true"><Icon name="target" size={65} /></div><p className={styles.eyebrow}>THE NEXT ARROW IS YOURS.</p><h2 id="final-heading">Practice with purpose.<br /><em>Track with clarity.</em></h2><p>For the Arrows you shoot.<br />For the athletes you guide.</p><div className={styles.actions}><Link href="/sign-up" className={styles.primary}>Get started with Arc Track <Icon name="arrow" size={19} /></Link><Link href="/sessions" className={styles.textLink}>Open Sessions <span aria-hidden="true">↗</span></Link></div></section>
+    <section className={styles.final} aria-labelledby="final-heading"><div className={styles.finalMark} aria-hidden="true"><Icon name="target" size={65} /></div><p className={styles.eyebrow}>THE NEXT ARROW IS YOURS.</p><h2 id="final-heading">Practice with purpose.<br /><em>Track with clarity.</em></h2><p>For the Arrows you shoot.<br />For the athletes you guide.</p><div className={styles.actions}><Link href="/sign-up" className={styles.primary}>Get started with Arc Track <Icon name="arrow" size={19} /></Link><Link href="/sessions" className={styles.textLink}>Open Sessions <span aria-hidden="true" className={styles.directionUp}><Icon name="arrow" size={14} /></span></Link></div></section>
     <footer className={styles.footer}><Link href="/" className={styles.brand}><Icon name="target" size={22} />ARC TRACK</Link><p>Every Arrow. Every insight. Every step forward.</p><nav aria-label="Footer"><Link href="/privacy">Privacy</Link><Link href="/delete-account">Account deletion</Link><Link href="/sign-in">Sign in</Link></nav></footer>
   </main>;
 }

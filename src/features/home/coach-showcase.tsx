@@ -58,6 +58,6 @@ export function CoachShowcase() {
       <article><Icon name="analytics" /><h3>Follow the work over time.</h3><p>Use score trends, athlete analytics and Training Plan progress to put results in context.</p></article>
       <article><Icon name="sessions" /><h3>Make feedback specific.</h3><p>Connect coaching feedback to a Session, so the athlete can revisit it alongside their practice.</p></article>
     </div>
-    <Link href="/sign-up" className={styles.textLink}>Get started as an archer or coach <span aria-hidden="true">↗</span></Link>
+    <Link href="/sign-up" className={styles.textLink}>Get started as an archer or coach <span aria-hidden="true" className={styles.directionUp}><Icon name="arrow" size={14} /></span></Link>
   </section>;
 }

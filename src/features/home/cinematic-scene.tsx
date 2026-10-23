@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { TargetFallback } from "./target-fallback";
 import styles from "./home.module.css";
 
 export function CinematicScene() {
@@ -21,7 +22,7 @@ export function CinematicScene() {
 
   return <div className={styles.stage} aria-hidden="true">
     <div className={styles.fallback}>
-      <div className={styles.fallbackTarget}><span /><i /><b /></div>
+      <div className={styles.fallbackTarget}><TargetFallback /></div>
     </div>
     {!unavailable && <canvas ref={canvas} className={styles.canvas} />}
     <div className={styles.vignette} />

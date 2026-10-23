@@ -29,5 +29,5 @@ export function scenePose(progress: number, mobile: boolean, aspect = 1) {
 }
 
 export function initialPixelRatio(deviceRatio: number, mobile: boolean, saveData = false) {
-  return Math.min(deviceRatio || 1, saveData ? 1 : mobile ? 1.25 : 1.6);
+  return Math.min(deviceRatio || 1, saveData ? 1 : mobile ? 1.5 : 1.6);
 }

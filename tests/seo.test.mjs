@@ -84,6 +84,9 @@ test("anonymous sign-in renders useful public content using the existing authent
   assert.match(html, /Arc Track is your archery training journal/);
   assert.match(html, /Record Sessions, score Rounds, review shooting performance/);
   assert.match(html, /data-auth-mode="sign-in"/);
+  assert.match(html, /<a href="\/"[^>]*aria-label="Arc Track home"/);
+  const signup = renderToStaticMarkup(panel.AuthPanel({ title: "Create account", description: "", mode: "sign-up" }));
+  assert.match(signup, /<a href="\/sign-in"[^>]*aria-label="Arc Track sign in"/);
   assert.match(html, /href="\/privacy"/);
   assert.match(html, /href="\/forgot-password"/);
   assert.match(html, /href="\/sign-up"/);

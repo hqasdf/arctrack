@@ -5,7 +5,7 @@ export function mountArcheryScene(canvas: HTMLCanvasElement, story: HTMLElement,
   const mobileQuery = matchMedia("(max-width: 700px), (orientation: portrait)");
   const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
-  const contextOptions = { antialias: !mobileQuery.matches, alpha: true, powerPreference: "low-power" as const };
+  const contextOptions = { antialias: !connection?.saveData, alpha: true, powerPreference: "low-power" as const };
   const gl = canvas.getContext("webgl2", contextOptions) as WebGL2RenderingContext | null;
   if (!gl) {
     onFailure();
@@ -72,19 +72,27 @@ export function mountArcheryScene(canvas: HTMLCanvasElement, story: HTMLElement,
   mesh(xRing, trackMaterial(new THREE.MeshBasicMaterial({ color: 0x55421a })), target, 0, 0, 0.027);
 
   // Carbon shafts, metal points, three fletchings and nocks share geometry/materials.
-  const shaftShape = trackGeometry(new THREE.CylinderGeometry(0.009, 0.009, 1.5, 8));
-  const tipShape = trackGeometry(new THREE.ConeGeometry(0.014, 0.07, 8));
-  const nockShape = trackGeometry(new THREE.CylinderGeometry(0.013, 0.013, 0.06, 8));
-  const vaneShape = trackGeometry(new THREE.BoxGeometry(0.055, 0.2, 0.003));
+  const shaftShape = trackGeometry(new THREE.CylinderGeometry(0.006, 0.006, 1.5, 8));
+  const tipShape = trackGeometry(new THREE.ConeGeometry(0.007, 0.07, 8));
+  const nockShape = trackGeometry(new THREE.CylinderGeometry(0.008, 0.008, 0.06, 8));
+  // Swept vanes extend out from the shaft, rather than through its centre.
+  const vaneOutline = new THREE.Shape();
+  vaneOutline.moveTo(0.006, 1.23);
+  vaneOutline.lineTo(0.03, 1.32);
+  vaneOutline.lineTo(0.03, 1.42);
+  vaneOutline.lineTo(0.006, 1.45);
+  vaneOutline.closePath();
+  const vaneShape = trackGeometry(new THREE.ShapeGeometry(vaneOutline).rotateX(Math.PI / 2));
   const vaneMaterial = standard(0xe6b895, 0.55);
+  vaneMaterial.side = THREE.DoubleSide;
   function makeArrow(x: number, y: number) {
     const arrow = new THREE.Group();
     mesh(shaftShape, carbon, arrow, 0, 0, 0.79).rotation.x = Math.PI / 2;
     mesh(tipShape, brass, arrow, 0, 0, 0.015).rotation.x = -Math.PI / 2;
     mesh(nockShape, vaneMaterial, arrow, 0, 0, 1.54).rotation.x = Math.PI / 2;
     for (let i = 0; i < 3; i++) {
-      const vane = mesh(vaneShape, vaneMaterial, arrow, 0, 0, 1.34);
-      vane.rotation.set(Math.PI / 2, i * Math.PI * 2 / 3, 0);
+      const vane = mesh(vaneShape, vaneMaterial, arrow);
+      vane.rotation.z = i * Math.PI * 2 / 3;
     }
     arrow.position.set(x, y, 0.04);
     arrow.rotation.set(-0.04, -0.08, 0);
@@ -151,9 +159,13 @@ export function mountArcheryScene(canvas: HTMLCanvasElement, story: HTMLElement,
     // Conservative one-way quality reduction, sampled only during active movement.
     if (delta > 28) slowFrames++;
     sampledFrames++;
-    if (sampledFrames === 90 && slowFrames > 30 && dpr > 1) {
-      dpr = 1;
-      renderer.setPixelRatio(dpr);
+    if (sampledFrames === 90) {
+      if (slowFrames > 30 && dpr > 1) {
+        dpr = 1;
+        renderer.setPixelRatio(dpr);
+      }
+      slowFrames = 0;
+      sampledFrames = 0;
     }
     canvas.dataset.rendered = "true";
     if (motionQuery.matches || (Math.abs(targetProgress - current) < 0.0001 && intro === 0)) stop();

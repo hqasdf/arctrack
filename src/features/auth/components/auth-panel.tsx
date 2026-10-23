@@ -27,7 +27,7 @@ export function AuthPanel({
   const configured = Boolean(getAuthConfig());
   return (
     <main id="main-content" className={styles.page}>
-      <Link href="/sign-in" className={styles.brand}>
+      <Link href={mode === "sign-in" ? "/" : "/sign-in"} className={styles.brand} aria-label={mode === "sign-in" ? "Arc Track home" : "Arc Track sign in"}>
         <Icon name="target" size={28} />
         ARC TRACK
       </Link>

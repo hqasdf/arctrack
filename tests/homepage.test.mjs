@@ -36,7 +36,8 @@ test("scroll choreography is continuous, bounded and reversible, including refre
   }
   assert.ok(motion.scenePose(0, true).cameraZ > motion.scenePose(0, false).cameraZ);
   assert.equal(motion.initialPixelRatio(3, false), 1.6);
-  assert.equal(motion.initialPixelRatio(3, true), 1.25);
+  assert.equal(motion.initialPixelRatio(3, true), 1.5);
+  assert.equal(motion.initialPixelRatio(1, true), 1);
   assert.equal(motion.initialPixelRatio(3, false, true), 1);
 });
 
@@ -56,6 +57,7 @@ test("sample End interaction uses core scoring and never writes user data", asyn
   const first = renderToStaticMarkup(instance);
   assert.match(first, /60<span> \/ 60/);
   assert.match(first, /10\.00/);
+  assert.match(first, /<dt>X count<\/dt><dd>0<\/dd>/);
   assert.match(first, /Sample End 1 target: 10, 10, 10, 10, 10, 10/);
   assert.match(first, /Illustrative data/);
   const buttons = [];
@@ -82,6 +84,7 @@ test("sample End interaction uses core scoring and never writes user data", asyn
   const second = renderToStaticMarkup(secondInstance);
   assert.match(second, /60<span> \/ 60/);
   assert.match(second, /10\.00/);
+  assert.match(second, /<dt>X count<\/dt><dd>0<\/dd>/);
   assert.match(second, /Sample End 2 target: 10, 10, 10, 10, 10, 10/);
   assert.notEqual(first, second);
   assert.match(second, /aria-pressed="true">End 2/);
@@ -110,7 +113,7 @@ test("portrait phone and tablet camera keeps the complete target face in frame",
   }
 });
 
-function sceneHarness(compiled, { reduced = false, scrollY = 0, supported = true } = {}) {
+function sceneHarness(compiled, { reduced = false, scrollY = 0, supported = true, mobile = false, saveData = false } = {}) {
   const windowListeners = new Map(), documentListeners = new Map(), canvasListeners = new Map();
   const media = [];
   const observers = [];
@@ -118,11 +121,18 @@ function sceneHarness(compiled, { reduced = false, scrollY = 0, supported = true
   let geometryDisposals = 0, materialDisposals = 0;
   let cameraPosition;
   const arrowPositions = [];
+  const pixelRatios = [], sizes = [];
+  let rendererOptions, renderedScene;
+  const bounds = { width: 1200, height: 800 };
   class Renderer {
-    setClearColor() {} setPixelRatio() {} setSize() {}
+    constructor(options) { rendererOptions = options; }
+    setClearColor() {}
+    setPixelRatio(value) { pixelRatios.push(value); }
+    setSize(width, height, updateStyle) { assert.equal(updateStyle, false); sizes.push([width, height]); }
     compileAsync() { return Promise.resolve(); }
     render(scene, camera) {
       renderCount++;
+      renderedScene = scene;
       cameraPosition = camera.position.clone();
       if (renderCount === 1) scene.traverse(object => {
         if (object.isGroup && object.children.some(child => child.geometry?.type === "ConeGeometry")) {
@@ -142,7 +152,7 @@ function sceneHarness(compiled, { reduced = false, scrollY = 0, supported = true
   }
   const canvas = {
     getContext: () => supported ? {} : null,
-    dataset: {}, parentElement: {}, getBoundingClientRect: () => ({ width: 1200, height: 800 }),
+    dataset: {}, parentElement: {}, getBoundingClientRect: () => bounds,
     addEventListener: (event, fn) => canvasListeners.set(event, fn),
     removeEventListener: event => canvasListeners.delete(event),
   };
@@ -157,20 +167,20 @@ function sceneHarness(compiled, { reduced = false, scrollY = 0, supported = true
     removeEventListener: event => windowListeners.delete(event),
   };
   const matchMedia = query => {
-    const value = { matches: query.includes("reduced") ? reduced : false, addEventListener: (_, fn) => { value.listener = fn; }, removeEventListener: () => { value.listener = null; } };
+    const value = { matches: query.includes("reduced") ? reduced : mobile, addEventListener: (_, fn) => { value.listener = fn; }, removeEventListener: () => { value.listener = null; } };
     media.push(value);
     return value;
   };
   const exports = {};
   new Function("require", "exports", "window", "document", "navigator", "matchMedia", "IntersectionObserver", "ResizeObserver", "devicePixelRatio", compiled)(
     name => name === "three" ? { ...THREE, WebGLRenderer: Renderer } : motion, exports,
-    window, document, {}, matchMedia, Observer, Observer, 2,
+    window, document, { connection: { saveData } }, matchMedia, Observer, Observer, 2,
   );
   const cleanup = exports.mountArcheryScene(canvas, { getBoundingClientRect: () => ({ top: -window.scrollY, height: 2400 }) }, () => { failed = true; });
   return {
-    cleanup, canvas, document, window, media, observers, windowListeners, documentListeners, canvasListeners,
+    cleanup, canvas, document, window, media, observers, windowListeners, documentListeners, canvasListeners, bounds,
     frame: time => activeLoop?.(time),
-    get state() { return { activeLoop, renderCount, disposed, failed, geometryDisposals, materialDisposals, cameraPosition, arrowPositions }; },
+    get state() { return { activeLoop, renderCount, disposed, failed, geometryDisposals, materialDisposals, cameraPosition, arrowPositions, pixelRatios, sizes, rendererOptions, renderedScene }; },
   };
 }
 
@@ -188,7 +198,80 @@ test("all three cinematic Arrow impacts fit inside the actual visual 10-ring", a
     assert.ok(Math.hypot(point.x, point.y) + .014 < 1.16 / 10);
     assert.equal(scoring.scoreFromPlot({ x: point.x / 1.16, y: point.y / 1.16 }), "10");
   }
+  const arrows = [];
+  scene.state.renderedScene.updateMatrixWorld(true);
+  scene.state.renderedScene.traverse(object => {
+    if (object.isGroup && object.children.some(child => child.geometry?.type === "ConeGeometry")) arrows.push(object);
+  });
+  for (const arrow of arrows) {
+    const vanes = arrow.children.filter(child => child.geometry?.type === "ShapeGeometry");
+    assert.equal(vanes.length, 3);
+    assert.deepEqual(vanes.map(vane => vane.rotation.z), [0, Math.PI * 2 / 3, Math.PI * 4 / 3]);
+    assert.ok(vanes.every(vane => vane.material.side === THREE.DoubleSide));
+    assert.ok(vanes[0].geometry.attributes.position.array.every(Number.isFinite));
+    const tip = arrow.children.find(child => child.geometry?.type === "ConeGeometry");
+    const apex = new THREE.Vector3(0, tip.geometry.parameters.height / 2, 0).applyMatrix4(tip.matrixWorld);
+    const localApex = arrow.parent.worldToLocal(apex);
+    assert.ok(localApex.z <= .021, "the point reaches the face rather than floating above it");
+  }
   scene.cleanup();
+});
+
+test("mobile clarity uses bounded pixel density, antialiasing and correct resize dimensions", async () => {
+  const scene = sceneHarness(sceneCompiled, { mobile: true, reduced: true });
+  await Promise.resolve();
+  scene.frame(performance.now());
+  assert.equal(scene.state.rendererOptions.antialias, true);
+  assert.equal(scene.state.pixelRatios.at(-1), 1.5);
+  scene.bounds.width = 390;
+  scene.bounds.height = 844;
+  scene.windowListeners.get("resize")();
+  assert.deepEqual(scene.state.sizes.at(-1), [390, 844]);
+  scene.cleanup();
+  const lowCost = sceneHarness(sceneCompiled, { mobile: true, saveData: true });
+  assert.equal(lowCost.state.rendererOptions.antialias, false);
+  assert.equal(lowCost.state.pixelRatios.at(-1), 1);
+  lowCost.cleanup();
+});
+
+test("quality reduction still responds to slow scrolling after the first measurement window", async () => {
+  const scene = sceneHarness(sceneCompiled, { mobile: true });
+  await Promise.resolve();
+  let time = performance.now();
+  for (let i = 0; i < 90; i++) {
+    scene.window.scrollY = i % 2 ? 500 : 1000;
+    scene.windowListeners.get("scroll")();
+    scene.frame(time += 16);
+  }
+  assert.equal(scene.state.pixelRatios.at(-1), 1.5);
+  for (let i = 0; i < 90; i++) {
+    scene.window.scrollY = i % 2 ? 500 : 1000;
+    scene.windowListeners.get("scroll")();
+    scene.frame(time += 34);
+  }
+  assert.equal(scene.state.pixelRatios.at(-1), 1);
+  scene.cleanup();
+});
+
+test("loading and failed-WebGL artwork has real vector Arrows with unchanged perfect impacts", async () => {
+  const text = await source("src/features/home/target-fallback.tsx");
+  const exports = {};
+  new Function("require", "exports", compile(text))(name => require(name), exports);
+  const html = renderToStaticMarkup(exports.TargetFallback());
+  assert.match(html, /viewBox="-125 -125 250 250"/);
+  const impacts = [...html.matchAll(/transform="translate\(([-\d.]+) ([-\d.]+)\) rotate\(8\)"/g)];
+  assert.equal(impacts.length, 3);
+  for (const [, x, y] of impacts) {
+    assert.equal(scoring.scoreFromPlot({ x: Number(x) / 116, y: -Number(y) / 116 }), "10");
+    assert.ok(Math.hypot(Number(x), Number(y)) < 11.6);
+  }
+  assert.equal((html.match(/<path/g) ?? []).length, 15, "each Arrow has a point, shaft, highlight, vanes and nock");
+  assert.doesNotMatch(html, /<image|href=|🏹|🎯/u);
+  const integration = await source("src/features/home/cinematic-scene.tsx");
+  assert.match(integration, /<TargetFallback \/>/);
+  for (const file of ["src/app/page.tsx", "src/features/home/coach-showcase.tsx"]) {
+    assert.doesNotMatch(await source(file), /[↗↘↓🏹🎯]/u, "navigation must use graphical icons rather than platform glyphs");
+  }
 });
 
 test("Coach Dashboard illustration is crawlable, labelled sample data and contains existing capabilities", async () => {
