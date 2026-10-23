@@ -15,7 +15,7 @@ export default function PrivacyPage() {
       <Link href="/sign-in" prefetch={false} className={styles.brand}><Icon name="target" size={28} />ARC TRACK</Link>
       <p className={styles.eyebrow}>Your archery journal</p>
       <h1>Privacy Policy</h1>
-      <p className={styles.updated}>Last updated: <time dateTime="2026-10-22">22 October 2026</time></p>
+      <p className={styles.updated}>Last updated: <time dateTime="2026-10-23">23 October 2026</time></p>
       <p>This policy explains how the Arc Track website and mobile application handle information when you record archery practice, score Rounds, review performance and use organisation features.</p>
     </header>
 
@@ -48,6 +48,8 @@ export default function PrivacyPage() {
         <li><strong>Training Plans.</strong> Plan titles, notes, dates, targets, assignments and day-specific coach notes are used to provide assigned plans and derive progress from saved Sessions and scoring records.</li>
       </ul>
       <p>The Analytics and Round Insights features analyse your archery records. They are not a separate advertising or cross-app tracking service.</p>
+      <p><strong>Optional Garmin account connection on the website.</strong> If you choose Connect Garmin in Profile, Garmin handles sign-in and consent. Arc Track stores your Garmin API user identifier, granted permissions, connection and expiry timestamps, safe status/error information and encrypted access/refresh credentials to maintain or revoke that connection. Temporary authorization records include hashed state/browser binding and an encrypted PKCE verifier. These credentials are server-only and are not available to coaches or ordinary client queries.</p>
+      <p>This phase connects accounts only; it does not import Garmin health or activity measurements. The Garmin integration sends authorization and connection-management requests to Garmin and stores connection records in Supabase through Arc Track’s Vercel-hosted server. It does not send Garmin-derived information to AI training or evaluation services. Future health-data synchronization would require a further policy update.</p>
     </section>
 
     <section id="sharing" className={styles.section}>
@@ -93,6 +95,7 @@ export default function PrivacyPage() {
       <h2>7. Retention and account deletion</h2>
       <p>Saved account and archery records remain available until removed through the applicable record or account-deletion controls. The current app does not automatically expire all saved Sessions after a fixed number of days.</p>
       <p>To delete your account, open <strong>Profile → Delete Account</strong> in Arc Track, or visit the <Link href="/delete-account" prefetch={false}>account deletion page</Link>. Sign in with your confirmed account, verify your current password and type <strong>DELETE</strong>. The page confirms whether deletion succeeded; an error does not confirm deletion.</p>
+      <p>Disconnect Garmin requests remote deregistration before removing saved credentials. Account deletion performs Garmin cleanup before deleting your Arc Track account. If cleanup cannot be confirmed, the account and available encrypted credentials are retained for retry or secure recovery, and deletion is not reported as successful. A pending deletion pauses new Garmin connection operations. Successful account deletion removes local Garmin connection and authorization-transaction records; it does not delete your Garmin account or Garmin activity history. Uncompleted authorization records expire after ten minutes but can remain stored until replaced or removed with the account.</p>
       <p>Successful deletion removes the live account and its owned profile, Sessions, Rounds, Ends, Arrows and related weather records, membership rows, athlete Training Plan assignment links and operation-budget records. Shared organisations, Training Plans, plan days and other athletes’ records remain, with the deleted account’s creator/assigner references cleared. Text previously contributed to shared plans or notes can remain in those shared records; contact the operator about personal information in shared content.</p>
       <p>Session Notes are deleted with their Session. Session-specific coach feedback remains in the athlete history when the Session is deleted and is labelled as referring to a deleted Session. Feedback also remains available to the athlete after leaving an organisation or after an organisation or coach account is deleted, using neutral unavailable-organisation or Former coach labels where needed. Former coaches lose access when their authorisation ends. When an author deletes feedback, it is removed for the athlete too.</p>
       <p>Deleting an athlete account removes its Session Notes and feedback addressed to that athlete. Deleting a coach account preserves feedback already shared with other athletes, with the deleted author reference cleared. No additional automatic expiry period applies to this coaching history.</p>

@@ -5,6 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getAuthConfig } from "@/lib/auth/config";
 import { createAuthClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin.server";
+import { prepareGarminAccountDeletion } from "@/features/garmin/service.server";
+import { GarminError } from "@/features/garmin/provider.server";
 
 export async function deleteAccount(
   _previous: { status: string; message: string },
@@ -35,9 +37,19 @@ export async function deleteAccount(
       }
       // This is the only deletion boundary; ordinary clients have no deletion RPC.
       const admin = createAdminClient();
+      try {
+        await prepareGarminAccountDeletion(user.id);
+      } catch (failure) {
+        const reason = failure instanceof GarminError ? failure.code : "unavailable";
+        return { status: "error", message: reason === "busy"
+          ? "Your account has not been deleted. Another Garmin operation is still in progress. Please wait for it to finish, then retry."
+          : reason === "deregistration_recovery_required"
+            ? "Your account has not been deleted. Garmin authorization cleanup needs recovery before deletion can complete. Please contact Arc Track support if retrying does not resolve this."
+            : "Your account has not been deleted. Garmin cleanup could not be confirmed. Existing encrypted connection credentials have been kept where available; please retry later." };
+      }
       const { error } = await admin.auth.admin.deleteUser(user.id, false);
       if (error) {
-        return { status: "error", message: "Your account was not deleted. Please try again later." };
+        return { status: "error", message: "Your account deletion could not be confirmed. Please try signing in again before retrying." };
       }
     } finally {
       // Revoke the temporary verification session, including after a failed deletion.

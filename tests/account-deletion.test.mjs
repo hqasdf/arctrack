@@ -34,6 +34,10 @@ function deletion(options = {}) {
       } } } };
     } },
   };
+  modules["@/features/garmin/service.server"] = { prepareGarminAccountDeletion: async userId => {
+    calls.push(["garminCleanup", userId]); if (options.garminFailure) throw options.garminFailure;
+  } };
+  modules["@/features/garmin/provider.server"] = { GarminError: class extends Error {} };
   const exports = compile("../src/features/profile/account-deletion-actions.ts", modules);
   const form = new FormData(); form.set("password", "test-only-password"); form.set("confirmation", "DELETE");
   return { run: () => exports.deleteAccount({ status: "idle", message: "" }, form), form, calls };
@@ -42,7 +46,8 @@ test("verified owner hard-deletion ignores submitted victim IDs and uses only tr
   const op = deletion();
   for (const key of ["email", "user_id", "profile_id", "organization_id"]) op.form.set(key, "victim");
   assert.equal((await op.run()).status, "success");
-  assert.deepEqual(op.calls.map(c => c[0]), ["verifierClient", "verify", "adminClient", "delete", "verificationSignOut", "browserSignOut", "revalidate"]);
+  assert.deepEqual(op.calls.map(c => c[0]), ["verifierClient", "verify", "adminClient", "garminCleanup", "delete", "verificationSignOut", "browserSignOut", "revalidate"]);
+  assert.deepEqual(op.calls.find(c => c[0] === "garminCleanup"), ["garminCleanup", "owner"]);
   assert.deepEqual(op.calls.find(c => c[0] === "verify"), ["verify", { email: "owner@example.invalid", password: "test-only-password" }]);
   assert.deepEqual(op.calls.find(c => c[0] === "delete"), ["delete", "owner", false]);
 });
@@ -75,6 +80,23 @@ test("missing configuration and Admin/FK/network failures return safe failure wi
 });
 test("confirmed deletion remains successful if post-deletion cleanup fails", async () => {
   const op = deletion({ cleanupThrows: true, verifierCleanupThrows: true }); assert.equal((await op.run()).status, "success"); assert.equal(op.calls.at(-1)[0], "revalidate");
+});
+
+test("failed Garmin cleanup never calls Auth deletion or signs the browser out", async () => {
+  const op = deletion({ garminFailure: new Error("private provider payload") });
+  const result = await op.run();
+  assert.equal(result.status, "error");
+  assert.match(result.message, /has not been deleted/);
+  assert.doesNotMatch(result.message, /private provider payload/);
+  assert.deepEqual(op.calls.map(call => call[0]), ["verifierClient", "verify", "adminClient", "garminCleanup", "verificationSignOut"]);
+});
+
+test("Auth deletion failure happens only after Garmin readiness and reports an unconfirmed outcome", async () => {
+  const op = deletion({ deleteError: { message: "private network failure" } });
+  const result = await op.run();
+  assert.equal(result.status, "error");
+  assert.match(result.message, /could not be confirmed/);
+  assert.ok(op.calls.findIndex(call => call[0] === "garminCleanup") < op.calls.findIndex(call => call[0] === "delete"));
 });
 test("admin client uses only server configuration, with no cookies or caller Authorization", () => {
   const calls = [], modules = { "server-only": {}, "@/lib/auth/config": { getAuthConfig: () => ({ url: "https://test.supabase.invalid" }) },

@@ -23,6 +23,7 @@ export default async function DeleteAccountPage() {
       <p className={styles.hint}>Shared organisations and their Training Plans, plan days, and other athletes’ records remain. Your creator and assigner references are cleared. An organisation can remain without a Head Coach.</p>
       <p className={styles.hint}>Your Session Notes and coach feedback addressed to you are deleted. Feedback you authored for other athletes remains shared with those athletes, using a Former coach label after your author reference is cleared.</p>
       <p className={styles.hint}>Ownership is verified using your signed-in account and current password. Successful deletion is confirmed on this page. This operation removes live application records; backup and provider-log retention must be confirmed in the published privacy policy.</p>
+      <p className={styles.hint}>If Garmin is connected, Arc Track first confirms Garmin deregistration. If cleanup fails or another Garmin operation is still running, your account is kept and an error explains the next step. You can retry here; successful deletion also removes the saved Garmin connection credentials.</p>
       {unavailable && <p role="alert" className={styles.error}>Account verification is temporarily unavailable. Please try again.</p>}
       <AccountDeletionForm email={user?.email ?? null} />
     </section>
