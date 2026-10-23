@@ -43,6 +43,7 @@ export const config = {
   matcher: [
     "/sessions/:path*",
     "/analytics/:path*",
+    "/health/:path*",
     "/arrow-counter/:path*",
     "/profile/:path*",
     "/organization/:path*",

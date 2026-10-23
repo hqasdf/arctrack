@@ -1,8 +1,13 @@
 import type { CSSProperties } from "react";
 
-type IconName = "arrow" | "sessions" | "analytics" | "target" | "check" | "profile" | "organization" | "eye" | "eyeOff";
+type IconName = "arrow" | "sessions" | "analytics" | "target" | "check" | "profile" | "organization" | "eye" | "eyeOff" | "heart" | "moon" | "activity" | "steps" | "battery";
 
 const paths: Record<IconName, string> = {
+  heart: "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z",
+  moon: "M21 13a9 9 0 0 1-10-10A9 9 0 1 0 21 13Z",
+  activity: "M2 12h5l3-8 4 16 3-8h5",
+  steps: "M9 4c2 0 3 3 2 5s-3 2-4 0S7 4 9 4Zm6 9c2 0 3 3 2 5s-3 2-4 0 0-5 2-5ZM6 13l3 1m6-8 3 1",
+  battery: "M3 7h16v10H3V7Zm19 3v4M7 10v4m4-4v4m4-4v4",
   arrow: "M5 12h14m-6-6 6 6-6 6",
   sessions: "M8 4H5v17h14V4h-3M8 2h8v5H8zm0 10h8m-8 4h5",
   analytics: "M4 19V9m6 10V5m6 14v-7m4 7V3",

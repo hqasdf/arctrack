@@ -12,12 +12,14 @@ const links = [
   { href: "/sessions", label: "Sessions", icon: "sessions" },
   { href: "/arrow-counter", label: "Arrow Counter", icon: "target" },
   { href: "/analytics", label: "Analytics", icon: "analytics" },
+  { href: "/health", label: "Health", icon: "heart" },
   { href: "/organization", label: "Coach's Workspace", icon: "organization" },
   { href: "/profile", label: "Profile", icon: "profile" },
 ] as const;
 
 export function Navigation({ authenticated = false }: { authenticated?: boolean }) {
   const pathname = usePathname();
+  const visibleLinks = links.filter((link) => link.href !== "/health" || authenticated);
   const [open, setOpen] = useState(false);
   const navigationRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -50,7 +52,7 @@ export function Navigation({ authenticated = false }: { authenticated?: boolean 
   return (
     <nav ref={navigationRef} aria-label="Main navigation" className={styles.navigation}>
       <div className={styles.navLinks}>
-        {links.map(({ href, label, icon }) => {
+        {visibleLinks.map(({ href, label, icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link key={href} href={href} className={styles.navLink} aria-current={active ? "page" : undefined}>
@@ -75,7 +77,7 @@ export function Navigation({ authenticated = false }: { authenticated?: boolean 
         </svg>
       </button>
       <div id="arc-track-mobile-menu" className={`${styles.mobileMenu} ${open ? styles.mobileMenuOpen : ""}`} aria-hidden={!open}>
-        {links.map(({ href, label, icon }) => {
+        {visibleLinks.map(({ href, label, icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return <Link key={href} href={href} className={styles.mobileMenuLink} aria-current={active ? "page" : undefined} onClick={() => setOpen(false)}>
             <Icon name={icon} size={18} />{label}
