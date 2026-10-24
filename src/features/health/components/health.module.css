@@ -17,9 +17,9 @@
   --health-notice-link: #285b91;
   --health-notice-icon-border: #d9e5ee;
   --health-notice-icon: #537b9b;
-  --health-demo-background: #f1eefb;
-  --health-demo-border: #e1daf3;
-  --health-demo-text: #5d4f82;
+  --health-data-background: #f1eefb;
+  --health-data-border: #e1daf3;
+  --health-data-text: #5d4f82;
   --health-tab-background: #eaf0f5;
   --health-tab-text: #5b6c7d;
   --health-tab-shadow: #2434430c;
@@ -78,13 +78,13 @@
 .status { display: inline-flex; align-items: center; gap: 7px; background: var(--health-surface); border: 1px solid var(--health-border); border-radius: 30px; padding: 7px 11px; font-size: .68rem; white-space: nowrap; }
 .status i { width: 6px; height: 6px; border-radius: 50%; background: var(--health-status-muted); }
 .status[data-connected="true"] i { background: var(--health-green); }
-.connectionNotice,.demoNotice { display: flex; align-items: center; gap: 18px; border: 1px solid var(--health-notice-border); background: var(--health-notice-background); border-radius: 18px; padding: 20px 22px; margin-bottom: 24px; }
+.connectionNotice,.measurementNotice { display: flex; align-items: center; gap: 18px; border: 1px solid var(--health-notice-border); background: var(--health-notice-background); border-radius: 18px; padding: 20px 22px; margin-bottom: 24px; }
 .connectionNotice h2 { font-size: .95rem; }
 .connectionNotice p { max-width: 750px; color: var(--health-notice-text); font-size: .8rem; margin: 5px 0 9px; }
 .connectionNotice a { color: var(--health-notice-link); font-size: .78rem; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; min-height: 32px; }
 .noticeIcon { width: 48px; height: 48px; flex: 0 0 48px; display: grid; place-items: center; border: 1px solid var(--health-notice-icon-border); border-radius: 15px; background: var(--health-surface); color: var(--health-notice-icon); }
-.demoNotice { padding: 12px 18px; background: var(--health-demo-background); border-color: var(--health-demo-border); color: var(--health-demo-text); font-size: .76rem; }
-.demoNotice strong { white-space: nowrap; }
+.measurementNotice { padding: 12px 18px; background: var(--health-data-background); border-color: var(--health-data-border); color: var(--health-data-text); font-size: .76rem; }
+.measurementNotice strong { white-space: nowrap; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding-bottom: 22px; border-bottom: 1px solid var(--health-border); margin-bottom: 24px; }
 .tabs { display: flex; gap: 5px; background: var(--health-tab-background); padding: 4px; border-radius: 12px; }
 .tabs button { border: 0; background: transparent; color: var(--health-tab-text); border-radius: 9px; min-height: 40px; padding: 8px 18px; font-size: .78rem; transition: background .15s; }
@@ -218,7 +218,7 @@
   .connectionNotice { padding: 18px 15px; align-items: flex-start; gap: 10px; }
   .noticeIcon { flex-basis: 32px; width: 32px; height: 36px; }
   .noticeIcon svg { width: 20px; }
-  .demoNotice { flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; }
+  .measurementNotice { flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; }
   .toolbar { align-items: stretch; gap: 13px; }
   .tabs { width: 100%; }
   .tabs button { flex: 1; padding: 8px; font-size: .73rem; }
@@ -257,9 +257,9 @@
   --health-notice-link: var(--health-blue);
   --health-notice-icon-border: var(--color-border);
   --health-notice-icon: var(--health-blue);
-  --health-demo-background: var(--health-lavender-tint);
-  --health-demo-border: var(--color-border);
-  --health-demo-text: var(--health-lavender);
+  --health-data-background: var(--health-lavender-tint);
+  --health-data-border: var(--color-border);
+  --health-data-text: var(--health-lavender);
   --health-tab-background: var(--color-soft);
   --health-tab-text: var(--color-muted);
   --health-tab-shadow: transparent;
@@ -313,9 +313,9 @@
     --health-notice-link: var(--health-blue);
     --health-notice-icon-border: var(--color-border);
     --health-notice-icon: var(--health-blue);
-    --health-demo-background: var(--health-lavender-tint);
-    --health-demo-border: var(--color-border);
-    --health-demo-text: var(--health-lavender);
+    --health-data-background: var(--health-lavender-tint);
+    --health-data-border: var(--color-border);
+    --health-data-text: var(--health-lavender);
     --health-tab-background: var(--color-soft);
     --health-tab-text: var(--color-muted);
     --health-tab-shadow: transparent;

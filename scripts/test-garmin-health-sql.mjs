@@ -62,11 +62,23 @@ try {
   await db.query(await readFile(join(root, "supabase/tests/garmin-additive-baseline.sql"), "utf8"));
   const before = await snapshot();
   for (const name of ["20261023074736_garmin_oauth_connections.sql", "20261023082837_garmin_account_deletion_fence.sql", "20261023155612_garmin_health_sync.sql"]) {
+    const guards = name === "20261023155612_garmin_health_sync.sql" ? (await db.query(`
+      select p.oid,pg_get_functiondef(p.oid) as definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='private' and p.proname in ('guard_garmin_oauth_transaction','guard_garmin_deletion_fence') order by p.oid`)).rows : null;
+    const triggers = guards ? (await db.query(`select oid,pg_get_triggerdef(oid) as definition from pg_trigger
+      where not tgisinternal and tgname in ('garmin_oauth_transaction_guard','garmin_deletion_fence_guard') order by oid`)).rows : null;
     await db.query(await readFile(join(root, "supabase/migrations", name), "utf8"));
     check(isDeepStrictEqual(before, await snapshot()), `${name} preserves existing rows, columns, grants, RLS, policies and application trigger`);
+    if (guards) {
+      check(guards.length === 2 && isDeepStrictEqual(guards, (await db.query(`select oid,pg_get_functiondef(oid) as definition
+        from pg_proc where oid=any($1::oid[]) order by oid`, [guards.map((row) => row.oid)])).rows), "Health migration preserves both existing OAuth/deletion guard definitions");
+      check(triggers.length === 2 && isDeepStrictEqual(triggers, (await db.query(`select oid,pg_get_triggerdef(oid) as definition
+        from pg_trigger where oid=any($1::oid[]) order by oid`, [triggers.map((row) => row.oid)])).rows), "Health migration preserves both existing OAuth/deletion guard triggers");
+    }
   }
   await db.query(await readFile(join(root, "supabase/tests/garmin-health-sync.sql"), "utf8"));
   check(isDeepStrictEqual(before, await snapshot()), "Fixture rollback preserves the original application data");
+  await (await import("./garmin-private-webhook-fixture.mjs")).testPrivateWebhookDatabase(db, check);
   // Actual independent transactions: processing must not race an in-flight disconnect.
   const blocker = new pg.Client(configuration); await blocker.connect();
   try {

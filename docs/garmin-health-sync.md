@@ -1,9 +1,16 @@
 # Garmin Health / Activity sync foundation — local, disabled
 
+Current local Phase B implementation and activation gates: [garmin-phase-b-implementation.md](garmin-phase-b-implementation.md). The earlier readiness snapshot below is historical where superseded by that report. No Phase B production activation has occurred.
+
 This is **not an activated or live-verified integration**. No production migration,
 endpoint configuration, environment change, real Garmin authorization or provider
 delivery was performed. Existing OAuth, token encryption and deletion-fence code
 remain unchanged. The white Health dashboard layout and stylesheet are preserved.
+
+For the 24 October provider-UI findings, Hobby scheduling constraint, expanded
+database verification and local permission-cleanup correction, see
+[Phase 2 readiness](garmin-phase2-readiness.md). Public OAuth account linking is
+already deployed; that does not activate this separate Health foundation.
 
 ## Verified provider evidence
 
@@ -31,8 +38,11 @@ confidential specifications or real credentials/payloads.
    OAuth guide mentions user/client identifiers in notifications but does not name
    an authenticated request header or signature algorithm. A public client ID,
    claimed provider user ID, random URL path or invented shared header is not proof
-   of origin. API Tools requires a separate client-ID/secret sign-in; its endpoint
-   security settings have not been inspected. `configuredGarminNotificationVerifier`
+   of origin. The authenticated API Tools endpoint/pillar configuration and linked
+   OpenAPI definition were inspected on 24 October; they expose no sender-security
+   control or incoming webhook-authentication contract. This does not establish
+   whether Garmin supports another mechanism on request. A precise support draft
+   is in `garmin-notification-security-request.md`. `configuredGarminNotificationVerifier`
    deliberately returns null. Both configured HTTP handlers return 503, even if
    someone changes the feature flag. Obtain the actual documented verification
    contract from API Tools/Garmin, then implement and test that one verifier.

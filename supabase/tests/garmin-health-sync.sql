@@ -12,6 +12,29 @@ returns jsonb language sql as $$
     'recordKey',case when kind='activities' then source else seconds::text end,'calendarDate','2026-10-23',
     'startTimeInSeconds',seconds,'durationInSeconds',duration,'values',metrics,'permissions',null,'changeTimeInSeconds',null) body) b;
 $$;
+
+select pg_temp.assert_true((select count(*)=3 and bool_and(relrowsecurity) from pg_class where oid in
+  ('public.garmin_health_inbox'::regclass,'public.garmin_health_records'::regclass,'public.garmin_health_sync_state'::regclass)),
+  'RLS is enabled on all three health tables');
+select pg_temp.assert_true((select count(*)=3 and bool_and(convalidated and confdeltype='c') from pg_constraint
+  where contype='f' and confrelid='public.garmin_connections'::regclass and conrelid in
+  ('public.garmin_health_inbox'::regclass,'public.garmin_health_records'::regclass,'public.garmin_health_sync_state'::regclass)),
+  'All health ownership foreign keys are valid and cascade from the Garmin connection');
+select pg_temp.assert_true(not has_function_privilege('anon','public.process_garmin_health_queue(uuid[],integer)','EXECUTE')
+  and not has_function_privilege('authenticated','public.process_garmin_health_queue(uuid[],integer)','EXECUTE')
+  and has_function_privilege('service_role','public.process_garmin_health_queue(uuid[],integer)','EXECUTE'),
+  'Only the service role can execute health queue processing');
+select pg_temp.assert_true((select bool_and(has_table_privilege('service_role',table_name,privilege))
+  from unnest(array['public.garmin_health_inbox','public.garmin_health_records','public.garmin_health_sync_state']) table_name
+  cross join unnest(array['SELECT','INSERT','UPDATE','DELETE']) privilege),
+  'The service role has every required health-table privilege');
+select pg_temp.assert_true(not has_table_privilege('authenticated','public.garmin_health_sync_state','INSERT,UPDATE,DELETE')
+  and not has_table_privilege('anon','public.garmin_health_sync_state','SELECT'),
+  'Import status cannot be edited by clients or read anonymously');
+select pg_temp.assert_true(exists(select 1 from pg_trigger where tgname='garmin_health_lifecycle'
+  and tgrelid='public.garmin_connections'::regclass and tgenabled='O' and not tgisinternal),
+  'The health cleanup trigger is enabled on the Garmin connection only');
+
 insert into auth.users values ('80000000-0000-4000-8000-000000000001','health-owner@example.invalid'),('80000000-0000-4000-8000-000000000002','health-other@example.invalid');
 insert into public.garmin_connections(user_id,garmin_user_id,status,token_ciphertext,access_expires_at,refresh_after,authorized_at,permissions)
 values('80000000-0000-4000-8000-000000000001','provider-one','connected','synthetic',now()+interval '1 day',now()+interval '1 day','2026-10-23T00:00:00Z','["HEALTH_EXPORT","ACTIVITY_EXPORT"]'),
@@ -85,10 +108,34 @@ set local role service_role;
 select public.stage_garmin_health_push(jsonb_build_array(jsonb_build_object('garminUserId','provider-one','kind','userPermissionsChange','sourceId','permission-one','hash',repeat('a',64),'changeTimeInSeconds',1792800000,'permissions','["ACTIVITY_EXPORT"]'::jsonb)),array['80000000-0000-4000-8000-000000000001']::uuid[]);
 select public.process_garmin_health_queue(array['80000000-0000-4000-8000-000000000001']::uuid[],25);
 select pg_temp.assert_true((select count(*)=0 from public.garmin_health_records),'Revoking health permission erases affected imported measurements');
+select pg_temp.assert_true((select count(*)=0 from public.garmin_health_inbox where state='conflict'
+  and kind in ('dailies','sleeps','stressDetails') and payload is not null),
+  'Revoking health permission erases quarantined measurement payloads');
+select pg_temp.assert_true((select count(*)=1 from public.garmin_health_inbox where state='conflict'
+  and kind='dailies' and payload is null and error_code='ambiguous_update'),
+  'Revocation preserves conflict receipt metadata without retaining measurement values');
 select pg_temp.assert_true(public.stage_garmin_health_push(jsonb_build_array(pg_temp.health_event('dailies',1792713600,'{"steps":777}')),array['80000000-0000-4000-8000-000000000001']::uuid[])=0,'Revoked permission blocks subsequent health deliveries');
 select public.stage_garmin_health_push(jsonb_build_array(jsonb_build_object('garminUserId','provider-one','kind','userPermissionsChange','sourceId','permission-old','hash',repeat('d',64),'changeTimeInSeconds',1792799999,'permissions','["HEALTH_EXPORT","ACTIVITY_EXPORT"]'::jsonb)),array['80000000-0000-4000-8000-000000000001']::uuid[]);
 select public.process_garmin_health_queue(array['80000000-0000-4000-8000-000000000001']::uuid[],25);
 select pg_temp.assert_true((select not(granted_permissions ? 'HEALTH_EXPORT') from public.garmin_health_sync_state where user_id='80000000-0000-4000-8000-000000000001'),'Older permission notice cannot restore revoked access');
+savepoint quarantined_activity_revocation;
+select public.stage_garmin_health_push(jsonb_build_array(pg_temp.health_event('activities',1792713600,'{"distanceMeters":100}','privacy-conflict')),array['80000000-0000-4000-8000-000000000001']::uuid[]);
+select public.process_garmin_health_queue(array['80000000-0000-4000-8000-000000000001']::uuid[],25);
+select public.stage_garmin_health_push(jsonb_build_array(pg_temp.health_event('activities',1792713600,'{"distanceMeters":200}','privacy-conflict')),array['80000000-0000-4000-8000-000000000001']::uuid[]);
+select public.process_garmin_health_queue(array['80000000-0000-4000-8000-000000000001']::uuid[],25);
+savepoint direct_activity_revocation;
+select public.stage_garmin_health_push(jsonb_build_array(jsonb_build_object('garminUserId','provider-one','kind','userPermissionsChange','sourceId','permission-remove-activity','hash',repeat('f',64),'changeTimeInSeconds',1792800001,'permissions','[]'::jsonb)),array['80000000-0000-4000-8000-000000000001']::uuid[]);
+select public.process_garmin_health_queue(array['80000000-0000-4000-8000-000000000001']::uuid[],25);
+select pg_temp.assert_true((select count(*)=0 from public.garmin_health_inbox where kind='activities' and state='conflict' and payload is not null),
+  'Revoking activity permission erases quarantined activity values');
+rollback to direct_activity_revocation;
+select public.stage_garmin_health_push(jsonb_build_array(jsonb_build_object('garminUserId','provider-one','kind','userPermissionsChange','sourceId','permission-ambiguous-removal','hash',repeat('f',64),'changeTimeInSeconds',1792800000,'permissions','["HEALTH_EXPORT"]'::jsonb)),array['80000000-0000-4000-8000-000000000001']::uuid[]);
+select public.process_garmin_health_queue(array['80000000-0000-4000-8000-000000000001']::uuid[],25);
+select pg_temp.assert_true((select count(*)=0 from public.garmin_health_inbox where kind='activities' and state='conflict' and payload is not null),
+  'Ambiguous permission intersection erases revoked quarantined activity values');
+select pg_temp.assert_true((select count(*)=1 from public.garmin_health_inbox where kind='activities' and state='conflict' and payload is null),
+  'Ambiguous permission cleanup keeps the minimal activity conflict receipt');
+rollback to quarantined_activity_revocation;
 savepoint permission_collision;
 select public.stage_garmin_health_push(jsonb_build_array(jsonb_build_object('garminUserId','provider-one','kind','userPermissionsChange','sourceId','permission-tie','hash',repeat('e',64),'changeTimeInSeconds',1792800000,'permissions','["HEALTH_EXPORT","ACTIVITY_EXPORT"]'::jsonb)),array['80000000-0000-4000-8000-000000000001']::uuid[]);
 select public.process_garmin_health_queue(array['80000000-0000-4000-8000-000000000001']::uuid[],25);

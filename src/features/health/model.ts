@@ -63,10 +63,6 @@ export function connectionState(connection: GarminView): "connected" | "unavaila
   return "disconnected";
 }
 
-export function canPreviewHealth(environment: string | undefined, host: string, preview: unknown): boolean {
-  return environment === "development" && preview === "demo" && /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host);
-}
-
 export function filterActivities(activities: HealthActivity[], type: string, sort: "newest" | "oldest" | "duration", end: string): HealthActivity[] {
   return activities.filter((activity) => (type === "all" || activity.type === type) && singaporeDate(new Date(activity.startedAt)) <= end)
     .sort((a, b) => sort === "duration" ? b.durationMinutes - a.durationMinutes : sort === "oldest" ? a.startedAt.localeCompare(b.startedAt) : b.startedAt.localeCompare(a.startedAt));

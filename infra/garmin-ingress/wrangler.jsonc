@@ -1,0 +1,18 @@
+{
+  "name": "arctrack-garmin-ingress",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "logpush": false,
+  "observability": {
+    "enabled": false,
+    "logs": { "enabled": false, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+  "tail_consumers": [],
+  "vars": { "INGRESS_ENABLED": "false" },
+  "durable_objects": { "bindings": [{ "name": "LIMITS", "class_name": "GarminIngressLimits" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GarminIngressLimits"] }]
+}

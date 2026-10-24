@@ -27,21 +27,24 @@ const healthReadDependencies = {
   "@/features/garmin/health/read.server": { readGarminHealth: async () => ({ records: [], sync: null, unavailable: false }) },
   "@/features/garmin/health/dashboard": healthMapping,
 };
-const fixture = await load("src/features/health/demo.server.ts", { "./model": model });
+const fixture = await load("tests/fixtures/health.ts", { "../../src/features/health/model": model });
 const icon = await load("src/components/ui/icon.tsx");
 const chart = await load("src/features/health/components/health-chart.tsx", { "../model": model });
 const cards = await load("src/features/health/components/health-cards.tsx", {
   "../model": model, "@/components/ui/icon": icon,
   "next/link": { __esModule: true, default: (props) => React.createElement("a", props) },
 });
-const dashboardDeps = { "../model": model, "@/components/ui/icon": icon, "./health-cards": cards, "./health-chart": chart };
+const garminControl = await load("src/features/garmin/components/garmin-connection-card.tsx", {
+  "next/image": { __esModule: true, default: (props) => React.createElement("img", props) },
+});
+const dashboardDeps = { "next/navigation": { useRouter: () => ({ refresh() {} }) }, "@/features/garmin/components/garmin-connection-card": garminControl, "../model": model, "@/components/ui/icon": icon, "./health-cards": cards, "./health-chart": chart };
 const { HealthDashboard } = await load("src/features/health/components/health-dashboard.tsx", dashboardDeps);
 const connection = { available: false, canConnect: false, status: "disconnected", permissions: [], authorizedAt: null, checkedAt: "2026-10-23T02:00:00Z", expiresAt: null, error: null };
 const empty = { kind: "empty", days: [], activities: [], lastSyncedAt: null };
 const data = (dataset = empty, overrides = {}) => ({ dataset, connection: { ...connection, ...overrides }, today: "2026-10-23" });
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props));
 
-test("Health route verifies the signed-in owner before reading data, including demo", async () => {
+test("Health route verifies the signed-in owner and ignores obsolete preview parameters", async () => {
   const calls = [];
   const page = await load("src/app/(platform)/health/page.tsx", {
     "@/lib/auth/session.server": { requireUser: async () => { calls.push("auth"); return { id: "owner-id" }; } },
@@ -50,7 +53,7 @@ test("Health route verifies the signed-in owner before reading data, including d
     "@/features/health/components/health-dashboard": { HealthDashboard },
   });
   const html = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({ preview: "demo" }) }));
-  assert.deepEqual(calls, ["auth", ["owner-id", "localhost:3000", "demo"]]);
+  assert.deepEqual(calls, ["auth", ["owner-id"]]);
   assert.match(html, /Health Overview/);
 });
 
@@ -85,9 +88,11 @@ test("Health navigation is signed-in only on desktop and mobile and marks the ac
   assert.doesNotMatch(render(navigation.Navigation, { authenticated: false }), /href="\/health"/);
 });
 
-test("demo gate rejects production, remote hosts, missing and array parameters", () => {
-  for (const host of ["localhost:3000", "127.0.0.1:3000", "[::1]:3000"]) assert.equal(model.canPreviewHealth("development", host, "demo"), true);
-  for (const args of [["production", "localhost:3000", "demo"], ["development", "archery-website.vercel.app", "demo"], ["development", "localhost.evil.test", "demo"], ["development", "localhost", ["demo"]], ["development", "localhost", undefined]]) assert.equal(model.canPreviewHealth(...args), false);
+test("no application demo gate or fixture remains", async () => {
+  assert.equal(model.canPreviewHealth, undefined);
+  for (const file of ["read.server.ts", "components/health-dashboard.tsx", "components/health-cards.tsx"]) {
+    assert.doesNotMatch(await readFile(new URL("../src/features/health/" + file, import.meta.url), "utf8"), /createHealthDemo|canPreviewHealth|Demo Data|demo\.server/);
+  }
 });
 
 test("normal reader reuses Garmin owner status and never returns fictional health records", async () => {
@@ -103,23 +108,18 @@ test("normal reader reuses Garmin owner status and never returns fictional healt
   assert.deepEqual(result.connection, connection);
 });
 
-test("explicit local preview reads only the fixed fixture, not a user account or provider", async () => {
+test("legacy demo query cannot bypass genuine owner reads even in development", async () => {
   let statusReads = 0;
   const reader = await load("src/features/health/read.server.ts", {
-    ...healthReadDependencies,
-    "./model": model, "./demo.server": fixture,
+    ...healthReadDependencies, "./model": model,
     "@/features/garmin/service.server": { readGarminStatus: async () => { statusReads++; return connection; } },
   }, { process: { env: { NODE_ENV: "development" } } });
   const result = await reader.readHealthDashboard("owner-id", "localhost:3000", "demo");
-  assert.equal(statusReads, 0);
-  assert.deepEqual(result.dataset, fixture.createHealthDemo());
-  assert.equal(result.dataset.lastSyncedAt, null);
-  const source = await readFile(new URL("../src/features/health/demo.server.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /supabase|fetch\(|\.insert\(|\.rpc\(/);
+  assert.equal(statusReads, 1); assert.deepEqual(result.dataset, empty);
 });
 
 test("all four connection states are honest and do not treat an OAuth check as health synchronization", () => {
-  for (const [overrides, expected] of [[{}, "New Garmin connections are currently unavailable"], [{ available: true, canConnect: true }, "Connect Garmin from Profile"], [{ status: "connected" }, "Health import is next"], [{ status: "reauthorization_required" }, "needs attention"]]) {
+  for (const [overrides, expected] of [[{}, "New Garmin connections are currently unavailable"], [{ available: true, canConnect: true }, "Use Connect Garmin above"], [{ status: "connected" }, "Health import is next"], [{ status: "reauthorization_required" }, "needs attention"]]) {
     const html = render(HealthDashboard, { data: data(empty, overrides) });
     assert.match(html, new RegExp(expected));
     assert.match(html, /No data available/);
@@ -128,8 +128,19 @@ test("all four connection states are honest and do not treat an OAuth check as h
   }
 });
 
+test("Health header owns the one-click Garmin action and does not trust a success query", () => {
+  const disconnected = render(HealthDashboard, { data: data(empty, { available: true, canConnect: true }), garminNotice: "connected" });
+  assert.match(disconnected, /<header[\s\S]*action="\/api\/integrations\/garmin\/start"[\s\S]*<\/header>/);
+  assert.match(disconnected, /Connect Garmin/);
+  assert.doesNotMatch(disconnected, /Garmin Connected/);
+  const connected = render(HealthDashboard, { data: data(empty, { available: true, canConnect: true, status: "connected" }), garminNotice: "connected" });
+  assert.match(connected, /Garmin Connected/);
+  assert.doesNotMatch(connected, /action="\/api\/integrations\/garmin\/start"|Last health sync:/);
+  assert.match(connected, /Automatic health-data import has not been activated/);
+});
+
 test("future stored measurements expose only actual health freshness, not awaiting-import copy", () => {
-  const stored = { ...fixture.createHealthDemo(), kind: "stored", lastSyncedAt: "2026-10-23T02:00:00Z", activities: [] };
+  const stored = { ...fixture.createHealthFixture(), kind: "stored", lastSyncedAt: "2026-10-23T02:00:00Z", activities: [] };
   const html = render(HealthDashboard, { data: data(stored, { status: "connected" }) });
   assert.match(html, /Last health sync:/);
   assert.match(html, /Showing imported records/);
@@ -147,15 +158,15 @@ test("sync status distinguishes waiting, failed import, permission revocation an
   }
 });
 
-test("demo is deterministic, explicitly fictional and never displayed as Garmin-synced", () => {
-  assert.deepEqual(fixture.createHealthDemo(), fixture.createHealthDemo());
-  const html = render(HealthDashboard, { data: data(fixture.createHealthDemo()) });
-  for (const text of ["Demo Data", "Fictional, local design preview", "7h 42m", "8,432", "Body Battery", "not your health records"]) assert.ok(html.includes(text), text);
-  assert.doesNotMatch(html, /Last health sync:|Garmin connected|Recovery Score/);
+test("synthetic fixtures are test-only and exercise genuine stored-data rendering", () => {
+  assert.deepEqual(fixture.createHealthFixture(), fixture.createHealthFixture());
+  const html = render(HealthDashboard, { data: data(fixture.createHealthFixture()) });
+  for (const text of ["Garmin measurements", "7h 42m", "8,432", "Body Battery"]) assert.ok(html.includes(text), text);
+  assert.doesNotMatch(html, /Demo Data|Fictional|Recovery Score/);
 });
 
 test("date ranges are inclusive, do not mutate records and preserve missing-day gaps", () => {
-  const days = fixture.createHealthDemo().days;
+  const days = fixture.createHealthFixture().days;
   const original = JSON.stringify(days);
   assert.equal(model.periodDays(days, "2026-10-23", 7).length, 7);
   assert.equal(model.periodDays(days, "2026-10-22", 7).at(-1).date, "2026-10-22");
@@ -169,7 +180,7 @@ test("date ranges are inclusive, do not mutate records and preserve missing-day 
 });
 
 test("averages exclude unknown measurements but preserve genuine zero values", () => {
-  const base = fixture.createHealthDemo().days[0];
+  const base = fixture.createHealthFixture().days[0];
   assert.equal(model.average([{ ...base, stress: null }, { ...base, stress: 0 }, { ...base, stress: 30 }], "stress"), 15);
   assert.equal(model.average([{ ...base, stress: null }], "stress"), null);
   assert.equal(model.formatMetric("steps", 0), "0");
@@ -183,7 +194,7 @@ test("Singapore day matching handles UTC midnight boundaries independently of ho
 });
 
 test("activities filter and sort real source fields without mixing scoring Sessions", () => {
-  const activities = fixture.createHealthDemo().activities;
+  const activities = fixture.createHealthFixture().activities;
   assert.equal(model.filterActivities(activities, "Walking", "newest", "2026-10-23").length, 2);
   assert.equal(model.filterActivities(activities, "all", "duration", "2026-10-23")[0].type, "Cycling");
   assert.equal(model.filterActivities(activities, "all", "oldest", "2026-10-23")[0].id, "demo-5");
@@ -192,7 +203,7 @@ test("activities filter and sort real source fields without mixing scoring Sessi
 });
 
 test("chart missing stages stay unavailable, zero values stay visible and keyboard points have labels", () => {
-  const days = model.chartDays(fixture.createHealthDemo().days, "2026-10-23", 7);
+  const days = model.chartDays(fixture.createHealthFixture().days, "2026-10-23", 7);
   const html = render(chart.HealthChart, { days, metric: "sleepMinutes", label: "Sleep", tone: "lavender", stacked: true });
   assert.match(html, /19 October: 7h 50m, sleep stages unavailable/);
   assert.match(html, /stageUnknown/);
@@ -206,7 +217,7 @@ test("Health tabs, date selection, trend range and activity controls render thei
     let index = 0;
     const values = [view, "2026-10-23", 30, "Walking", "newest"];
     const component = await load("src/features/health/components/health-dashboard.tsx", { ...dashboardDeps, react: { ...React, useState: () => [values[index++], () => {}] } });
-    const html = render(component.HealthDashboard, { data: data(fixture.createHealthDemo()) });
+    const html = render(component.HealthDashboard, { data: data(fixture.createHealthFixture()) });
     assert.match(html, new RegExp(`aria-pressed="true">${view}`));
     if (view === "Trends") {
       assert.match(html, /disabled=""[^>]*>90 days/);
@@ -223,17 +234,17 @@ test("Health tabs, date selection, trend range and activity controls render thei
 
 test("wellness summaries are descriptive and disclose missing data without medical inference", () => {
   assert.match(model.wellnessSummary([]), /Connecting Garmin alone does not import health data/);
-  assert.match(model.wellnessSummary(fixture.createHealthDemo().days), /not a readiness or medical assessment/);
+  assert.match(model.wellnessSummary(fixture.createHealthFixture().days), /not a readiness or medical assessment/);
 });
 
 test("date change updates the selected day and resets unsupported trend ranges without changing records", async () => {
   let index = 0;
   const values = ["Trends", "2026-10-23", 30, "all", "newest"];
-  const component = await load("src/features/health/components/health-dashboard.tsx", { ...dashboardDeps, react: { ...React, useState: () => {
+  const component = await load("src/features/health/components/health-dashboard.tsx", { ...dashboardDeps, react: { ...React, useEffect: () => {}, useState: () => {
     const slot = index++;
     return [values[slot], (value) => { values[slot] = value; }];
   } } });
-  const dataset = fixture.createHealthDemo();
+  const dataset = fixture.createHealthFixture();
   const before = JSON.stringify(dataset);
   const element = component.HealthDashboard({ data: data(dataset) });
   function find(node, predicate) {
@@ -278,4 +289,29 @@ test("responsive Health surface, missing-stage styling and reduced-motion suppor
       assert.match(selector[1], /:global\(:root\[data-theme="(?:dark|system)"\]\) \.dashboard\s*$/);
     }
   }
+});
+
+ test("Health refreshes genuine data only when visible, with timer/listener cleanup and no disabled polling", async () => {
+  const effects=[],listeners=new Map();let callback,cleared=false,refreshes=0;
+  const router={refresh:()=>refreshes++};const document={visibilityState:"visible",addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)};
+  const window={setInterval:fn=>{callback=fn;return 1;},clearInterval:()=>{cleared=true;}};
+  const ui=await load("src/features/health/components/health-dashboard.tsx",{...dashboardDeps,
+    "react":{...React,useEffect:fn=>effects.push(fn)},"next/navigation":{useRouter:()=>router}},{document,window});
+  render(ui.HealthDashboard,{data:{...data(),sync:{state:"waiting"}}});const cleanup=effects[0]();
+  callback();assert.equal(refreshes,1);document.visibilityState="hidden";callback();assert.equal(refreshes,1);
+  document.visibilityState="visible";listeners.get("visibilitychange")();assert.equal(refreshes,2);
+  cleanup();assert.equal(cleared,true);assert.equal(listeners.size,0);
+  render(ui.HealthDashboard,{data:{...data(),sync:{state:"disabled"}}});assert.equal(effects[1](),undefined);
+ });
+
+test("server Health refresh updates the connection control identity while retaining the selected dashboard view", async () => {
+  let cursor=0;const state=["Trends","2026-10-20",7,"all","newest"];
+  const ui=await load("src/features/health/components/health-dashboard.tsx",{...dashboardDeps,
+    react:{...React,useEffect:()=>{},useState:()=>[state[cursor++],()=>{}]}});
+  function findControl(node){if(!node||typeof node!=="object")return null;if(node.type===garminControl.GarminConnectionCard)return node;
+    for(const child of React.Children.toArray(node.props?.children)){const match=findControl(child);if(match)return match;}return null;}
+  const first=findControl(ui.HealthDashboard({data:data()}));cursor=0;
+  const refreshed=findControl(ui.HealthDashboard({data:data(empty,{status:"connected",expiresAt:"2026-10-24T12:00:00Z"})}));
+  assert.notEqual(first.key,refreshed.key);assert.equal(refreshed.props.initialStatus.status,"connected");
+  assert.equal(state[0],"Trends");assert.equal(state[1],"2026-10-20");
 });

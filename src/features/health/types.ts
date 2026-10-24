@@ -18,10 +18,10 @@ export type HealthActivity = {
   durationMinutes: number;
   averageHeartRate: number | null;
   distanceKm: number | null;
-  source: "garmin" | "demo";
+  source: "garmin";
 };
 export type HealthDataset = {
-  kind: "empty" | "stored" | "demo";
+  kind: "empty" | "stored";
   days: HealthDay[];
   activities: HealthActivity[];
   lastSyncedAt: string | null;

@@ -1,0 +1,21 @@
+{
+  "name": "arc-track-garmin-ingress-test",
+  "main": "test-worker.mjs",
+  "compatibility_date": "2026-10-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "logpush": false,
+  "observability": {
+    "enabled": false,
+    "logs": { "enabled": false, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+  "tail_consumers": [],
+  "vars": { "INGRESS_ENABLED": "true", "TEST_MODE": "synthetic-only" },
+  "durable_objects": { "bindings": [
+    { "name": "LIMITS", "class_name": "HostedTestLimits" },
+    { "name": "TEST_UPSTREAM", "class_name": "SyntheticUpstream" }
+  ] },
+  "migrations": [{ "tag": "test-v1", "new_sqlite_classes": ["HostedTestLimits","SyntheticUpstream"] }]
+}

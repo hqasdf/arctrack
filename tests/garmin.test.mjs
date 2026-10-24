@@ -629,7 +629,7 @@ test("public OAuth Start and Callback accept different authenticated owners with
     f.state.userId = id;
     assert.equal((await f.handlers.garminStart(f.post("start"))).status, 303);
     assert.deepEqual(f.state.calls.at(-1), ["start", id]);
-    assert.equal((await f.handlers.garminCallback(f.callback())).headers.get("Location"), `${config.appOrigin}/profile?garmin=connected`);
+    assert.equal((await f.handlers.garminCallback(f.callback())).headers.get("Location"), `${config.appOrigin}/health?garmin=connected`);
     assert.equal(f.state.calls.at(-1)[1], id);
     f.state.userId = null;
     const calls = f.state.calls.length;
@@ -685,7 +685,7 @@ test("Garmin HTTP callback rejects missing/duplicate parameters and missing sess
   for (const request of [new Request(config.redirectUri), f.callback("&state=duplicate"), f.callback("&error=access_denied"), f.callback("&code=duplicate")]) {
     const response = await f.handlers.garminCallback(request);
     assert.equal(response.status, 303);
-    assert.match(response.headers.get("Location"), /^https:\/\/arc\.example\/profile\?garmin=invalid_/);
+    assert.match(response.headers.get("Location"), /^https:\/\/arc\.example\/health\?garmin=invalid_/);
   }
   f.state.cookie = null;
   await f.handlers.garminCallback(f.callback());
@@ -698,12 +698,12 @@ test("Garmin HTTP callback rejects missing/duplicate parameters and missing sess
 test("Garmin callback clears browser binding after verified success and cannot redirect to supplied return URL", async () => {
   const f = await httpFixture();
   const response = await f.handlers.garminCallback(f.callback("&returnTo=https://evil.example"));
-  assert.equal(response.headers.get("Location"), `${config.appOrigin}/profile?garmin=connected`);
+  assert.equal(response.headers.get("Location"), `${config.appOrigin}/health?garmin=connected`);
   assert.equal(f.state.calls[0][1], "athlete-a");
   assert.equal(f.state.written.at(-1)[2].maxAge, 0);
   f.service.callback = async () => { throw new Error("private provider internals"); };
   const failed = await f.handlers.garminCallback(f.callback());
-  assert.equal(failed.headers.get("Location"), `${config.appOrigin}/profile?garmin=connection_error`);
+  assert.equal(failed.headers.get("Location"), `${config.appOrigin}/health?garmin=connection_error`);
   assert.doesNotMatch(await failed.text(), /private provider internals/);
 });
 
@@ -742,15 +742,16 @@ test("Garmin real Supabase query builder preserves user/version/expiry fencing i
   assert.equal(requests.at(-1).url.searchParams.get("connection_version"), "eq.version-a");
 });
 
-async function cardHarness(view = { ...emptyGarminView(true), canConnect: true }, notice, fetcher = async () => Response.json(view)) {
+async function cardHarness(view = { ...emptyGarminView(true), canConnect: true }, notice, fetcher = async () => Response.json(view), placement = "health") {
   const states = [], effects = []; let index = 0;
   const loaded = await load("src/features/garmin/components/garmin-connection-card.tsx", {
     react: { useState: initial => { const slot = index++; if (!(slot in states)) states[slot] = initial;
       return [states[slot], value => { states[slot] = typeof value === "function" ? value(states[slot]) : value; }]; },
       useEffect: effect => { effects.push(effect); } },
-    "@/features/profile/components/profile.module.css": { __esModule: true, default: {} },
+    "./garmin-connection.module.css": { __esModule: true, default: {} },
+    "next/image": { __esModule: true, default: (props) => React.createElement("img", props) },
   }, { fetch: fetcher });
-  const render = () => { index = 0; effects.length = 0; return loaded.GarminConnectionCard({ initialStatus: view, notice }); };
+  const render = () => { index = 0; effects.length = 0; return loaded.GarminConnectionCard({ initialStatus: view, notice, placement }); };
   return { render, states, effects };
 }
 function nodes(tree, type) {
@@ -759,10 +760,10 @@ function nodes(tree, type) {
   visit(tree); return found;
 }
 
-test("Garmin Profile card uses existing styles, consent text and real POST controls without secrets", async () => {
+test("Garmin Health control uses official branding, consent text and real POST controls without secrets", async () => {
   const h = await cardHarness(), tree = h.render(), html = renderToStaticMarkup(tree);
-  assert.match(html, /Garmin Connect/); assert.match(html, /Not Connected/);
-  assert.match(html, /does not import records or share health data with coaches/);
+  assert.match(html, /Connect Garmin/); assert.match(html, /garmin-connect.png/);
+  assert.match(html, /Linking does not confirm health synchronization or share health data with coaches/);
   assert.match(html, /action="\/api\/integrations\/garmin\/start"/);
   assert.match(html, /method="post"/);
   assert.doesNotMatch(html, /test-secret|test-access|test-refresh/);
@@ -775,10 +776,10 @@ test("Garmin Profile card uses existing styles, consent text and real POST contr
 
 test("Garmin success query parameter cannot claim connection without backend confirmation", async () => {
   const disconnected = await cardHarness(emptyGarminView(true), "connected");
-  assert.doesNotMatch(renderToStaticMarkup(disconnected.render()), /Your Garmin account is connected/);
+  assert.doesNotMatch(renderToStaticMarkup(disconnected.render()), /Garmin Connected/);
   const connected = await cardHarness({ ...emptyGarminView(true), status: "connected" }, "connected");
   const html = renderToStaticMarkup(connected.render());
-  assert.match(html, /Your Garmin account is connected/);
+  assert.match(html, /Garmin Connected/);
   assert.match(html, /Disconnect Garmin/);
   assert.doesNotMatch(html, />Connect Garmin</);
 });
@@ -805,6 +806,63 @@ test("Garmin card expires a stale connected badge with timer cleanup", async () 
   assert.match(renderToStaticMarkup(h.render()), /Refresh your Garmin connection status/);
 });
 
+test("Profile keeps advanced Garmin controls in a closed Connected Apps disclosure", async () => {
+  const h = await cardHarness({ ...emptyGarminView(true), status: "connected", permissions: ["HEALTH_EXPORT", "ACTIVITY_EXPORT"] }, undefined, undefined, "profile");
+  const tree = h.render(), html = renderToStaticMarkup(tree);
+  assert.match(html, /Manage connection/);
+  assert.match(html, /HEALTH_EXPORT, ACTIVITY_EXPORT/);
+  assert.match(html, /Disconnect Garmin/);
+  assert.match(html, /href="\/privacy"/);
+  assert.equal(nodes(tree, "details")[0].props.open, undefined);
+  assert.doesNotMatch(html, /Last authorized|Last checked|Connection status/);
+  const disconnected = await cardHarness(undefined, undefined, undefined, "profile");
+  const profileHtml = renderToStaticMarkup(disconnected.render());
+  assert.match(profileHtml, /href="\/health"/);
+  assert.doesNotMatch(profileHtml, /action="\/api\/integrations\/garmin\/start"/);
+});
+
+test("cancelled consent offers one message and Try Again; revocation offers Reconnect Garmin", async () => {
+  const retry = await cardHarness({ ...emptyGarminView(true), canConnect: true }, "cancelled");
+  const html = renderToStaticMarkup(retry.render());
+  assert.match(html, /Try Again/);
+  assert.match(html, /authorization was cancelled/);
+  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /Garmin Connected/);
+  const revoked = await cardHarness({ ...emptyGarminView(true), canConnect: true, status: "reauthorization_required", error: "reauthorization_required" }, "reauthorization_required");
+  const revokedHtml = renderToStaticMarkup(revoked.render());
+  assert.match(revokedHtml, /Reconnect Garmin/);
+  assert.equal((revokedHtml.match(/role="alert"/g) ?? []).length, 1);
+  assert.doesNotMatch(revokedHtml, /Garmin Connected/);
+});
+
+test("failed refresh cannot retain the Connected badge and a later confirmed refresh restores it", async () => {
+  const view = { ...emptyGarminView(true), canConnect: true, status: "connected" };
+  let fail = true;
+  const h = await cardHarness(view, undefined, async () => { if (fail) throw new Error("private failure"); return Response.json(view); });
+  await nodes(h.render(), "button").find(node => node.props.children === "Refresh status").props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  let html = renderToStaticMarkup(h.render());
+  assert.doesNotMatch(html, /Garmin Connected|private failure/);
+  assert.match(html, /Reconnect Garmin/);
+  fail = false;
+  await nodes(h.render(), "button").find(node => node.props.children === "Refresh status").props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  html = renderToStaticMarkup(h.render());
+  assert.match(html, /Garmin Connected/);
+  assert.doesNotMatch(html, /role="alert"|>Connect Garmin</);
+});
+
+test("failed or cancelled callbacks return only safe notices to Health after transaction validation", async () => {
+  for (const code of ["cancelled", "reauthorization_required", "account_mismatch", "invalid_transaction"]) {
+    const f = await httpFixture();
+    f.service.callback = async () => { throw new GarminError(code); };
+    const response = await f.handlers.garminCallback(f.callback());
+    assert.equal(response.headers.get("Location"), `${config.appOrigin}/health?garmin=${code}`);
+    assert.equal(response.status, 303);
+    if (code !== "invalid_transaction") assert.equal(f.state.written.at(-1)[2].maxAge, 0);
+  }
+});
+
 test("Garmin route methods and server-only boundaries stay narrow; Expo and scoring are not imported", async () => {
   for (const [route, method] of [["start", "POST"], ["callback", "GET"], ["status", "GET"], ["disconnect", "POST"]]) {
     const text = await source(`src/app/api/integrations/garmin/${route}/route.ts`);
@@ -817,4 +875,22 @@ test("Garmin route methods and server-only boundaries stay narrow; Expo and scor
     assert.match(text, /^import "server-only";/);
     assert.doesNotMatch(text, /console\.(log|error)|apps\/mobile|features\/scoring|features\/health/);
   }
+});
+
+for (const code of ["deregistration_failed", "deregistration_recovery_required", "revocation_pending", "revocation_unconfirmed"]) {
+  test("status preserves remote cleanup evidence: " + code, async () => {
+    const f = fixture(); await f.complete(await f.begin()); f.advance(3600000);
+    const row = f.rows.get("athlete-a"); row.status = "error"; row.error_code = code;
+    const before = f.requests.length;
+    const result = await f.service.status("athlete-a");
+    assert.equal(result.error, code); assert.notEqual(result.status, "connected");
+    assert.equal(f.requests.length, before); assert.equal(f.rows.get("athlete-a").error_code, code);
+  });
+}
+test("expired disconnect lease never refreshes away recovery evidence on status", async () => {
+  const f = fixture(); await f.complete(await f.begin());
+  const row = f.rows.get("athlete-a"); row.operation = "disconnect"; row.lease_until = new Date(f.now()-1).toISOString();
+  f.advance(3600000); const before=f.requests.length;
+  assert.equal((await f.service.status("athlete-a")).error,"deregistration_failed");
+  assert.equal(f.requests.length,before);
 });

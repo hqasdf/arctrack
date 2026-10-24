@@ -215,6 +215,16 @@ test("worker requires its own server credential and never uses a browser session
   assert.deepEqual(calls, [[["approved"], 50]]);
 });
 
+test("worker processing failures are observable as non-success without leaking private details", async () => {
+  const secret = "x".repeat(40);
+  const worker = http.createGarminHealthWorker({ enabled: true, verifierReady: true, secret, users: ["approved"],
+    inbox: () => ({ process: async () => { throw new Error("private synthetic health data or database detail"); } }) });
+  const result = await worker(new Request("https://arc.example/worker", { headers: { authorization: `Bearer ${secret}` } }));
+  assert.equal(result.status, 503);
+  assert.equal(await result.text(), "");
+  assert.match(result.headers.get("Cache-Control"), /no-store/);
+});
+
 test("public OAuth and even an accidental Health flag cannot authorize the unapproved ingestion cohort", async () => {
   const config = await load("src/features/garmin/health/config.server.ts", {}, { process: { env: {
     GARMIN_CONNECT_ENABLED: "true", GARMIN_HEALTH_ENABLED: "true", GARMIN_TEST_USER_IDS: "approved,other",
@@ -228,6 +238,32 @@ function record(kind, metrics, overrides = {}) {
   return { kind, source_id: kind, record_key: kind, calendar_date: "2026-10-23", start_seconds: 1792713600, duration_seconds: 86400,
     metrics, imported_at: "2026-10-23T01:00:00Z", updated_at: "2026-10-23T02:00:00Z", ...overrides };
 }
+
+test("documented synthetic summaries map every dashboard metric and retain historical days", () => {
+  const events = normalizeGarminPush({
+    dailies: [daily({ steps: 8432, restingHeartRateInBeatsPerMinute: 54, averageStressLevel: 28, activeTimeInSeconds: 3600 }),
+      daily({ summaryId: "prior-day", calendarDate: "2026-10-22", startTimeInSeconds: 1792627200, steps: 500 })],
+    sleeps: [daily({ durationInSeconds: 27000, lightSleepDurationInSeconds: 18000, deepSleepDurationInSeconds: 4500, remSleepInSeconds: 4500, awakeDurationInSeconds: 600 })],
+    stressDetails: [daily({ timeOffsetBodyBatteryValues: { 60: 65, 540: 78 } })],
+    activities: [daily({ activityId: "activity-one", activityType: "RUNNING", durationInSeconds: 1800, distanceInMeters: 5200, averageHeartRateInBeatsPerMinute: 142 })],
+  });
+  const rows = events.map((event) => record(event.kind, event.values, {
+    source_id: event.sourceId, record_key: event.recordKey, calendar_date: event.calendarDate,
+    start_seconds: event.startTimeInSeconds, duration_seconds: event.durationInSeconds,
+  }));
+  const dataset = garminHealthDataset(rows, "2026-10-23T03:00:00Z");
+  assert.equal(dataset.kind, "stored");
+  assert.deepEqual(dataset.days.map((day) => day.date), ["2026-10-22", "2026-10-23"]);
+  assert.equal(dataset.days[0].steps, 500);
+  assert.equal(dataset.days[0].sleepMinutes, null);
+  const today = dataset.days[1];
+  assert.deepEqual([today.sleepMinutes, today.restingHeartRate, today.stress, today.steps, today.bodyBattery, today.activityMinutes],
+    [450, 54, 28, 8432, 78, 60]);
+  assert.deepEqual(today.sleepStages, { light: 300, deep: 75, rem: 75, awake: 10 });
+  assert.deepEqual(dataset.activities.map((activity) => [activity.type, activity.durationMinutes, activity.distanceKm, activity.averageHeartRate]),
+    [["Running", 30, 5.2, 142]]);
+  assert.equal(dataset.lastSyncedAt, "2026-10-23T03:00:00Z");
+});
 
 test("dashboard conversion preserves seconds/metres meaning, nulls and distinct Garmin activities", () => {
   const dataset = garminHealthDataset([

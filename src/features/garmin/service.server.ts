@@ -31,6 +31,8 @@ export function createGarminService(config: GarminConfig, store: GarminStore, fe
     return await store.read(row.user_id);
   }
   async function fresh(row: GarminConnection): Promise<GarminConnection> {
+    // Status reads must not erase evidence of an uncertain remote deregistration.
+    if (["deregistration_failed", "deregistration_recovery_required", "revocation_pending", "revocation_unconfirmed"].includes(row.error_code ?? "")) return row;
     if (row.deletion_requested_at || row.operation || row.error_code === "rotation_uncertain" || !row.token_ciphertext || !row.refresh_after || Date.parse(row.refresh_after) > now()) return row;
     const lease = await store.claim(row, "refresh", 90);
     if (!lease) return (await store.read(row.user_id)) ?? row;

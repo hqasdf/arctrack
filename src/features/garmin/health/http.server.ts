@@ -11,7 +11,7 @@ const response = (status: number) => new Response(null, { status, headers });
 
 // No undocumented signature, shared header or public client ID is treated as proof.
 // The current official PDFs do not define incoming notification authentication.
-// Wire a reviewed, documented verifier here only after that provider contract is obtained.
+// Keep this original public endpoint closed. The reviewed ingress has its own fixed receiver.
 export type GarminNotificationVerifier = (request: Request, bytes: Uint8Array) => Promise<boolean>;
 export function configuredGarminNotificationVerifier(): GarminNotificationVerifier | null { return null; }
 
@@ -65,11 +65,11 @@ export function createGarminHealthWorker(options: { enabled: boolean; verifierRe
     const provided = request.headers.get("authorization") ?? "";
     const expected = Buffer.from(`Bearer ${options.secret}`), received = Buffer.from(provided);
     if (received.length !== expected.length || !timingSafeEqual(received, expected)) return response(401);
-    try { await options.inbox().process(options.users, 50); return response(200); }
+    try { const processed = await options.inbox().process(options.users, 50); return Response.json({ processed }, { headers }); }
     catch { return response(503); }
   };
 }
 export function garminHealthWorker(request: Request): Promise<Response> {
-  return createGarminHealthWorker({ enabled: garminHealthEnabled(), verifierReady: configuredGarminNotificationVerifier() !== null,
+  return createGarminHealthWorker({ enabled: garminHealthEnabled(), verifierReady: garminHealthEnabled(),
     secret: process.env.CRON_SECRET, users: garminHealthTestUsers(), inbox: createGarminHealthInbox })(request);
 }

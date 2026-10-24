@@ -10,6 +10,7 @@ export default defineConfig([
     "out/**",
     "next-env.d.ts",
     ".verification/**",
+    "infra/garmin-ingress/.wrangler/**",
     ".npm-cache/**",
     "apps/mobile/**",
   ]),

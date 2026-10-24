@@ -133,6 +133,11 @@ begin
             state='reconciliation_required',error_code='permission_order_uncertain' where user_id=c.user_id;
           delete from public.garmin_health_records where user_id=c.user_id and
             ((kind='activities' and not(safe_permissions ? 'ACTIVITY_EXPORT')) or (kind<>'activities' and not(safe_permissions ? 'HEALTH_EXPORT')));
+          -- A terminal conflict will not be retried. Erase its revoked health
+          -- values as well, retaining only receipt metadata for deduplication.
+          update public.garmin_health_inbox set payload=null where user_id=c.user_id and state='conflict' and
+            ((kind='activities' and not(safe_permissions ? 'ACTIVITY_EXPORT')) or
+             (kind in ('dailies','sleeps','stressDetails') and not(safe_permissions ? 'HEALTH_EXPORT')));
           result_state:='conflict'; result_code:='permission_order_uncertain';
         elsif changed=s.permission_change_seconds then
           result_state:='rejected'; result_code:='out_of_order';
@@ -142,6 +147,9 @@ begin
             error_code=case when (e->'permissions' ? 'HEALTH_EXPORT') and (e->'permissions' ? 'ACTIVITY_EXPORT') then null else 'permission_revoked' end where user_id=c.user_id;
           delete from public.garmin_health_records where user_id=c.user_id and
             ((kind='activities' and not(e->'permissions' ? 'ACTIVITY_EXPORT')) or (kind<>'activities' and not(e->'permissions' ? 'HEALTH_EXPORT')));
+          update public.garmin_health_inbox set payload=null where user_id=c.user_id and state='conflict' and
+            ((kind='activities' and not(e->'permissions' ? 'ACTIVITY_EXPORT')) or
+             (kind in ('dailies','sleeps','stressDetails') and not(e->'permissions' ? 'HEALTH_EXPORT')));
         end if;
       elsif not(coalesce(s.granted_permissions,c.permissions) ? needed) then
         result_state:='rejected'; result_code:='permission_revoked';
