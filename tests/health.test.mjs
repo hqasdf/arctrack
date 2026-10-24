@@ -34,7 +34,10 @@ const cards = await load("src/features/health/components/health-cards.tsx", {
   "../model": model, "@/components/ui/icon": icon,
   "next/link": { __esModule: true, default: (props) => React.createElement("a", props) },
 });
-const dashboardDeps = { "../model": model, "@/components/ui/icon": icon, "./health-cards": cards, "./health-chart": chart };
+const garminControl = await load("src/features/garmin/components/garmin-connection-card.tsx", {
+  "next/image": { __esModule: true, default: (props) => React.createElement("img", props) },
+});
+const dashboardDeps = { "next/navigation": { useRouter: () => ({ refresh() {} }) }, "@/features/garmin/components/garmin-connection-card": garminControl, "../model": model, "@/components/ui/icon": icon, "./health-cards": cards, "./health-chart": chart };
 const { HealthDashboard } = await load("src/features/health/components/health-dashboard.tsx", dashboardDeps);
 const connection = { available: false, canConnect: false, status: "disconnected", permissions: [], authorizedAt: null, checkedAt: "2026-10-23T02:00:00Z", expiresAt: null, error: null };
 const empty = { kind: "empty", days: [], activities: [], lastSyncedAt: null };
