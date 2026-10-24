@@ -24,6 +24,7 @@ const http = await load("src/features/garmin/health/http.server.ts", {
   "next/server": { after: () => { throw new Error("Must not schedule production work"); } },
   "./config.server": { garminHealthEnabled: () => true, garminHealthTestUsers: () => ["owner-id"] },
   "./normalize.server": { normalizeGarminPush, GarminHealthPayloadError },
+  "../service.server": { configuredGarminService: () => null },
   "./store.server": { createGarminHealthInbox: () => { throw new Error("Must not access production storage"); } },
 });
 
@@ -39,7 +40,7 @@ function receiver(overrides = {}) {
   const calls = [], scheduled = [];
   const inbox = { stage: async (...args) => { calls.push(["stage", ...args]); }, process: async (...args) => { calls.push(["process", ...args]); return 1; } };
   const handle = http.createGarminPushReceiver({ enabled: true, verifier: async () => { calls.push(["verify"]); return true; },
-    allowedUsers: ["owner-id"], inbox: () => inbox, schedule: (work) => scheduled.push(work), ...overrides });
+    inbox: () => inbox, schedule: (work) => scheduled.push(work), ...overrides });
   return { handle, calls, scheduled, inbox };
 }
 
@@ -108,7 +109,7 @@ test("valid mocked verification stages durably before HTTP 200 and processes onl
   const result = await handle(request({ dailies: [daily()] }));
   assert.equal(result.status, 200);
   assert.deepEqual(calls.map((call) => call[0]), ["verify", "stage"]);
-  assert.deepEqual(calls[1][2], ["owner-id"]);
+  assert.equal(calls[1].length, 2); // Events only; account eligibility is database-owned.
   assert.equal(scheduled.length, 1);
   await scheduled[0]();
   assert.equal(calls.at(-1)[0], "process");
@@ -117,7 +118,7 @@ test("valid mocked verification stages durably before HTTP 200 and processes onl
 });
 
 test("unverified or disabled receivers fail closed before any persistence", async () => {
-  for (const options of [{ enabled: false }, { verifier: null }, { allowedUsers: [] }]) {
+  for (const options of [{ enabled: false }, { verifier: null }]) {
     const { handle, calls } = receiver(options);
     assert.equal((await handle(request({ dailies: [daily()] }))).status, 503);
     assert.equal(calls.length, 0);
@@ -183,12 +184,12 @@ test("Supabase returned error properties fail staging/processing without disclos
     const inbox = store.createGarminHealthInbox();
     const events = normalizeGarminPush({ dailies: [daily()] });
     if (error) {
-      await assert.rejects(inbox.stage(events, ["approved"]), { message: "Garmin health storage unavailable." });
-      await assert.rejects(inbox.process(["approved"], 25), { message: "Garmin health processing unavailable." });
+      await assert.rejects(inbox.stage(events), { message: "Garmin health storage unavailable." });
+      await assert.rejects(inbox.process(25), { message: "Garmin health processing unavailable." });
     } else {
-      await inbox.stage(events, ["approved"]);
-      assert.equal(await inbox.process(["approved"], 25), 1);
-      assert.deepEqual(calls[0], ["stage_garmin_health_push", { p_events: events, p_allowed_users: ["approved"] }]);
+      await inbox.stage(events);
+      assert.equal(await inbox.process(25), 1);
+      assert.deepEqual(calls[0], ["stage_garmin_health_push", { p_events: events }]);
     }
   }
 });
@@ -205,14 +206,14 @@ test("scheduling or asynchronous processing failure retains successful durable r
 test("worker requires its own server credential and never uses a browser session", async () => {
   const calls = [];
   const secret = "x".repeat(40);
-  const worker = http.createGarminHealthWorker({ enabled: true, verifierReady: true, secret, users: ["approved"], inbox: () => ({ process: async (...args) => { calls.push(args); return 1; } }) });
+  const worker = http.createGarminHealthWorker({ enabled: true, verifierReady: true, secret, inbox: () => ({ process: async (...args) => { calls.push(args); return 1; } }) });
   for (const authorization of [undefined, "Bearer wrong", `Bearer ${"y".repeat(40)}`]) {
     const headers = authorization ? { authorization } : {};
     assert.equal((await worker(new Request("https://arc.example/worker", { headers }))).status, 401);
   }
   assert.equal(calls.length, 0);
   assert.equal((await worker(new Request("https://arc.example/worker", { headers: { authorization: `Bearer ${secret}` } }))).status, 200);
-  assert.deepEqual(calls, [[["approved"], 50]]);
+  assert.deepEqual(calls, [[50]]);
 });
 
 test("worker processing failures are observable as non-success without leaking private details", async () => {
@@ -225,12 +226,32 @@ test("worker processing failures are observable as non-success without leaking p
   assert.match(result.headers.get("Cache-Control"), /no-store/);
 });
 
-test("public OAuth and even an accidental Health flag cannot authorize the unapproved ingestion cohort", async () => {
+test("scheduled refresh is authenticated first and finishes before bounded processing", async () => {
+  const calls = [], secret = "x".repeat(40);
+  const worker = http.createGarminHealthWorker({ enabled: true, verifierReady: true, secret,
+    refresh: async () => { calls.push("refresh"); }, inbox: () => ({ process: async limit => { calls.push(limit); return 0; } }) });
+  assert.equal((await worker(new Request("https://arc.example/worker"))).status, 401);
+  assert.deepEqual(calls, []);
+  assert.equal((await worker(new Request("https://arc.example/worker", { headers: { authorization: `Bearer ${secret}` } }))).status, 200);
+  assert.deepEqual(calls, ["refresh", 50]);
+});
+
+test("refresh maintenance selects a bounded database-owned set and isolates provider failures", async () => {
+  const calls = [], refreshed = [];
+  const store = await load("src/features/garmin/health/store.server.ts", {
+    "@/lib/supabase/admin.server": { createAdminClient: () => ({ rpc: async (...args) => { calls.push(args); return { data: ["owner-one", "owner-two"], error: null }; } }) },
+  });
+  await store.createGarminHealthInbox().refreshDue(async user => { refreshed.push(user); if (user === "owner-one") throw Error("provider unavailable"); });
+  assert.deepEqual(calls, [["garmin_health_refresh_candidates", { p_limit: 3 }]]);
+  assert.deepEqual(refreshed, ["owner-one", "owner-two"]);
+});
+
+test("public OAuth and even an accidental Health flag cannot bypass missing Health security readiness", async () => {
   const config = await load("src/features/garmin/health/config.server.ts", {}, { process: { env: {
     GARMIN_CONNECT_ENABLED: "true", GARMIN_HEALTH_ENABLED: "true", GARMIN_TEST_USER_IDS: "approved,other",
   } } });
   assert.equal(config.garminHealthEnabled(), false);
-  assert.deepEqual(config.garminHealthTestUsers(), []);
+  assert.equal(config.garminHealthTestUsers, undefined);
   assert.equal(http.configuredGarminNotificationVerifier(), null);
 });
 

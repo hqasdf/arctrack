@@ -1,7 +1,7 @@
 import "server-only";
 import { after } from "next/server";
 import { createPrivateGarminPushReceiver } from "./private-push.server";
-import { garminHealthEnabled, garminHealthTestUsers } from "./config.server";
+import { garminHealthEnabled } from "./config.server";
 import { createGarminHealthInbox } from "./store.server";
 
 // Arc Track's independent server-to-server authentication, NOT a Garmin signature.
@@ -11,5 +11,5 @@ export function createGarminIngressReceiver(options: Parameters<typeof createPri
 }
 export function garminHealthIngress(request: Request) {
   return createGarminIngressReceiver({ enabled: garminHealthEnabled(), secret: process.env.GARMIN_HEALTH_INGRESS_KEY,
-    allowedUsers: garminHealthTestUsers(), inbox: createGarminHealthInbox, schedule: after })(request);
+    inbox: createGarminHealthInbox, schedule: after })(request);
 }

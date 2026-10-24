@@ -16,13 +16,13 @@ const model=await load('src/features/health/model.ts');
 const normalize=await load('src/features/garmin/health/normalize.server.ts',{'@/features/health/model':model});
 const store={'createGarminHealthInbox':()=>{throw Error('No production database allowed');}};
 const config={garminHealthEnabled:()=>false,garminHealthTestUsers:()=>[]};
-const http=await load('src/features/garmin/health/http.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./normalize.server':normalize,'./store.server':store});
+const http=await load('src/features/garmin/health/http.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./normalize.server':normalize,'../service.server':{configuredGarminService:()=>null},'./store.server':store});
 const privateHttp=await load('src/features/garmin/health/private-push.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./store.server':store,'./http.server':http});
 const payload={dailies:[{userId:'synthetic-provider',summaryId:'synthetic',calendarDate:'2026-10-23',startTimeInSeconds:1792713600,durationInSeconds:86400,steps:450}]};
 const request=(body=JSON.stringify(payload),headers={})=>new Request('https://example.invalid/private-synthetic-request',{method:'POST',headers:{'Content-Type':'application/json',...headers},body});
 const fixture=(overrides={})=>{
  const secret=randomBytes(32).toString('hex'),calls=[],scheduled=[];
- const handle=privateHttp.createPrivateGarminPushReceiver({enabled:true,secret,allowedUsers:['synthetic-owner'],inbox:()=>({stage:async(...args)=>calls.push(args),process:async()=>1}),schedule:work=>scheduled.push(work),...overrides});
+ const handle=privateHttp.createPrivateGarminPushReceiver({enabled:true,secret,inbox:()=>({stage:async(...args)=>calls.push(args),process:async()=>1}),schedule:work=>scheduled.push(work),...overrides});
  return {secret,calls,handle,scheduled};
 };
 test('private capability accepts 256-bit server secret and preserves normalization/stage-before-ack',async()=>{
@@ -39,8 +39,8 @@ test('private URL preserves media, encoding, payload and byte limits',async()=>{
  const f=fixture();for(const [req,status] of [[request('{'),400],[request('{}'),400],[request(undefined,{'Content-Type':'text/plain'}),415],[request(undefined,{'Content-Encoding':'gzip'}),415],[request(undefined,{'Content-Length':'1048577'}),413],[request('x'.repeat(1048577)),413]])assert.equal((await f.handle(req,f.secret)).status,status);
  assert.equal(f.calls.length,0);
 });
-test('missing server key, disabled master switch or empty ingestion cohort always fail closed',async()=>{
- for(const overrides of [{secret:undefined},{secret:'weak'},{enabled:false},{allowedUsers:[]}]){
+test('missing server key, disabled master switch always fail closed',async()=>{
+ for(const overrides of [{secret:undefined},{secret:'weak'},{enabled:false}]){
   const f=fixture(overrides),req=request();assert.equal((await f.handle(req,f.secret)).status,503);assert.equal(req.bodyUsed,false);assert.equal(f.calls.length,0);
  }
 });

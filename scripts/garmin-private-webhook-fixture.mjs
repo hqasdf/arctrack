@@ -29,20 +29,20 @@ export async function testPrivateWebhookDatabase(db,check){
   const store=await load('src/features/garmin/health/store.server.ts',{'@/lib/supabase/admin.server':{createAdminClient:()=>({rpc:async(name,args)=>{
    try{
     let result;
-    if(name==='stage_garmin_health_push')result=await db.query('select public.stage_garmin_health_push($1::jsonb,$2::uuid[]) as value',[JSON.stringify(args.p_events),args.p_allowed_users]);
-    else if(name==='process_garmin_health_queue')result=await db.query('select public.process_garmin_health_queue($1::uuid[],$2) as value',[args.p_allowed_users,args.p_limit]);
+    if(name==='stage_garmin_health_push')result=await db.query('select public.stage_garmin_health_push($1::jsonb) as value',[JSON.stringify(args.p_events)]);
+    else if(name==='process_garmin_health_queue')result=await db.query('select public.process_garmin_health_queue($1::integer) as value',[args.p_limit]);
     else throw Error('Unexpected RPC');
     return {data:result.rows[0].value,error:null};
    }catch{return {data:null,error:{code:'synthetic-sql-failure'}};}
   }})}});
   const config={garminHealthEnabled:()=>false,garminHealthTestUsers:()=>[]};
-  const http=await load('src/features/garmin/health/http.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./normalize.server':normalize,'./store.server':store});
+  const http=await load('src/features/garmin/health/http.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./normalize.server':normalize,'../service.server':{configuredGarminService:()=>null},'./store.server':store});
   const ingressHttp=await load('src/features/garmin/health/ingress.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./store.server':store,'./private-push.server':await load('src/features/garmin/health/private-push.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./store.server':store,'./http.server':http})});
   const forwardKey=randomBytes(32).toString('hex');
-  const internal=ingressHttp.createGarminIngressReceiver({enabled:true,secret:forwardKey,allowedUsers:[user],inbox:store.createGarminHealthInbox,schedule:()=>{}});
+  const internal=ingressHttp.createGarminIngressReceiver({enabled:true,secret:forwardKey,inbox:store.createGarminHealthInbox,schedule:()=>{}});
   const privateHttp=await load('src/features/garmin/health/private-push.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./store.server':store,'./http.server':http});
-  const receive=privateHttp.createPrivateGarminPushReceiver({enabled:true,secret:process.env.GARMIN_HEALTH_WEBHOOK_SECRET,allowedUsers:[user],inbox:store.createGarminHealthInbox,schedule:()=>{}});
-  const worker=http.createGarminHealthWorker({enabled:true,verifierReady:true,secret:workerSecret,users:[user],inbox:store.createGarminHealthInbox});
+  const receive=privateHttp.createPrivateGarminPushReceiver({enabled:true,secret:process.env.GARMIN_HEALTH_WEBHOOK_SECRET,inbox:store.createGarminHealthInbox,schedule:()=>{}});
+  const worker=http.createGarminHealthWorker({enabled:true,verifierReady:true,secret:workerSecret,inbox:store.createGarminHealthInbox});
   server=createServer(async(incoming,outgoing)=>{
    try{
     const url=new URL(incoming.url,'http://127.0.0.1');

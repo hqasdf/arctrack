@@ -3,9 +3,10 @@ import {readFile} from 'node:fs/promises';
 export async function testScheduler(db,check,deliver,bearer,user) {
   await db.query(`create schema vault; create schema cron; create schema net;
     create table vault.decrypted_secrets(name text unique,decrypted_secret text);
-    create table cron.job(jobid bigint generated always as identity,jobname text, schedule text,command text);
+    create table cron.job(jobid bigint generated always as identity,jobname text, schedule text,command text,active boolean default true);
     create function cron.schedule(text,text,text) returns bigint language sql as $$
       insert into cron.job(jobname,schedule,command) values($1,$2,$3) returning jobid$$;
+    create function cron.alter_job(job_id bigint,active boolean) returns void language sql as $$update cron.job set active=$2 where jobid=$1$$;
     create table net.fixture_requests(id bigint generated always as identity,url text,headers jsonb);
     create table net._http_response(id bigint,status_code int,timed_out boolean,error_msg text);
     create table cron.job_run_details(jobid bigint,status text,start_time timestamptz default now());
@@ -13,7 +14,15 @@ export async function testScheduler(db,check,deliver,bearer,user) {
       returns bigint language sql as $$insert into net.fixture_requests(url,headers) values($1,$3) returning id$$;`);
   await db.query('insert into vault.decrypted_secrets values($1,$2)',['garmin_health_worker_bearer',bearer]);
   await db.query(await readFile(new URL('../supabase/ops/garmin-health-cron.sql',import.meta.url),'utf8'));
+  await db.query(await readFile(new URL('../supabase/ops/garmin-health-cron.sql',import.meta.url),'utf8'));
   const job=(await db.query('select * from cron.job')).rows[0];
+  check(job.active===false && (await db.query('select count(*)::int n from cron.job')).rows[0].n===1,'Scheduler preparation is repeatable and leaves the existing job inactive');
+  await db.query('grant select on net._http_response to anon');
+  let unsafeGrantRejected=false;
+  try { await db.query(await readFile(new URL('../supabase/ops/garmin-health-cron.sql',import.meta.url),'utf8')); }
+  catch { unsafeGrantRejected=true; await db.query('rollback'); }
+  check(unsafeGrantRejected,'Scheduler rejects unexpected client read grants on non-managed transport objects');
+  await db.query('revoke select on net._http_response from anon');
   check(job.schedule==='* * * * *'&&!job.command.includes(bearer),'Cron stores a fixed admin command without embedding its bearer');
   for(const role of ['anon','authenticated','service_role']) {
     check(!(await db.query(`select has_function_privilege($1,'private.enqueue_garmin_health_worker()','execute') as allowed`,[role])).rows[0].allowed,

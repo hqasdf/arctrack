@@ -1,7 +1,7 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
-import { garminHealthEnabled, garminHealthTestUsers } from "./config.server";
+import { garminHealthEnabled } from "./config.server";
 import { createGarminPushReceiver } from "./http.server";
 import { createGarminHealthInbox } from "./store.server";
 
@@ -15,7 +15,7 @@ export function createPrivateGarminPushReceiver(options: Omit<Parameters<typeof 
   // The reusable receiver still applies every existing size/schema/inbox safeguard.
   const receive = createGarminPushReceiver({ ...options, verifier: async () => true });
   return async (request: Request, provided: string | undefined): Promise<Response> => {
-    if (!options.enabled || !options.allowedUsers.length || !validSecret(options.secret)) return deny(503);
+    if (!options.enabled || !validSecret(options.secret)) return deny(503);
     const wellFormed = validSecret(provided);
     const matches = timingSafeEqual(Buffer.from(options.secret, "hex"), Buffer.from(wellFormed ? provided : "0".repeat(64), "hex"));
     // Authenticate before reading the body or creating a database client.
@@ -29,5 +29,5 @@ export function privateGarminHealthPush(request: Request, secret: string): Promi
   // experiment must not become a production ingress through an environment toggle.
   if (process.env.NODE_ENV === "production") return Promise.resolve(deny(503));
   return createPrivateGarminPushReceiver({ enabled: garminHealthEnabled(), secret: process.env.GARMIN_HEALTH_WEBHOOK_SECRET,
-    allowedUsers: garminHealthTestUsers(), inbox: createGarminHealthInbox, schedule: after })(request, secret);
+    inbox: createGarminHealthInbox, schedule: after })(request, secret);
 }

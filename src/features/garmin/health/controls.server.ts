@@ -4,7 +4,7 @@ import { getAuthConfig } from "@/lib/auth/config";
 import { identity, sameOrigin } from "../http.server";
 import { configuredGarminService } from "../service.server";
 import { GarminError } from "../provider.server";
-import { garminHealthEnabled, garminHealthTestUsers } from "./config.server";
+import { garminHealthEnabled } from "./config.server";
 import type { GarminHealthControl } from "./types";
 
 type Action = "delete" | "pause" | "resume";
@@ -59,7 +59,7 @@ export function createHealthControlHandler(options: {
 }
 export async function garminHealthControl(request: Request) {
   return createHealthControlHandler({ origin: getAuthConfig()?.appUrl ?? null, owner: identity,
-    canResume: userId => garminHealthEnabled() && garminHealthTestUsers().includes(userId),
+    canResume: () => garminHealthEnabled(),
     verify: async userId => {
       const service = configuredGarminService();
       if (!service) throw new GarminError("provider_configuration");

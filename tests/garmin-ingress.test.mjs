@@ -93,13 +93,13 @@ test('checked-in Cloudflare configuration disables URL-bearing routine observabi
   assert.deepEqual(c.tail_consumers,[]);assert.equal(c.logpush,false);assert.equal(c.vars.INGRESS_ENABLED,'false');assert.equal(c.workers_dev,true);assert.equal(c.preview_urls,false);
   assert.equal(c.name,'arctrack-garmin-ingress');assert.equal(c.main,'worker.mjs');
 });
-test('application configuration requires independent keys, explicit readiness and a strict pilot cohort',async()=>{
+test('application configuration requires independent keys, explicit readiness without a pilot cohort',async()=>{
   const env={};const c=await load('src/features/garmin/health/config.server.ts',{});
   const saved={...process.env};try{
     for(const key of ['GARMIN_HEALTH_ENABLED','GARMIN_HEALTH_INGRESS_READY','GARMIN_HEALTH_PRIVACY_READY','GARMIN_HEALTH_INGRESS_KEY','GARMIN_HEALTH_TEST_USER_IDS','CRON_SECRET'])delete process.env[key];
     assert.equal(c.garminHealthEnabled(),false);
     Object.assign(env,{GARMIN_HEALTH_ENABLED:'true',GARMIN_HEALTH_INGRESS_READY:'true',GARMIN_HEALTH_PRIVACY_READY:'true',GARMIN_HEALTH_INGRESS_KEY:randomBytes(32).toString('hex'),CRON_SECRET:randomBytes(32).toString('hex'),GARMIN_HEALTH_TEST_USER_IDS:'11111111-1111-4111-8111-111111111111'});Object.assign(process.env,env);
-    assert.equal(c.garminHealthEnabled(),true);process.env.GARMIN_HEALTH_PRIVACY_READY='false';assert.equal(c.garminHealthEnabled(),false);process.env.GARMIN_HEALTH_PRIVACY_READY='true';process.env.GARMIN_HEALTH_TEST_USER_IDS='*';assert.equal(c.garminHealthEnabled(),false);
+    assert.equal(c.garminHealthEnabled(),true);process.env.GARMIN_HEALTH_PRIVACY_READY='false';assert.equal(c.garminHealthEnabled(),false);process.env.GARMIN_HEALTH_PRIVACY_READY='true';process.env.GARMIN_HEALTH_TEST_USER_IDS='*';assert.equal(c.garminHealthEnabled(),true);delete process.env.GARMIN_HEALTH_TEST_USER_IDS;assert.equal(c.garminHealthEnabled(),true);
   }finally{for(const key of Object.keys(env)){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}}
 });
 

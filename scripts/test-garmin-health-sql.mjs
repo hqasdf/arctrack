@@ -81,6 +81,9 @@ try {
   await db.query(await readFile(join(root, "supabase/migrations/20261024104429_garmin_health_controls.sql"), "utf8"));
   check(isDeepStrictEqual(before, await snapshot()), "Health controls preserve unrelated application rows, schemas, policies and grants");
   await db.query(await readFile(join(root, "supabase/tests/garmin-health-controls.sql"), "utf8"));
+  await db.query(await readFile(join(root, "supabase/migrations/20261024153040_garmin_health_general_availability.sql"), "utf8"));
+  check(isDeepStrictEqual(before, await snapshot()), "General availability preserves unrelated application data and security");
+  await db.query(await readFile(join(root, "supabase/tests/garmin-health-general-availability.sql"), "utf8"));
   await (await import("./garmin-private-webhook-fixture.mjs")).testPrivateWebhookDatabase(db, check);
   // Actual independent transactions: processing must not race an in-flight disconnect.
   const blocker = new pg.Client(configuration); await blocker.connect();
