@@ -12,7 +12,7 @@
     "traces": { "enabled": false }
   },
   "tail_consumers": [],
-  "vars": { "INGRESS_ENABLED": "false" },
+  "vars": { "INGRESS_ENABLED": "true" },
   "durable_objects": { "bindings": [{ "name": "LIMITS", "class_name": "GarminIngressLimits" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GarminIngressLimits"] }]
 }
