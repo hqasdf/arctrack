@@ -57,7 +57,7 @@ test("Privacy route stays outside auth proxy matching while signed-in routes rem
 
 test("Garmin Health disclosures describe the prepared service, processors, owner access and actual cleanup without invented retention", () => {
   const html=renderToStaticMarkup(React.createElement(pageExports.default));
-  for(const text of ["Cloudflare","Body Battery","sleep stages","private Health Dashboard","90-day reading window","pending or quarantined","successfully confirmed disconnect","collection remains disabled"])assert.ok(html.includes(text),text);
+  for(const text of ["Cloudflare","Body Battery","sleep stages","private Health Dashboard","90-day reading window","pending or quarantined","successfully confirmed Garmin disconnect","Collection remains disabled","Delete Health Data","Resume Health Sync","original Garmin account","Backup"])assert.ok(html.includes(text),text);
   assert.doesNotMatch(html,/This phase connects accounts only|Future health-data synchronization would require/);
   assert.match(html,/Automatic Garmin Health and Activity synchronization is not currently active/);
   assert.match(html,/href="#garmin"/);

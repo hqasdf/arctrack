@@ -1,3 +1,18 @@
+.connectionGate { max-width: 640px; margin: clamp(1rem,6vh,4rem) auto; padding: clamp(1.25rem,4vw,2.75rem); border: 1px solid var(--health-border); border-radius: 20px; background: var(--health-surface); display: grid; justify-items: start; gap: 1rem; }
+.connectionGate h1 { margin: 0; font-size: clamp(1.65rem,4vw,2.25rem); }
+.connectionGate p { margin: 0; color: var(--health-muted); line-height: 1.65; }
+.connectionGate a { color: var(--health-blue); }
+.syncControls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem; background: var(--health-surface); border: 1px solid var(--health-border); border-radius: 14px; }
+.syncControls p { margin: .4rem 0 0; color: var(--health-muted); max-width: 65ch; line-height: 1.55; }
+.syncControls [role="status"], .syncControls [role="alert"] { flex-basis: 100%; }
+.controlActions { display: flex; flex-wrap: wrap; gap: .7rem; }
+.controlActions button, .connectionGate > button { min-height: 44px; padding: .65rem .9rem; border: 1px solid var(--health-control-border); border-radius: 10px; color: var(--health-text); background: var(--health-surface); cursor: pointer; font: inherit; }
+.controlActions button:focus-visible, .connectionGate > button:focus-visible { outline: 2px solid var(--health-blue); outline-offset: 3px; }
+.controlActions button:disabled { opacity: .6; cursor: wait; }
+.controlDialog { width: min(560px,calc(100% - 2rem)); max-height: calc(100dvh - 3rem); overflow: auto; padding: clamp(1.2rem,4vw,2rem); border: 1px solid var(--health-border); border-radius: 18px; color: var(--health-text); background: var(--health-surface); }
+.controlDialog::backdrop { background: rgb(0 0 0 / 55%); }
+.controlDialog h2 { margin-top: 0; }
+.controlDialog .controlActions { margin-top: 1.5rem; }
 .dashboard {
   --health-background: #f6f8fb;
   --health-surface: #ffffff;

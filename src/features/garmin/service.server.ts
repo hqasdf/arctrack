@@ -87,11 +87,38 @@ export function createGarminService(config: GarminConfig, store: GarminStore, fe
     }
   }
   return {
+    async verifyHealthAuthorization(userId: string) {
+      let row = await store.read(userId);
+      if (row) row = await recover(row);
+      if (row) row = await fresh(row);
+      if (!row || row.status !== "connected" || row.operation || row.deletion_requested_at || row.error_code
+        || !row.token_ciphertext || !row.access_expires_at || Date.parse(row.access_expires_at) <= now()) throw new GarminError("reauthorization_required");
+      const lease = await store.claim(row, "refresh", 90);
+      if (!lease) throw new GarminError("busy");
+      try {
+        const access = secret(lease).accessToken;
+        if (await provider.identity(access) !== lease.garmin_user_id) throw new GarminError("account_mismatch");
+        const permissions = await provider.permissions(access);
+        if (!permissions.includes("HEALTH_EXPORT") || !permissions.includes("ACTIVITY_EXPORT")) {
+          if (!await store.finish(lease, { permissions, checked_at: timestamp() })) throw new GarminError("busy");
+          throw new GarminError("permissions_required");
+        }
+        const verifiedAt = timestamp();
+        if (!await store.finish(lease, { permissions, checked_at: verifiedAt })) throw new GarminError("busy");
+        const verified = await store.read(userId);
+        if (!verified || verified.operation || verified.status !== "connected" || verified.error_code || verified.deletion_requested_at
+          || verified.checked_at !== verifiedAt || verified.authorized_at !== lease.authorized_at || verified.garmin_user_id !== lease.garmin_user_id) throw new GarminError("busy");
+        return { version: verified.version, authorizedAt: verified.authorized_at };
+      } catch (error) {
+        await store.finish(lease, {});
+        throw error;
+      }
+    },
     async status(userId: string) {
       let row = await store.read(userId);
       if (row) row = await recover(row);
       if (row && ["connected", "error"].includes(row.status)) row = await fresh(row);
-      return row ? view(row) : { ...emptyGarminView(eligible(userId)), canConnect: eligible(userId) };
+      return row ? view(row) : { ...emptyGarminView(true), canConnect: eligible(userId) };
     },
     async start(userId: string) {
       if (!eligible(userId)) throw new GarminError("access_unavailable");
@@ -183,6 +210,6 @@ export function configuredGarminService() {
   return config ? createGarminService(config, createGarminStore()) : null;
 }
 export async function readGarminStatus(userId: string): Promise<GarminView> {
-  try { return await configuredGarminService()?.status(userId) ?? emptyGarminView(false); }
+  try { return await configuredGarminService()?.status(userId) ?? { ...emptyGarminView(false), status: "error", error: "unavailable" }; }
   catch { return { ...emptyGarminView(false), status: "error", error: "unavailable" }; }
 }

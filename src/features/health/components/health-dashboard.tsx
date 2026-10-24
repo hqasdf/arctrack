@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/icon";
 import { GarminConnectionCard } from "@/features/garmin/components/garmin-connection-card";
@@ -8,19 +8,37 @@ import { average, chartDays, dateBefore, filterActivities, formatDay, formatMetr
 import type { HealthDashboardData } from "../types";
 import { ActivityList, ConnectionNotice, MetricCards, WellnessSummary } from "./health-cards";
 import { HealthChart } from "./health-chart";
+import { HealthSyncControls } from "./health-sync-controls";
+import type { GarminHealthControl } from "@/features/garmin/health/types";
+import type { GarminView } from "@/features/garmin/types";
 import styles from "./health.module.css";
 
 export function HealthDashboard({ data, garminNotice }: { data: HealthDashboardData; garminNotice?: string }) {
   const router = useRouter();
+  const [blockedData, setBlockedData] = useState<{ data: HealthDashboardData; message?: string } | null>(null);
+  const [override, setOverride] = useState<{ control: GarminHealthControl; deleted: boolean } | null>(null);
+  const control = override && (!data.control || Date.parse(override.control.changedAt) > Date.parse(data.control.changedAt)) ? override.control : data.control;
+  const deletedLocally = override?.deleted && control === override.control;
   const refreshEnabled = !!data.sync && data.sync.state !== "disabled";
   useEffect(() => {
-    if (!refreshEnabled) return;
     const refresh = () => { if (document.visibilityState === "visible") router.refresh(); };
-    const timer = window.setInterval(refresh, 60000);
-    document.addEventListener("visibilitychange", refresh);
-    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
-  }, [router, refreshEnabled]);
-  const { dataset, connection } = data;
+    const visible = () => { if (document.visibilityState === "visible") { setBlockedData({ data }); router.refresh(); } };
+    const timer = refreshEnabled ? window.setInterval(refresh, 60000) : undefined;
+    document.addEventListener("visibilitychange", visible);
+    return () => { if (timer !== undefined) window.clearInterval(timer); document.removeEventListener("visibilitychange", visible); };
+  }, [router, refreshEnabled, data]);
+  useEffect(() => {
+    if (data.access !== "connected" || !data.connection.expiresAt) return;
+    const timer = window.setTimeout(() => { setBlockedData({ data }); router.refresh(); }, Math.max(0, Math.min(2147483647, Date.parse(data.connection.expiresAt) - Date.now())));
+    return () => window.clearTimeout(timer);
+  }, [data, router]);
+  const invalidate = useCallback((message: string) => { setBlockedData({ data, message }); router.refresh(); }, [data, router]);
+  const statusChanged = useCallback((status: GarminView) => {
+    if (!status.available || status.status !== "connected" || status.error) setBlockedData({ data });
+    router.refresh();
+  }, [data, router]);
+  const dataset = deletedLocally ? { kind: "empty" as const, days: [], activities: [], lastSyncedAt: null } : data.dataset;
+  const { connection } = data;
   const latestDate = dataset.days.map((day) => day.date).sort().at(-1) ?? data.today;
   const [view, setView] = useState<"Overview" | "Trends" | "Activities">("Overview");
   const [end, setEnd] = useState(latestDate);
@@ -37,11 +55,26 @@ export function HealthDashboard({ data, garminNotice }: { data: HealthDashboardD
     setEnd(value);
     if (!supportsRange(dataset.days, value, range)) setRange(7);
   }
+  const connectionControl = <GarminConnectionCard key={[connection.status, connection.available, connection.canConnect, connection.checkedAt, connection.expiresAt, connection.error].join(":")} initialStatus={connection} notice={garminNotice} placement="health" onStatusChange={statusChanged} />;
+  const access = blockedData?.data === data ? "unavailable" : data.access;
+  if (access !== "connected") return <div className={styles.dashboard} data-health-dashboard>
+    <section className={styles.connectionGate} aria-labelledby="health-access-title">
+      <span className={styles.eyebrow}>ARC TRACK · HEALTH</span><Icon name="heart" size={38} />
+      <h1 id="health-access-title">{access === "connect" ? "Connect Garmin to view Health" : access === "reconnect" ? "Reconnect Garmin to view Health" : "Your Garmin connection could not be verified"}</h1>
+      <p>{access === "unavailable" ? "Your measurements are hidden until the connection can be verified. This does not mean your Garmin account was disconnected or your data was deleted."
+        : "Connect your Garmin account to see your private sleep, recovery and activity measurements alongside your archery training."}</p>
+      {connectionControl}<p><a href="/privacy#garmin">How Arc Track uses Garmin data</a></p>
+      {blockedData?.message && <p role="alert">{blockedData.message}</p>}
+      {access === "unavailable" && <button type="button" onClick={() => router.refresh()}>Retry connection check</button>}
+    </section>
+  </div>;
   return <div className={styles.dashboard} data-health-dashboard>
     <header className={styles.header}><div><span className={styles.eyebrow}>ARC TRACK · HEALTH</span><h1>Health Overview</h1><p>Track your recovery, sleep, activity and overall wellness alongside your archery training.</p></div>
-      <div className={styles.connectionStatus}><GarminConnectionCard key={[connection.status, connection.available, connection.canConnect, connection.checkedAt, connection.expiresAt, connection.error].join(":")} initialStatus={connection} notice={garminNotice} placement="health" />{dataset.kind === "stored" && dataset.lastSyncedAt && <small>Last health sync: {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Singapore" }).format(new Date(dataset.lastSyncedAt))} SGT</small>}</div>
+      <div className={styles.connectionStatus}>{connectionControl}{dataset.kind === "stored" && dataset.lastSyncedAt && <small>Last health sync: {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Singapore" }).format(new Date(dataset.lastSyncedAt))} SGT</small>}</div>
     </header>
-    <ConnectionNotice data={data} />
+    {blockedData?.message && <p role="alert">{blockedData.message}</p>}
+    {control && <HealthSyncControls control={control} onUnconfirmed={invalidate} onChanged={(value, deleted) => { setBlockedData(null); setOverride({ control: value, deleted: deleted || !!deletedLocally }); router.refresh(); }} />}
+    <ConnectionNotice data={{ ...data, dataset, control }} />
     <div className={styles.toolbar}><nav aria-label="Health views" className={styles.tabs}>{(["Overview", "Trends", "Activities"] as const).map((tab) => <button type="button" key={tab} aria-pressed={view === tab} onClick={() => setView(tab)}>{tab}</button>)}</nav><label className={styles.dateControl}>Through <input type="date" value={end} max={latestDate} onChange={(event) => selectDate(event.target.value)} aria-label="Health period ending date" /></label></div>
     {view === "Overview" && <>
       <div className={styles.sectionHeading}><h2>Your daily snapshot</h2><span>{formatDay(end)}</span></div>

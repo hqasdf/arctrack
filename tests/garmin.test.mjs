@@ -128,6 +128,36 @@ function fixture() {
     observeRequests: value => { requestObserver = value; }, setBeforeTransaction: value => { beforeTransaction = value; } };
 }
 
+test("Health resume proof revalidates Garmin identity and permissions under the existing lease", async () => {
+  const f = fixture(); await f.complete(await f.begin());
+  const proof = await f.service.verifyHealthAuthorization("athlete-a");
+  assert.equal(proof.version, f.rows.get("athlete-a").version); assert.equal(proof.authorizedAt, f.rows.get("athlete-a").authorized_at);
+  assert.equal(f.rows.get("athlete-a").operation, null);
+  assert.deepEqual(f.requests.slice(-2).map(r => r.url.split("/").at(-1)), ["id", "permissions"]);
+});
+test("Health resume proof rejects missing permissions, unavailable Garmin and mismatched identity", async () => {
+  for (const mode of ["permissions", "unavailable", "identity"]) {
+    const f = fixture(); await f.complete(await f.begin());
+    if (mode === "permissions") f.setFailure({ suffix: "/permissions", status: 200, body: [] });
+    if (mode === "unavailable") f.setFailure({ suffix: "/id", status: 503 });
+    if (mode === "identity") f.setRemoteId("a-different-account");
+    await assert.rejects(f.service.verifyHealthAuthorization("athlete-a"), e => e instanceof GarminError);
+    assert.equal(f.rows.get("athlete-a").operation, null); assert.ok(f.rows.get("athlete-a").token_ciphertext);
+    if (mode === "permissions") assert.deepEqual(f.rows.get("athlete-a").permissions, []);
+  }
+});
+test("a consent event between provider verification and proof read cannot return a valid Health resume proof", async () => {
+  const f = fixture(); await f.complete(await f.begin()); const finish = f.store.finish;
+  f.store.finish = async (...args) => { const result = await finish(...args); if (result) { f.rows.get("athlete-a").checked_at = null; f.rows.get("athlete-a").version = randomUUID(); } return result; };
+  await assert.rejects(f.service.verifyHealthAuthorization("athlete-a"), e => e.code === "busy");
+});
+test("Health resume verification preserves existing account-deletion and operation fences", async () => {
+  const f = fixture(); await f.complete(await f.begin());
+  f.rows.get("athlete-a").deletion_requested_at = new Date(f.now()).toISOString();
+  await assert.rejects(f.service.verifyHealthAuthorization("athlete-a"), e => e.code === "reauthorization_required");
+  await assert.rejects(f.service.verifyHealthAuthorization("unknown"), e => e.code === "reauthorization_required");
+});
+
 test("Garmin PKCE uses the RFC 7636 S256 vector and unpredictable URL-safe values", () => {
   assert.equal(crypto.pkceChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"), "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
   assert.match(crypto.oauthNonce(), /^[A-Za-z0-9_-]{43}$/);

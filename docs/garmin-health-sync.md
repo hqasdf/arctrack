@@ -1,5 +1,9 @@
 # Garmin Health / Activity sync foundation — local, disabled
 
+The additive local pause/resume/deletion implementation and replay limitations are
+documented in [Garmin Health controls](garmin-health-controls.md). The reviewed
+Health migration is unchanged; controls require the separate later migration.
+
 Current local Phase B implementation and activation gates: [garmin-phase-b-implementation.md](garmin-phase-b-implementation.md). The earlier readiness snapshot below is historical where superseded by that report. No Phase B production activation has occurred.
 
 This is **not an activated or live-verified integration**. No production migration,

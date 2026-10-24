@@ -4,7 +4,7 @@ import test from "node:test";
 
 const css = await readFile(new URL("../src/features/health/components/health.module.css", import.meta.url), "utf8");
 const declarations = (block) => Object.fromEntries([...block.matchAll(/([\w-]+):\s*([^;]+);/g)].map((match) => [match[1], match[2].trim()]));
-const light = declarations(css.match(/^\.dashboard \{([^}]+)\}/)[1]);
+const light = declarations(css.match(/^\.dashboard \{([^}]+)\}/m)[1]);
 const dark = declarations(css.match(/:global\(:root\[data-theme="dark"\]\) \.dashboard \{([^}]+)\}/)[1]);
 const system = declarations(css.match(/:global\(:root\[data-theme="system"\]\) \.dashboard \{([^}]+)\}/)[1]);
 

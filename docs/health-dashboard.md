@@ -1,14 +1,14 @@
 # Health dashboard
 
-`/health` is an owner-only page inside the existing authenticated website layout. The Health navigation item is visible only in the authenticated shell. No new tables, queries for health records, ingestion jobs or OAuth flows are introduced.
+`/health` is an owner-only page inside the existing authenticated website layout. The Health navigation item remains visible. The server checks the Garmin connection before reading private Health records; disconnected and reauthorization states show Connect/Reconnect, while unavailable verification hides measurements without deleting them. See [Health controls](garmin-health-controls.md) for the current local implementation and deployment boundary.
 
 ## Current production behaviour
 
-The server reader reuses `readGarminStatus(user.id)`. With `GARMIN_HEALTH_ENABLED` off (the default), it performs no health-table queries and returns an empty health dataset. A Garmin account connection is not a health sync. Disconnected, unavailable and connection-attention states link to the existing Profile settings; connected accounts see an awaiting-import explanation. Missing values are displayed as unavailable, never fabricated zeroes. OAuth timestamps are not shown as health-sync timestamps.
+The server reader reuses `readGarminStatus(user.id)`. With Health activation gates off it performs no health-table queries. A Garmin connection is not a health sync. When storage is active, the authenticated snapshot RPC applies owner and connection RLS and returns genuine measurements, pause state and sync status together. Missing values stay unavailable. OAuth timestamps never substitute for processing timestamps.
 
-## Local design preview
+## Local regression fixtures
 
-Run `npm run dev`, sign in normally, then open **http://localhost:3000/health?preview=demo** (127.0.0.1 also supported). This requires both development mode and a loopback Host header. Production and remote hosts ignore the preview parameter. Authentication remains required. The fixed fictional dataset ends on 23 October 2026, contains 30 days and is labelled **Demo Data**. It performs no Supabase writes and never claims to be synced Garmin data.
+There is no application demo mode or manual-entry substitute. Obsolete preview query parameters have no effect. Synthetic measurements exist only in maintained automated fixtures. The disposable PostgreSQL suite exercises HTTP ingestion, the actual worker and the owner reader without production credentials.
 
 Overview, Trends and Activities are internal views. The date input selects an ending day. Overview shows seven calendar days; Trends enables only complete stored calendar spans of 7/30/90 days. Unknown values remain chart gaps. Sleep bars represent total sleep, with known light/deep/REM stages; awake time is disclosed separately in the tooltip and is not added to sleep duration. Unknown stages use a hatched total-duration bar. Activity times use Asia/Singapore. Activity filtering and newest/oldest/duration sorting are local presentation operations.
 
@@ -16,15 +16,18 @@ Health follows the existing authenticated website Light/Dark/System preference. 
 
 Charts use custom SVG and native controls, with pointer, touch and keyboard exploration, visible data descriptions and reduced-motion support. Their axes, grid lines, points, sleep stages, missing-stage patterns, legends and tooltips follow the same Health tokens. Native date/filter controls use the effective colour scheme. No extra dependency is required.
 
-## Future real-data boundary
+## Real-data boundary
 
-`HealthDataset` and `HealthDay` define the view contract. The locally prepared Garmin foundation can populate it from owner-scoped, RLS-protected records when explicitly enabled after migration. It is not deployed/activated: the provider notification verifier remains fail-closed pending documented authentication requirements. See [Garmin health synchronization](garmin-health-sync.md) for source evidence, migration, permission/deletion behaviour, retention decisions and remaining blockers. No scoring Sessions or OAuth timestamps are substituted for health records. There is no coach access or AI processing.
+`HealthDataset` and `HealthDay` define the view contract. The prepared Garmin pipeline populates it from owner-scoped records after migration and explicit activation. The existing Cloudflare ingress authenticates the fixed internal receiver; the original public notification endpoint stays closed. See [Health controls](garmin-health-controls.md) for deletion, pause, resume and conservative replay rules. No scoring Sessions or OAuth timestamps substitute for health records. There is no coach access or AI processing. Production ingestion and genuine Garmin delivery remain separately unverified.
 
 ## Manual review
 
 Review signed-out redirect and all three views at 320, 390, 768 and desktop widths in Light and Dark. Explore chart points using Tab/Enter and touch; select dates and 7/30-day trends (90 days is disabled in the fixture); filter/sort activities. Switch appearance while a filter or information popover is selected and confirm it remains selected. Check empty states, System following and refresh restoration. No live connection, deletion or health import is necessary for UI review.
 
 ## Initial implementation verification (23 October 2026, before Health theme support)
+
+These dated results describe the original preview before its subsequent removal.
+They are historical evidence, not validation of the current controls or demo availability.
 
 - Existing website baseline: 338 passing tests. Final website suite: 357 passing, including 19 Health tests; zero failures or skips. TypeScript, repository lint and production build pass.
 - A real unauthenticated HTTP request to `/health?preview=demo` returns 307 to `/sign-in` without fixture measurements.

@@ -78,6 +78,9 @@ try {
   }
   await db.query(await readFile(join(root, "supabase/tests/garmin-health-sync.sql"), "utf8"));
   check(isDeepStrictEqual(before, await snapshot()), "Fixture rollback preserves the original application data");
+  await db.query(await readFile(join(root, "supabase/migrations/20261024104429_garmin_health_controls.sql"), "utf8"));
+  check(isDeepStrictEqual(before, await snapshot()), "Health controls preserve unrelated application rows, schemas, policies and grants");
+  await db.query(await readFile(join(root, "supabase/tests/garmin-health-controls.sql"), "utf8"));
   await (await import("./garmin-private-webhook-fixture.mjs")).testPrivateWebhookDatabase(db, check);
   // Actual independent transactions: processing must not race an in-flight disconnect.
   const blocker = new pg.Client(configuration); await blocker.connect();
@@ -97,6 +100,7 @@ try {
     const results = await Promise.all([db.query("select public.process_garmin_health_queue(array['90000000-0000-4000-8000-000000000001']::uuid[],25) as count"), blocker.query("select public.process_garmin_health_queue(array['90000000-0000-4000-8000-000000000001']::uuid[],25) as count")]);
     check(results.reduce((sum, result) => sum + result.rows[0].count, 0) === 1, "Concurrent workers process a pending receipt exactly once");
   } finally { await blocker.end(); }
+  await (await import("./garmin-health-controls-fixture.mjs")).testHealthControlConcurrency(db, pg.Client, configuration, check);
   console.log(JSON.stringify({ passed: assertions.length, failed: 0, assertions, version: (await db.query("select version()")).rows[0].version,
     limitation: "Synthetic Auth roles/uid; no real JWT, PostgREST, Garmin deliveries or production database." }, null, 2));
 } catch (error) { failure = error; }

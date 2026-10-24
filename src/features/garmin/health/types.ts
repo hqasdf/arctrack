@@ -21,3 +21,6 @@ export type GarminHealthSync = {
   last_received_at: string | null; last_processed_at: string | null;
   error_code: string | null; granted_permissions: string[] | null;
 };
+export type GarminHealthControl = {
+  generation: string; paused: boolean; acceptAfter: string | null; deletedAt: string | null; changedAt: string;
+};

@@ -24,7 +24,7 @@ const notices: Record<string, string> = {
   reauthorization_required: "Garmin authorization is no longer valid. Connect again to grant access.",
   revocation_unconfirmed: "Disconnected from Arc Track and saved credentials removed. Garmin revocation could not be confirmed; review Arc Track’s app access in Garmin Connect as well.",
 };
-export function GarminConnectionCard({ initialStatus, notice, placement = "profile" }: { initialStatus: GarminView; notice?: string; placement?: "health" | "profile" }) {
+export function GarminConnectionCard({ initialStatus, notice, placement = "profile", onStatusChange }: { initialStatus: GarminView; notice?: string; placement?: "health" | "profile"; onStatusChange?: (status: GarminView) => void }) {
   const [view, setView] = useState(initialStatus);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -33,11 +33,13 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
     if (view.status !== "connected" || !view.expiresAt) return;
     const wait = Math.max(0, Math.min(2147483647, Date.parse(view.expiresAt) - Date.now()));
     const timer = setTimeout(() => {
-      setView(previous => ({ ...previous, status: "error" }));
+      const next = { ...view, status: "error" as const };
+      setView(next);
+      onStatusChange?.(next);
       setError("Refresh your Garmin connection status before continuing.");
     }, wait);
     return () => clearTimeout(timer);
-  }, [view.status, view.expiresAt]);
+  }, [view, onStatusChange]);
   function submitting(event: FormEvent) {
     if (pending) event.preventDefault();
     else setPending(true);
@@ -49,9 +51,13 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
     try {
       const response = await fetch("/api/integrations/garmin/status", { cache: "no-store", signal: AbortSignal.timeout(45000) });
       if (!response.ok) throw new Error();
-      setView(await response.json() as GarminView);
+      const next = await response.json() as GarminView;
+      setView(next);
+      onStatusChange?.(next);
     } catch {
-      setView(previous => ({ ...previous, status: "error" }));
+      const next = { ...view, status: "error" as const };
+      setView(next);
+      onStatusChange?.(next);
       setError("Your Garmin connection status could not be refreshed. Please try again.");
     }
     finally { setPending(false); }

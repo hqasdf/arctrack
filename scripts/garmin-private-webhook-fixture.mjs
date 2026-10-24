@@ -85,12 +85,10 @@ export async function testPrivateWebhookDatabase(db,check){
   check((await gateway(gatewayRequest(),gatewayEnv)).status===200,'Gateway replay safely acknowledges without a duplicate receipt');
   await db.query('reset role');
   await (await import('./garmin-scheduler-fixture.mjs')).testScheduler(db,check,async(headers)=>send('/worker',null,'GET',headers),workerSecret,user);
-  const authClient={from(table){
-   const filters={};let single=false;
-   const builder={select:()=>builder,eq:(key,value)=>{filters[key]=value;return builder;},gte:(_key,value)=>{filters.start=value;return builder;},lte:(_key,value)=>{filters.end=value;return builder;},order:()=>builder,limit:()=>builder,maybeSingle:()=>{single=true;return builder;},then(resolve,reject){
-    const query=table==='garmin_health_records'?db.query(`select kind,source_id,record_key,calendar_date::text,start_seconds,duration_seconds,metrics,imported_at,updated_at from public.garmin_health_records where user_id=$1 and calendar_date between $2 and $3 order by calendar_date desc,updated_at desc limit 10000`,[filters.user_id,filters.start,filters.end]):db.query('select state,last_received_at,last_processed_at,error_code,granted_permissions from public.garmin_health_sync_state where user_id=$1',[filters.user_id]);
-    return query.then(result=>({data:single?result.rows[0]??null:result.rows.map(row=>({...row,updated_at:row.updated_at.toISOString(),imported_at:row.imported_at.toISOString()})),error:null})).then(resolve,reject);
-   }};return builder;
+  const authClient={async rpc(name,args){
+   if(name!=='read_garmin_health_dashboard')throw Error('Unexpected owner RPC');
+   const result=await db.query('select public.read_garmin_health_dashboard($1,$2,$3) as value',[args.p_user_id,args.p_start,args.p_end]);
+   return {data:result.rows[0].value,error:null};
   }};
   const reader=await load('src/features/garmin/health/read.server.ts',{'@/lib/supabase/server':{createAuthClient:async()=>authClient},'@/features/health/model':model,'./config.server':{garminHealthEnabled:()=>true}});
   const dashboard=await load('src/features/garmin/health/dashboard.ts',{'@/features/health/model':model});
@@ -99,7 +97,7 @@ export async function testPrivateWebhookDatabase(db,check){
   check(!read.unavailable&&read.records.length===1&&dashboard.garminHealthDataset(read.records,null).days[0].steps===450,'Actual Health reader and dashboard mapping return 450 under owner RLS');
   await db.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
   const denied=await reader.readGarminHealth(user,'2026-10-23');
-  check(!denied.unavailable&&denied.records.length===0,'RLS hides the first owner data even when another user requests that owner ID');
+  check(denied.unavailable&&denied.records.length===0,'RLS hides the first owner data even when another user requests that owner ID');
   await db.query('reset role');await db.query('set role service_role');
   check((await send('/private/'+secret,{dailies:[{...daily,summaryId:'http-daily-correction',steps:500}]})).status===200,
    'A same-window correction is durably acknowledged for explicit reconciliation');
@@ -122,10 +120,10 @@ export async function testPrivateWebhookDatabase(db,check){
   const control=await load('src/features/garmin/components/garmin-connection-card.tsx',{
     'next/image':{__esModule:true,default:props=>React.createElement('img',props)}});
   const ui=await load('src/features/health/components/health-dashboard.tsx',{'../model':model,'@/components/ui/icon':icon,
-    './health-chart':chart,'./health-cards':cards,'@/features/garmin/components/garmin-connection-card':control,
+    './health-chart':chart,'./health-cards':cards,'./health-sync-controls':await load('src/features/health/components/health-sync-controls.tsx'),'@/features/garmin/components/garmin-connection-card':control,
     'next/navigation':{useRouter:()=>({refresh(){}})}});
   const html=renderToStaticMarkup(React.createElement(ui.HealthDashboard,{data:{today:'2026-10-25',
-    dataset:dashboard.garminHealthDataset(synced.records,null),
+    dataset:dashboard.garminHealthDataset(synced.records,null),access:'connected',control:synced.control,
     connection:{available:true,canConnect:true,status:'connected',permissions:[],authorizedAt:null,checkedAt:null,expiresAt:null,error:null},
     sync:{state:'received',lastReceivedAt:null,lastProcessedAt:null}}}));
   check(html.includes('725')&&html.includes('Garmin measurements')&&!html.includes('Demo Data'),

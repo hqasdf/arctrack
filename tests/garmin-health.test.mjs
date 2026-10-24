@@ -309,22 +309,15 @@ test("activity calendar mapping uses the same Singapore day as the dashboard", (
   assert.equal(event.calendarDate, "2026-10-23");
 });
 
-test("owner reader uses authenticated RLS plus explicit owner filters, bounded window and safe columns", async () => {
+test("owner reader uses one authenticated RLS snapshot with an explicit owner and bounded window", async () => {
   const calls = [];
-  function query(table) {
-    const result = table === "garmin_health_records" ? { data: [], error: null } : { data: null, error: null };
-    const builder = { then: (accept) => Promise.resolve(result).then(accept) };
-    for (const method of ["select", "eq", "gte", "lte", "order", "limit", "maybeSingle"]) builder[method] = (...args) => { calls.push([table, method, ...args]); return builder; };
-    return builder;
-  }
+  const control = { generation: "test-generation", paused: false };
   const reader = await load("src/features/garmin/health/read.server.ts", {
-    "@/lib/supabase/server": { createAuthClient: async () => ({ from: query }) },
+    "@/lib/supabase/server": { createAuthClient: async () => ({ rpc: async (...args) => { calls.push(args); return { data: { records: [], sync: null, control }, error: null }; } }) },
     "@/features/health/model": model, "./config.server": { garminHealthEnabled: () => true },
   });
-  assert.deepEqual(await reader.readGarminHealth("verified-owner", "2026-10-23"), { records: [], sync: null, unavailable: false });
-  assert.equal(calls.filter((call) => call[1] === "eq" && call[2] === "user_id" && call[3] === "verified-owner").length, 2);
-  assert.ok(calls.some((call) => call[1] === "limit" && call[2] === 10000));
-  assert.doesNotMatch(calls.filter((call) => call[1] === "select").map((call) => call[2]).join(" "), /token|ciphertext|garmin_user_id|payload/);
+  assert.deepEqual(await reader.readGarminHealth("verified-owner", "2026-10-23"), { records: [], sync: null, control, unavailable: false });
+  assert.deepEqual(calls, [["read_garmin_health_dashboard", { p_user_id: "verified-owner", p_start: "2026-07-26", p_end: "2026-10-23" }]]);
 });
 
 test("reader feature-off performs no database query; storage failure returns unavailable without demo", async () => {
@@ -334,7 +327,7 @@ test("reader feature-off performs no database query; storage failure returns una
       "@/lib/supabase/server": { createAuthClient: async () => { calls++; throw new Error("private-detail"); } },
       "@/features/health/model": model, "./config.server": { garminHealthEnabled: () => enabled },
     });
-    assert.deepEqual(await reader.readGarminHealth("owner", "2026-10-23"), { records: [], sync: null, unavailable: enabled });
+    assert.deepEqual(await reader.readGarminHealth("owner", "2026-10-23"), { records: [], sync: null, control: null, unavailable: enabled });
     assert.equal(calls, enabled ? 1 : 0);
   }
 });

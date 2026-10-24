@@ -8,7 +8,7 @@ import { GarminError } from "./provider.server";
 const headers = { "Cache-Control": "private, no-store, max-age=0", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
 const failure = (status: number) => Response.json({ error: "Garmin connection unavailable. Please try again." }, { status, headers });
 const nonce = (value: string | null | undefined): value is string => typeof value === "string" && /^[A-Za-z0-9_-]{43}$/.test(value);
-function sameOrigin(request: Request, config: GarminConfig) {
+export function sameOrigin(request: Request, config: Pick<GarminConfig, "appOrigin">) {
   const origin = request.headers.get("origin"), site = request.headers.get("sec-fetch-site");
   // Arc Track's no-referrer policy makes native POST forms send Origin: null.
   // Accept that case only with the browser's forbidden-to-script same-origin
@@ -16,7 +16,7 @@ function sameOrigin(request: Request, config: GarminConfig) {
   return new URL(request.url).origin === config.appOrigin
     && (origin === config.appOrigin ? site !== "cross-site" : origin === "null" && site === "same-origin");
 }
-async function identity() {
+export async function identity() {
   try {
     const client = await createAuthClient({ writable: true });
     const { data, error } = await client.auth.getUser();
