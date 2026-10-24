@@ -34,7 +34,10 @@ const cards = await load("src/features/health/components/health-cards.tsx", {
   "../model": model, "@/components/ui/icon": icon,
   "next/link": { __esModule: true, default: (props) => React.createElement("a", props) },
 });
-const dashboardDeps = { "../model": model, "@/components/ui/icon": icon, "./health-cards": cards, "./health-chart": chart };
+const garminControl = await load("src/features/garmin/components/garmin-connection-card.tsx", {
+  "next/image": { __esModule: true, default: (props) => React.createElement("img", props) },
+});
+const dashboardDeps = { "@/features/garmin/components/garmin-connection-card": garminControl, "../model": model, "@/components/ui/icon": icon, "./health-cards": cards, "./health-chart": chart };
 const { HealthDashboard } = await load("src/features/health/components/health-dashboard.tsx", dashboardDeps);
 const connection = { available: false, canConnect: false, status: "disconnected", permissions: [], authorizedAt: null, checkedAt: "2026-10-23T02:00:00Z", expiresAt: null, error: null };
 const empty = { kind: "empty", days: [], activities: [], lastSyncedAt: null };
@@ -119,13 +122,24 @@ test("explicit local preview reads only the fixed fixture, not a user account or
 });
 
 test("all four connection states are honest and do not treat an OAuth check as health synchronization", () => {
-  for (const [overrides, expected] of [[{}, "New Garmin connections are currently unavailable"], [{ available: true, canConnect: true }, "Connect Garmin from Profile"], [{ status: "connected" }, "Health import is next"], [{ status: "reauthorization_required" }, "needs attention"]]) {
+  for (const [overrides, expected] of [[{}, "New Garmin connections are currently unavailable"], [{ available: true, canConnect: true }, "Use Connect Garmin above"], [{ status: "connected" }, "Health import is next"], [{ status: "reauthorization_required" }, "needs attention"]]) {
     const html = render(HealthDashboard, { data: data(empty, overrides) });
     assert.match(html, new RegExp(expected));
     assert.match(html, /No data available/);
     assert.doesNotMatch(html, /Last health sync:|7h 42m|8,432|Demo Data/);
     assert.match(html, /href="\/profile"/);
   }
+});
+
+test("Health header owns the one-click Garmin action and does not trust a success query", () => {
+  const disconnected = render(HealthDashboard, { data: data(empty, { available: true, canConnect: true }), garminNotice: "connected" });
+  assert.match(disconnected, /<header[\s\S]*action="\/api\/integrations\/garmin\/start"[\s\S]*<\/header>/);
+  assert.match(disconnected, /Connect Garmin/);
+  assert.doesNotMatch(disconnected, /Garmin Connected/);
+  const connected = render(HealthDashboard, { data: data(empty, { available: true, canConnect: true, status: "connected" }), garminNotice: "connected" });
+  assert.match(connected, /Garmin Connected/);
+  assert.doesNotMatch(connected, /action="\/api\/integrations\/garmin\/start"|Last health sync:/);
+  assert.match(connected, /Automatic health-data import has not been activated/);
 });
 
 test("future stored measurements expose only actual health freshness, not awaiting-import copy", () => {

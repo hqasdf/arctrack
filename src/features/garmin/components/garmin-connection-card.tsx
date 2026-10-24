@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Image from "next/image";
 import type { GarminView } from "../types";
-import styles from "@/features/profile/components/profile.module.css";
+import styles from "./garmin-connection.module.css";
 
 const notices: Record<string, string> = {
-  connected: "Your Garmin account is connected. Health and activity import is not enabled in this phase.",
   disconnected: "Garmin is disconnected and its saved connection credentials have been removed.",
   cancelled: "Garmin authorization was cancelled. Your previous connection, if any, was kept.",
   invalid_transaction: "This authorization link expired, was already used, or belongs to a different signed-in account. Start again.",
@@ -24,10 +24,7 @@ const notices: Record<string, string> = {
   reauthorization_required: "Garmin authorization is no longer valid. Connect again to grant access.",
   revocation_unconfirmed: "Disconnected from Arc Track and saved credentials removed. Garmin revocation could not be confirmed; review Arc Track’s app access in Garmin Connect as well.",
 };
-const labels = { disconnected: "Not Connected", connected: "Connected", connecting: "Connecting", disconnecting: "Disconnecting", reauthorization_required: "Reauthorization Required", error: "Connection Error" };
-const date = (value: string | null) => value ? new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Singapore" }).format(new Date(value)) + " SGT" : "—";
-
-export function GarminConnectionCard({ initialStatus, notice }: { initialStatus: GarminView; notice?: string }) {
+export function GarminConnectionCard({ initialStatus, notice, placement = "profile" }: { initialStatus: GarminView; notice?: string; placement?: "health" | "profile" }) {
   const [view, setView] = useState(initialStatus);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -53,36 +50,44 @@ export function GarminConnectionCard({ initialStatus, notice }: { initialStatus:
       const response = await fetch("/api/integrations/garmin/status", { cache: "no-store", signal: AbortSignal.timeout(45000) });
       if (!response.ok) throw new Error();
       setView(await response.json() as GarminView);
-    } catch { setError("Your Garmin connection status could not be refreshed. Please try again."); }
+    } catch {
+      setView(previous => ({ ...previous, status: "error" }));
+      setError("Your Garmin connection status could not be refreshed. Please try again.");
+    }
     finally { setPending(false); }
   }
   const working = view.status === "connecting" || view.status === "disconnecting" || view.error === "account_deletion_pending";
-  const confirmedNotice = notice && (notice !== "connected" || view.status === "connected")
+  const confirmedNotice = notice && notice !== "connected"
     && (notice !== "disconnected" || view.status === "disconnected")
     && (notice !== "revocation_unconfirmed" || view.error === "revocation_unconfirmed") ? notice : undefined;
-  return <section className={styles.card} aria-labelledby="garmin-heading">
-    <h2 id="garmin-heading">Garmin Connect</h2>
-    <p className={styles.hint}>Authorize Garmin health and activity access through Garmin’s consent screen. This phase links your account only; it does not import records or share health data with coaches.</p>
-    <dl className={styles.details}>
-      <div><dt>Connection status</dt><dd role="status">{pending ? "Updating…" : labels[view.status]}</dd></div>
-      {view.status === "connected" && <div><dt>Account</dt><dd>Your authorized Garmin account</dd></div>}
-      <div><dt>Last authorized</dt><dd>{date(view.authorizedAt)}</dd></div>
-      <div><dt>Last checked</dt><dd>{date(view.checkedAt)}</dd></div>
-      {view.permissions.length > 0 && <div><dt>Granted permissions</dt><dd>{view.permissions.join(", ")}</dd></div>}
-    </dl>
-    {!view.available && <p className={styles.hint}>Garmin connection is not available yet.</p>}
-    {confirmedNotice && notices[confirmedNotice] && <p className={confirmedNotice === "connected" || confirmedNotice === "disconnected" ? styles.success : styles.error} role="status">{notices[confirmedNotice]}</p>}
-    {view.error && notices[view.error] && <p className={styles.error} role="status">{notices[view.error]}</p>}
-    {error && <p className={styles.error} role="alert">{error}</p>}
-    <div className={styles.buttons}>
-      {view.canConnect && view.status !== "connected" && <form method="post" action="/api/integrations/garmin/start" onSubmit={submitting}>
-        <button className={styles.save} disabled={!view.available || pending || working}>{view.status === "reauthorization_required" ? "Reconnect Garmin" : "Connect Garmin"}</button>
-      </form>}
-      {view.available && <button type="button" className={styles.secondary} disabled={pending} onClick={() => void refresh()}>Refresh status</button>}
-      {view.available && view.status !== "disconnected" && <form method="post" action="/api/integrations/garmin/disconnect" onSubmit={submitting}>
-        <button className={styles.secondary} disabled={pending || working}>Disconnect Garmin</button>
-      </form>}
+  const message = error || (confirmedNotice && notices[confirmedNotice]) || (view.error && notices[view.error]);
+  const connected = view.available && view.status === "connected";
+  const reconnect = view.status === "reauthorization_required" || view.status === "error";
+  return <div className={styles.integration} data-garmin-connection aria-label="Garmin connection">
+    <div className={styles.row}>
+      {connected ? <span className={styles.connected} role="status"><span aria-hidden="true">✓</span>Garmin Connected</span>
+        : placement === "health" ? <form method="post" action="/api/integrations/garmin/start" onSubmit={submitting}>
+          <button className={styles.connect} disabled={!view.available || !view.canConnect || pending || working}>
+            <Image src="/garmin-connect.png" alt="" width={100} height={27} />
+            <span>{pending || working ? "Updating…" : !view.available || !view.canConnect ? "Garmin unavailable" : reconnect ? "Reconnect Garmin" : message ? "Try Again" : "Connect Garmin"}</span>
+          </button>
+        </form> : <a className={styles.link} href="/health">{reconnect ? "Reconnect Garmin" : "Connect Garmin"}<span aria-hidden="true"> ↗</span></a>}
     </div>
-    <p className={styles.hint}>After Garmin confirms disconnection, Arc Track removes its saved connection credentials. It does not delete your account or activity records in Garmin.</p>
-  </section>;
+    {message && <p className={styles.message} role={confirmedNotice === "disconnected" && !error ? "status" : "alert"}>{message}</p>}
+    <details className={styles.management}>
+      <summary>Manage connection</summary>
+      <div className={styles.managementBody}>
+        <p>Link your account through Garmin’s consent screen. Linking does not confirm health synchronization or share health data with coaches.</p>
+        <p><strong>Granted permissions:</strong> {view.permissions.length ? view.permissions.join(", ") : "No sharing permissions confirmed."}</p>
+        <div className={styles.buttons}>
+          {view.available && <button type="button" className={styles.secondary} disabled={pending} onClick={() => void refresh()}>Refresh status</button>}
+          {view.available && view.status !== "disconnected" && <form method="post" action="/api/integrations/garmin/disconnect" onSubmit={submitting}>
+            <button className={styles.secondary} disabled={pending || working}>Disconnect Garmin</button>
+          </form>}
+          <a className={styles.link} href="/privacy">Privacy policy</a>
+        </div>
+        <p>After Garmin confirms disconnection, Arc Track removes its saved connection credentials. It does not delete your account or activity records in Garmin.</p>
+      </div>
+    </details>
+  </div>;
 }

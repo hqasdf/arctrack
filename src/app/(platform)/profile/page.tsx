@@ -37,7 +37,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <div className={profileStyles.layout}>
         <div className={profileStyles.cards}>
           <AccountCard email={user.email ?? ""} pendingEmail={user.new_email ?? null} />
-          <GarminConnectionCard initialStatus={garmin} notice={typeof parameters.garmin === "string" ? parameters.garmin : undefined} />
+          <section className={profileStyles.card} aria-labelledby="connected-apps-heading">
+            <h2 id="connected-apps-heading">Connected apps</h2>
+            <GarminConnectionCard initialStatus={garmin} notice={typeof parameters.garmin === "string" ? parameters.garmin : undefined} />
+          </section>
           {profile ? <ProfileForm profile={profile} /> : (
             <p role="alert">Your profile could not be loaded. Please refresh the page to try again.</p>
           )}

@@ -13,7 +13,7 @@ export function ConnectionNotice({ data }: { data: HealthDashboardData }) {
   const messages = {
     connected: data.sync?.state === "waiting" ? ["Garmin connected. Waiting for the first measurements.", "No health measurements have been processed yet. Garmin account connection and health-data delivery are separate steps."] : ["Garmin is connected. Health import is next.", "Your account connection is ready. Automatic health-data import has not been activated; no measurements have been imported here."],
     unavailable: ["Your health overview, ready for what comes next.", "New Garmin connections are currently unavailable. Once connection and health import are available, your private measurements will appear here."],
-    disconnected: ["Bring your everyday health into focus.", "Connect Garmin from Profile to prepare your account. Health-data import is a separate step and is not available yet."],
+    disconnected: ["Bring your everyday health into focus.", "Use Connect Garmin above to link your account. Health-data import is a separate step and is not available yet."],
     attention: ["Your Garmin connection needs attention.", "Review your connection in Profile. No new health measurements are available here."],
   };
   return <aside className={styles.connectionNotice}><span className={styles.noticeIcon}><Icon name="heart" size={25} /></span><div><h2>{messages[state][0]}</h2><p>{messages[state][1]}</p><Link href="/profile">{state === "disconnected" ? "Open Garmin settings" : "View connection settings"} <span aria-hidden="true">↗</span></Link></div></aside>;

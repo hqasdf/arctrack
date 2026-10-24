@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { Icon } from "@/components/ui/icon";
-import { average, chartDays, connectionState, dateBefore, filterActivities, formatDay, formatMetric, METRICS, periodDays, supportsRange } from "../model";
+import { GarminConnectionCard } from "@/features/garmin/components/garmin-connection-card";
+import { average, chartDays, dateBefore, filterActivities, formatDay, formatMetric, METRICS, periodDays, supportsRange } from "../model";
 import type { HealthDashboardData } from "../types";
 import { ActivityList, ConnectionNotice, MetricCards, WellnessSummary } from "./health-cards";
 import { HealthChart } from "./health-chart";
 import styles from "./health.module.css";
 
-export function HealthDashboard({ data }: { data: HealthDashboardData }) {
+export function HealthDashboard({ data, garminNotice }: { data: HealthDashboardData; garminNotice?: string }) {
   const { dataset, connection } = data;
   const latestDate = dataset.days.map((day) => day.date).sort().at(-1) ?? data.today;
   const [view, setView] = useState<"Overview" | "Trends" | "Activities">("Overview");
@@ -21,9 +22,7 @@ export function HealthDashboard({ data }: { data: HealthDashboardData }) {
   const current = dataset.days.find((day) => day.date === end);
   const previous = dataset.days.find((day) => day.date === dateBefore(end, 1));
   const activities = filterActivities(dataset.activities, activityType, sort, end);
-  const state = connectionState(connection);
   const demo = dataset.kind === "demo";
-  const statusLabel = demo ? "Demo Data" : state === "connected" ? "Garmin connected" : state === "unavailable" ? "Garmin unavailable" : state === "attention" ? "Connection needs attention" : "Garmin not connected";
   function selectDate(value: string) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
     setEnd(value);
@@ -31,7 +30,7 @@ export function HealthDashboard({ data }: { data: HealthDashboardData }) {
   }
   return <div className={styles.dashboard} data-health-dashboard>
     <header className={styles.header}><div><span className={styles.eyebrow}>ARC TRACK · HEALTH</span><h1>Health Overview</h1><p>Track your recovery, sleep, activity and overall wellness alongside your archery training.</p></div>
-      <div className={styles.connectionStatus}><span className={styles.status} data-connected={!demo && state === "connected"}><i />{statusLabel}</span>{dataset.kind === "stored" && dataset.lastSyncedAt && <small>Last health sync: {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Singapore" }).format(new Date(dataset.lastSyncedAt))} SGT</small>}</div>
+      <div className={styles.connectionStatus}>{demo ? <span className={styles.status}>Demo Data</span> : <GarminConnectionCard initialStatus={connection} notice={garminNotice} placement="health" />}{dataset.kind === "stored" && dataset.lastSyncedAt && <small>Last health sync: {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Singapore" }).format(new Date(dataset.lastSyncedAt))} SGT</small>}</div>
     </header>
     <ConnectionNotice data={data} />
     <div className={styles.toolbar}><nav aria-label="Health views" className={styles.tabs}>{(["Overview", "Trends", "Activities"] as const).map((tab) => <button type="button" key={tab} aria-pressed={view === tab} onClick={() => setView(tab)}>{tab}</button>)}</nav><label className={styles.dateControl}>Through <input type="date" value={end} max={latestDate} onChange={(event) => selectDate(event.target.value)} aria-label="Health period ending date" /></label></div>
