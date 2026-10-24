@@ -23,7 +23,7 @@ new Function("require", "exports", compiled)(name => {
 test("Privacy Policy renders as public HTML without auth, cookies, user data or network reads", () => {
   const html = renderToStaticMarkup(React.createElement(pageExports.default));
   assert.match(html, /<h1>Privacy Policy<\/h1>/);
-  assert.match(html, /dateTime="2026-10-24"/);
+  assert.match(html, /dateTime="2026-10-25"/);
   assert.match(html, /Optional Garmin account connection/);
   assert.match(html, /encrypted access\/refresh credentials/);
   assert.match(html, /does not send Garmin-derived information to AI training or evaluation services/);
@@ -55,10 +55,12 @@ test("Privacy route stays outside auth proxy matching while signed-in routes rem
   assert.match(panel, /<Link href="\/privacy" prefetch={false}>Privacy Policy<\/Link>/);
 });
 
-test("Garmin Health disclosures describe the prepared service, processors, owner access and actual cleanup without invented retention", () => {
+test("Garmin Health disclosures describe optional production processing, owner access and cautious current retention", () => {
   const html=renderToStaticMarkup(React.createElement(pageExports.default));
-  for(const text of ["Cloudflare","Body Battery","sleep stages","private Health Dashboard","90-day reading window","pending or quarantined","successfully confirmed Garmin disconnect","Collection remains disabled","Delete Health Data","Resume Health Sync","original Garmin account","Backup"])assert.ok(html.includes(text),text);
+  for(const text of ["Cloudflare","Body Battery","sleep stages","private Health Dashboard","90-day reading window","pending or quarantined","successfully confirmed Garmin disconnect","Delete Health Data","Resume Health Sync","original Garmin account","backups","approximately one hour","Supabase Free","managed automatic daily","applicable privacy rights"])assert.ok(html.includes(text),text);
   assert.doesNotMatch(html,/This phase connects accounts only|Future health-data synchronization would require/);
-  assert.match(html,/Automatic Garmin Health and Activity synchronization is not currently active/);
+  assert.doesNotMatch(html,/not currently active|Collection remains disabled|to be confirmed before publication|Publication details awaiting confirmation/);
+  assert.match(html,/Application-level Worker logging, invocation logging and traces are disabled/);
+  assert.match(html,/does not necessarily immediately remove information/);
   assert.match(html,/href="#garmin"/);
 });
