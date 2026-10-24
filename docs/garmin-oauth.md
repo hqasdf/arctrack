@@ -4,19 +4,23 @@ Controlled activation, backup/rollback, administrator recovery and real-account
 test sequence: [garmin-live-testing.md](./garmin-live-testing.md).
 Retention decisions awaiting owner review: [garmin-retention-review.md](./garmin-retention-review.md).
 
-New authorization is disabled unless `GARMIN_CONNECT_ENABLED=true` and the verified
-user UUID is in server-only `GARMIN_TEST_USER_IDS`. Start and Callback check this
-on the server. Keep provider configuration and keys when disabling new connections:
+New authorization is disabled unless `GARMIN_CONNECT_ENABLED=true` and provider
+configuration is valid. All authenticated Arc Track users are eligible; no test-user
+list is required. Start and Callback verify the Supabase identity and enforce the
+master switch on the server. Keep provider configuration and keys when disabling new connections:
 existing status/refresh, Disconnect and account deletion remain available to owners.
 
 This is website-only account authorization, not health/activity synchronization.
 Production update, 23 October 2026: both reviewed migrations were applied and
 verified on project `pdwxphgyqbbflnrruobp`, under original versions
 `20261023074736` and `20261023082837`. Do not reapply them. The website integration
-has not been deployed, no Garmin credentials or rollout variables are configured
-in Vercel, and no real Garmin authorization has occurred. The initial website
-release must explicitly set `GARMIN_CONNECT_ENABLED=false` through a separately
-approved Production configuration change. See [garmin-disabled-release.md](./garmin-disabled-release.md).
+was subsequently deployed at `0f5538720061f6d630f716014ce959592c14794b`.
+Read-only checks on 24 October confirmed the production callback and APP_URL,
+configured credential names and `GARMIN_CONNECT_ENABLED=true`. The earlier code
+still required a test-user list, which denied all new connections when absent.
+The approved public account-linking release removes that restriction; see
+[garmin-public-release.md](./garmin-public-release.md). Real consent remains
+unverified. Health ingestion is a separate disabled capability, not an OAuth result.
 
 ## Protocol and implementation
 

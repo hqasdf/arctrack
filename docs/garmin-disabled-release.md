@@ -1,5 +1,9 @@
 # Garmin website release — connections disabled
 
+Historical preparation record. For the subsequent public OAuth release approved
+on 24 October 2026, see [garmin-public-release.md](./garmin-public-release.md).
+The temporary OAuth test-user restriction described below has been removed.
+
 Prepared 23 October 2026. Local preparation only: no commit, push, deployment or
 Vercel setting change is authorized by this document.
 

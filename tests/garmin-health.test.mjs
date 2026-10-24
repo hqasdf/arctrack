@@ -215,10 +215,13 @@ test("worker requires its own server credential and never uses a browser session
   assert.deepEqual(calls, [[["approved"], 50]]);
 });
 
-test("existing OAuth allowlist is reused and an empty list does not widen ingestion", async () => {
-  const config = await load("src/features/garmin/health/config.server.ts", { "../config.server": { mayConnectGarmin: (id) => id === "approved" } }, { process: { env: { GARMIN_HEALTH_ENABLED: "true", GARMIN_TEST_USER_IDS: "approved,other,approved" } } });
-  assert.equal(config.garminHealthEnabled(), true);
-  assert.deepEqual(config.garminHealthTestUsers(), ["approved"]);
+test("public OAuth and even an accidental Health flag cannot authorize the unapproved ingestion cohort", async () => {
+  const config = await load("src/features/garmin/health/config.server.ts", {}, { process: { env: {
+    GARMIN_CONNECT_ENABLED: "true", GARMIN_HEALTH_ENABLED: "true", GARMIN_TEST_USER_IDS: "approved,other",
+  } } });
+  assert.equal(config.garminHealthEnabled(), false);
+  assert.deepEqual(config.garminHealthTestUsers(), []);
+  assert.equal(http.configuredGarminNotificationVerifier(), null);
 });
 
 function record(kind, metrics, overrides = {}) {

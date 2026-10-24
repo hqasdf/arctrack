@@ -127,7 +127,7 @@ enable an unsupported trend range.
 
 Staging maps the provider ID through the existing unique Garmin connection. It
 does not accept an Arc Track owner ID from the request. Both staging and processing
-check the server allowlist, connected state, operation/deletion fence and relevant
+check the server-supplied ingestion cohort, connected state, operation/deletion fence and relevant
 effective export permission. Connection-row locks serialize with existing
 disconnect/deletion operations. Receipts bind to `authorized_at`, not the transient
 OAuth refresh lease version; a new authorization invalidates prior pending work.
@@ -173,11 +173,12 @@ an AI consumer nor a telemetry export of health payloads.
 - `GARMIN_HEALTH_ENABLED=false` is the default; no health queries or ingestion
   occur while disabled. `.env.example` alone is updated; real environments were
   not changed. Enabling without the verifier still cannot activate the receiver.
-- Existing `GARMIN_CONNECT_ENABLED` and strictly validated `GARMIN_TEST_USER_IDS`
-  gate staging/worker eligibility through the existing OAuth allowlist helper.
-  Empty/malformed lists deny all; there is no wildcard or client-controlled list.
-  Turning new Connect off also stops health worker eligibility in this initial
-  controlled rollout; existing cleanup remains independent.
+- Public OAuth does not authorize ingestion. The former shared OAuth test-user
+  list is removed. The configured ingestion cohort is deliberately empty, so the
+  Health reader/receiver/worker remain disabled even if the Health flag is set.
+  The provider verifier also remains null. Future ingestion requires a separately
+  reviewed sender contract and activation change; ordinary account linking cannot
+  silently activate health processing. Existing cleanup remains independent.
 - `CRON_SECRET`: an approved server-only scheduler credential, at least 32
   characters. Do not reuse/rotate provider credentials or encryption keys.
 - Existing Supabase server secret remains server-only. Existing token encryption

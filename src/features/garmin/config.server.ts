@@ -5,10 +5,9 @@ export const GARMIN_CALLBACK_PATH = "/api/integrations/garmin/callback";
 // Only new authorization is gated. Keep provider configuration available for cleanup.
 export function mayConnectGarmin(userId: string): boolean {
   if (process.env.GARMIN_CONNECT_ENABLED !== "true") return false;
-  const ids = (process.env.GARMIN_TEST_USER_IDS ?? "").split(",").map(value => value.trim());
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!ids.length || ids.some(value => !uuid.test(value))) return false;
-  return uuid.test(userId) && ids.some(id => id.toLowerCase() === userId.toLowerCase());
+  // The caller supplies the verified Supabase identity, never a submitted user ID.
+  return uuid.test(userId);
 }
 export type GarminConfig = {
   clientId: string; clientSecret: string; redirectUri: string; appOrigin: string;

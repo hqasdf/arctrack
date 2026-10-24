@@ -135,19 +135,21 @@ test("Garmin PKCE uses the RFC 7636 S256 vector and unpredictable URL-safe value
   assert.notEqual(crypto.oauthNonce(), crypto.oauthNonce());
 });
 
-test("rollout is disabled by default and requires an exact enabled switch plus a valid UUID allowlist", async () => {
+test("public Connect requires the exact enabled switch and accepts every verified Supabase UUID", async () => {
   const env = {}, id = "11111111-1111-4111-8111-111111111111";
   const loaded = await load("src/features/garmin/config.server.ts", { "@/lib/auth/config": { getAuthConfig: () => null } }, { process: { env } });
   assert.equal(loaded.mayConnectGarmin(id), false);
   env.GARMIN_CONNECT_ENABLED = "true";
-  for (const list of ["", "*", `${id},bad`, `${id},`]) {
-    env.GARMIN_TEST_USER_IDS = list; assert.equal(loaded.mayConnectGarmin(id), false);
+  for (const list of [undefined, "", "*", `${id},bad`, `${id},`]) {
+    env.GARMIN_TEST_USER_IDS = list;
+    assert.equal(loaded.mayConnectGarmin(id), true);
+    assert.equal(loaded.mayConnectGarmin("22222222-2222-4222-8222-222222222222"), true);
   }
-  env.GARMIN_TEST_USER_IDS = id;
-  assert.equal(loaded.mayConnectGarmin(id), true);
-  assert.equal(loaded.mayConnectGarmin("22222222-2222-4222-8222-222222222222"), false);
-  env.GARMIN_CONNECT_ENABLED = "TRUE";
-  assert.equal(loaded.mayConnectGarmin(id), false);
+  for (const invalid of ["", "athlete-a", "*", "user@example.com"]) assert.equal(loaded.mayConnectGarmin(invalid), false);
+  for (const disabled of ["TRUE", "false", "1", " true ", undefined]) {
+    env.GARMIN_CONNECT_ENABLED = disabled;
+    assert.equal(loaded.mayConnectGarmin(id), false);
+  }
 });
 
 test("removed eligibility blocks pending callback before token exchange while cleanup remains available", async () => {
@@ -597,7 +599,7 @@ test("Garmin accepted-but-pending deregistration is not treated as completed", a
   await assert.rejects(provider.revoke("test-token"), { code: "provider_response" });
 });
 
-async function httpFixture() {
+async function httpFixture(eligible = () => true) {
   const state = { userId: "athlete-a", configured: true, allowed: true, cookie: crypto.oauthNonce(), written: [], calls: [] };
   const service = {
     async start(userId) { state.calls.push(["start", userId]); return { url: "https://connect.garmin.com/oauth2Confirm?state=test", binding: crypto.oauthNonce() }; },
@@ -609,7 +611,7 @@ async function httpFixture() {
     "next/headers": { cookies: async () => ({ get: () => state.cookie ? { value: state.cookie } : undefined,
       set: (...args) => state.written.push(args) }) },
     "@/lib/supabase/server": { createAuthClient: async () => ({ auth: { getUser: async () => ({ data: { user: state.userId ? { id: state.userId } : null }, error: null }) } }) },
-    "./config.server": { getGarminConfig: () => state.configured ? config : null, mayConnectGarmin: () => state.allowed },
+    "./config.server": { getGarminConfig: () => state.configured ? config : null, mayConnectGarmin: (id) => state.allowed && eligible(id) },
     "./service.server": { configuredGarminService: () => state.configured ? service : null }, "./provider.server": providerModule,
   });
   const post = (path, origin = config.appOrigin, headers = {}) => new Request(`${config.appOrigin}/api/integrations/garmin/${path}`, {
@@ -618,6 +620,24 @@ async function httpFixture() {
   const callback = extra => new Request(`${config.redirectUri}?state=${crypto.oauthNonce()}&code=test-code${extra ?? ""}`);
   return { state, service, handlers, post, callback };
 }
+
+test("public OAuth Start and Callback accept different authenticated owners without a test-user list", async () => {
+  const env = { GARMIN_CONNECT_ENABLED: "true" };
+  const eligibility = await load("src/features/garmin/config.server.ts", { "@/lib/auth/config": { getAuthConfig: () => null } }, { process: { env } });
+  for (const id of ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"]) {
+    const f = await httpFixture(eligibility.mayConnectGarmin);
+    f.state.userId = id;
+    assert.equal((await f.handlers.garminStart(f.post("start"))).status, 303);
+    assert.deepEqual(f.state.calls.at(-1), ["start", id]);
+    assert.equal((await f.handlers.garminCallback(f.callback())).headers.get("Location"), `${config.appOrigin}/profile?garmin=connected`);
+    assert.equal(f.state.calls.at(-1)[1], id);
+    f.state.userId = null;
+    const calls = f.state.calls.length;
+    assert.equal((await f.handlers.garminStart(f.post("start"))).status, 401);
+    assert.match((await f.handlers.garminCallback(f.callback())).headers.get("Location"), /garmin=sign_in_required$/);
+    assert.equal(f.state.calls.length, calls);
+  }
+});
 
 test("direct start and pending callback API attempts fail closed when eligibility is removed; disconnect is ungated", async () => {
   const f = await httpFixture(); f.state.allowed = false;
