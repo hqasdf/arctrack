@@ -73,7 +73,10 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
           </button>
         </form> : <a className={styles.link} href="/health">{reconnect ? "Reconnect Garmin" : "Connect Garmin"}<span aria-hidden="true"> ↗</span></a>}
     </div>
+<<<<<<< HEAD
     {placement === "health" && !connected && <p className={styles.privacyNotice}>Your Garmin data stays private to you. <a href="/privacy#garmin">Garmin privacy details</a></p>}
+=======
+>>>>>>> f021ef8ba002fe90f6810bd7fb86d3c0de4a8357
     {message && <p className={styles.message} role={confirmedNotice === "disconnected" && !error ? "status" : "alert"}>{message}</p>}
     <details className={styles.management}>
       <summary>Manage connection</summary>
