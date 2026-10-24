@@ -1,5 +1,70 @@
 # Release B Cloudflare hosted validation — 24 October 2026
 
+## Production ingress setup completed — later on 24 October 2026
+
+This section supersedes the historical test-only infrastructure and pending
+database statements below. Automatic synchronization is still NOT active.
+
+- Permanent production Worker: `arctrack-garmin-ingress`.
+- HTTPS origin: `https://arctrack-garmin-ingress.wonghanqian123456.workers.dev`.
+  The account has no managed DNS zones, so the authorized workers.dev fallback is
+  used. `workers_dev=true`, `preview_urls=false`; no domain or plan was purchased.
+- Final deployment: `40f58fb0-c65a-42f9-8bd2-b9a192a31733`.
+- Active version: `5d9ebc77-febe-4271-b656-48b5344c3318`, 100%.
+- Final remote `INGRESS_ENABLED=false`, independently checked after hosted tests.
+- SQLite Durable Object: `LIMITS` / `GarminIngressLimits`, migration `v1`.
+  SQLite-backed Durable Objects are supported on Workers Free; no upgrade was
+  performed. Account billing-plan status was not independently established.
+- Two independent random 32-byte credentials were created and stored in
+  Cloudflare secret bindings. No existing production credentials were replaced.
+  The same forwarding credential was saved through stdin to the existing
+  Vercel project's Production `GARMIN_HEALTH_INGRESS_KEY` as a Secret. Its presence
+  and sensitive type were independently confirmed. No Vercel redeployment was
+  performed: the running website has NOT been proven to receive the new value.
+  Configuration pairing is complete; active end-to-end pairing remains untested.
+- Recovery material is encrypted using current-user Windows DPAPI in ignored
+  `.verification/cloudflare-production/credentials.dpapi`. Preserve this encrypted
+  file and the Windows profile. Neither the callback URL nor either credential
+  belongs in Git, shell output, screenshots, logs, or this document.
+
+Fresh validation: **15 production-hosted checks passed**, **14 local ingress tests
+passed**, and **443 website tests passed**, zero failures. Changed-test ESLint and
+`git diff --check` passed. Wrangler compiled and deployed the real production
+module successfully. Hosted checks briefly enabled only the Worker validation
+layer, used malformed JSON/oversized requests to exercise authentication and the
+real Durable Object rate limit without forwarding payloads, then restored and
+verified disabled ingress. No real or synthetic Health measurements entered
+production. The test Worker remains separately enabled in synthetic-only mode;
+its bindings were not changed or deleted, and its endpoint remains reachable.
+
+Configuration disables observability, invocation logs, traces, Logpush and Tail
+consumers. Remote settings confirm Logpush=false and no Tail consumers. This does
+not establish provider-internal retention or prevent a privileged operator from
+later enabling live Tail. No secret-bearing URL was printed during verification.
+The existing production module still forwards only to its fixed Vercel endpoint,
+stripping caller URL/headers; local regression tests cover this behavior. Actual
+production forwarding authentication and genuine Garmin delivery remain untested.
+
+Remaining activation: deploy the approved website with the paired Production
+secret, verify the protected fixed receiver, complete privacy/pilot gates, prepare
+the independently authenticated scheduler/Vault entry without running it early,
+and have the account owner enter the protected callback directly into Garmin API
+Tools after separate approval. No Garmin portal setting was changed or verified
+in this execution. The two Health migrations are now applied under original
+versions `20261023155612` and `20261024104429`; no database write occurred as part
+of this Cloudflare task. No recurring worker or real synchronization was enabled.
+
+For credential rotation, keep ingress disabled and independently verify 503
+first. Generate replacement independent credentials in memory, protect recovery
+material before upload, update Cloudflare secret bindings and the corresponding
+Vercel Production Secret through stdin, and deploy the website only when approved.
+Update Garmin's stored callback directly if rotating the endpoint credential.
+Verify pairing and old/new capability behavior under controlled guards before
+separately approving activation. If recovery material is unavailable, rotate
+while disabled rather than attempting to recover secret values from provider logs.
+
+## Historical isolated-test execution
+
 This is the current continuation of `garmin-phase-b-implementation.md`. Its
 local-only validation section is historical: an isolated Cloudflare test Worker
 has now been deployed and exercised. Production Release A is unchanged.

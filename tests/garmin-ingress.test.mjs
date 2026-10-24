@@ -90,7 +90,8 @@ test('the shared unauthenticated attempt budget also applies across instances',a
 test('checked-in Cloudflare configuration disables URL-bearing routine observability and activation',async()=>{
   const c=JSON.parse(await readFile(new URL('../infra/garmin-ingress/wrangler.jsonc',import.meta.url),'utf8'));
   assert.equal(c.observability.logs.invocation_logs,false);assert.equal(c.observability.traces.enabled,false);assert.equal(c.observability.enabled,false);
-  assert.deepEqual(c.tail_consumers,[]);assert.equal(c.logpush,false);assert.equal(c.vars.INGRESS_ENABLED,'false');assert.equal(c.workers_dev,false);
+  assert.deepEqual(c.tail_consumers,[]);assert.equal(c.logpush,false);assert.equal(c.vars.INGRESS_ENABLED,'false');assert.equal(c.workers_dev,true);assert.equal(c.preview_urls,false);
+  assert.equal(c.name,'arctrack-garmin-ingress');assert.equal(c.main,'worker.mjs');
 });
 test('application configuration requires independent keys, explicit readiness and a strict pilot cohort',async()=>{
   const env={};const c=await load('src/features/garmin/health/config.server.ts',{});
