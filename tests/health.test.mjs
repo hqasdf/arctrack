@@ -47,6 +47,36 @@ const data = (dataset = empty, overrides = {}) => {
 };
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props));
 
+test("Sleep overview shows official score, quality, stages and a cross-midnight Singapore window", () => {
+  const day = { ...fixture.createHealthFixture().days.at(-1), sleepScore: 87, sleepScoreQualifier: "GOOD",
+    sleepStartedAt: "2026-10-24T15:00:00Z", sleepEndedAt: "2026-10-24T23:00:00Z", sleepValidation: "ENHANCED_FINAL" };
+  const html = render(cards.SleepDetails, { day });
+  for (const label of ["Garmin Sleep Score", "87", "/ 100", "Good", "Light", "Deep", "REM", "Awake", "24 Oct", "25 Oct", "SGT"]) assert.ok(html.includes(label), label);
+  const dataset = { ...fixture.createHealthFixture(), days: [day] };
+  assert.match(render(HealthDashboard, { data: data(dataset) }), /Garmin Sleep Score trend/);
+});
+
+test("Sleep overview preserves empty and unavailable score/stage states without fake values", () => {
+  const missing = render(cards.SleepDetails, {});
+  assert.match(missing, /No data available/);
+  assert.match(missing, /watch syncs with Garmin Connect/);
+  assert.match(missing, /Unavailable/);
+  const day = { ...fixture.createHealthFixture().days.at(-1), sleepStages: null, sleepScore: null, sleepValidation: "ENHANCED_TENTATIVE" };
+  const html = render(cards.SleepDetails, { day });
+  assert.match(html, /Preliminary Garmin sleep analysis/);
+  assert.match(html, /Sleep stages unavailable/);
+  assert.doesNotMatch(html, /<dt>REM/);
+  assert.match(html, /did not provide a Sleep Score/);
+});
+
+test("Sleep Score trend uses the official 0-100 scale and keeps missing days as gaps", () => {
+  const days = model.chartDays([{ ...fixture.createHealthFixture().days.at(-1), sleepScore: 87 }], "2026-10-23", 7);
+  assert.equal(days[0].sleepScore, null);
+  const html = render(chart.HealthChart, { days, metric: "sleepScore", label: "Garmin Sleep Score", tone: "lavender" });
+  assert.match(html, /87\/100/);
+  assert.match(html, />100<\/text>/);
+});
+
 test("Health route verifies the signed-in owner and ignores obsolete preview parameters", async () => {
   const calls = [];
   const page = await load("src/app/(platform)/health/page.tsx", {
@@ -347,4 +377,24 @@ test("server Health refresh updates the connection control identity while retain
   const refreshed=findControl(ui.HealthDashboard({data:data(empty,{status:"connected",expiresAt:"2026-10-24T12:00:00Z"})}));
   assert.notEqual(first.key,refreshed.key);assert.equal(refreshed.props.initialStatus.status,"connected");
   assert.equal(state[2],"Trends");assert.equal(state[3],"2026-10-20");
+});
+
+test("automatic Health refresh follows new sleep dates until the user selects a date", async () => {
+  let cursor = 0;
+  const state = [null, null, "Overview", null, 7, "all", "newest"];
+  const ui = await load("src/features/health/components/health-dashboard.tsx", { ...dashboardDeps,
+    react: { ...React, useCallback: fn => fn, useEffect: () => {}, useState: () => [state[cursor++], () => {}] } });
+  const base = fixture.createHealthFixture();
+  function dateInput(node) {
+    if (!node || typeof node !== "object") return null;
+    if (node.type === "input" && node.props.type === "date") return node;
+    for (const child of React.Children.toArray(node.props?.children)) { const found = dateInput(child); if (found) return found; }
+    return null;
+  }
+  assert.equal(dateInput(ui.HealthDashboard({ data: data(base) })).props.value, "2026-10-23");
+  const refreshed = { ...base, days: [...base.days, { ...base.days.at(-1), date: "2026-10-24", sleepScore: 87 }] };
+  cursor = 0;
+  assert.equal(dateInput(ui.HealthDashboard({ data: data(refreshed) })).props.value, "2026-10-24");
+  state[3] = "2026-10-20"; cursor = 0;
+  assert.equal(dateInput(ui.HealthDashboard({ data: data(refreshed) })).props.value, "2026-10-20");
 });

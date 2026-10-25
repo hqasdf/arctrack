@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/icon";
 import { GarminConnectionCard } from "@/features/garmin/components/garmin-connection-card";
 import { average, chartDays, dateBefore, filterActivities, formatDay, formatMetric, METRICS, periodDays, supportsRange } from "../model";
 import type { HealthDashboardData } from "../types";
-import { ActivityList, ConnectionNotice, MetricCards, WellnessSummary } from "./health-cards";
+import { ActivityList, ConnectionNotice, MetricCards, SleepDetails, WellnessSummary } from "./health-cards";
 import { HealthChart } from "./health-chart";
 import { HealthSyncControls } from "./health-sync-controls";
 import type { GarminHealthControl } from "@/features/garmin/health/types";
@@ -41,7 +41,9 @@ export function HealthDashboard({ data, garminNotice }: { data: HealthDashboardD
   const { connection } = data;
   const latestDate = dataset.days.map((day) => day.date).sort().at(-1) ?? data.today;
   const [view, setView] = useState<"Overview" | "Trends" | "Activities">("Overview");
-  const [end, setEnd] = useState(latestDate);
+  // Follow newly imported dates until the user explicitly selects a date.
+  const [selectedEnd, setEnd] = useState<string | null>(null);
+  const end = selectedEnd ?? latestDate;
   const [range, setRange] = useState<7 | 30 | 90>(7);
   const [activityType, setActivityType] = useState("all");
   const [sort, setSort] = useState<"newest" | "oldest" | "duration">("newest");
@@ -80,7 +82,7 @@ export function HealthDashboard({ data, garminNotice }: { data: HealthDashboardD
       <div className={styles.sectionHeading}><h2>Your daily snapshot</h2><span>{formatDay(end)}</span></div>
       <MetricCards current={current} previous={previous} />
       <div className={styles.chartGrid}>
-        <section className={styles.card}><div className={styles.cardHeading}><span className={styles.cardIcon} data-tone="lavender"><Icon name="moon" /></span><h2>Sleep</h2><span>7 days</span></div><p className={styles.chartValue}>{formatMetric("sleepMinutes", current?.sleepMinutes ?? null)}<small>Average {formatMetric("sleepMinutes", average(selectedDays, "sleepMinutes"))}</small></p><HealthChart days={week} metric="sleepMinutes" label="Sleep" tone="lavender" stacked /></section>
+        <section className={styles.card}><div className={styles.cardHeading}><span className={styles.cardIcon} data-tone="lavender"><Icon name="moon" /></span><h2>Sleep</h2><span>7 days</span></div><p className={styles.chartValue}>{formatMetric("sleepMinutes", current?.sleepMinutes ?? null)}<small>Average {formatMetric("sleepMinutes", average(selectedDays, "sleepMinutes"))}</small></p><SleepDetails day={current} /><HealthChart days={week} metric="sleepMinutes" label="Sleep" tone="lavender" stacked />{selectedDays.some(day => day.sleepScore != null) && <details className={styles.sleepTrend}><summary>Garmin Sleep Score trend</summary><HealthChart days={week} metric="sleepScore" label="Garmin Sleep Score" tone="lavender" /></details>}</section>
         <section className={styles.card}><div className={styles.cardHeading}><span className={styles.cardIcon} data-tone="coral"><Icon name="heart" /></span><h2>Resting heart rate</h2><span>7 days</span></div><p className={styles.chartValue}>{formatMetric("restingHeartRate", current?.restingHeartRate ?? null)}<small>bpm · Average {formatMetric("restingHeartRate", average(selectedDays, "restingHeartRate"))}</small></p><HealthChart days={week} metric="restingHeartRate" label="Resting heart rate" tone="coral" /></section>
         <section className={styles.card}><div className={styles.cardHeading}><span className={styles.cardIcon} data-tone="blue"><Icon name="activity" /></span><h2>Activity</h2><span>7 days</span></div><p className={styles.chartValue}>{formatMetric("activityMinutes", current?.activityMinutes ?? null)}<small>min on selected day · {selectedDays.some((day) => day.activityMinutes !== null) ? `${selectedDays.reduce((sum, day) => sum + (day.activityMinutes ?? 0), 0)} recorded min over 7 days` : "Weekly total unavailable"}</small></p><HealthChart days={week} metric="activityMinutes" label="Activity minutes" tone="blue" /></section>
       </div>

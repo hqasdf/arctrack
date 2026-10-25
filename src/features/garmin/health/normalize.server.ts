@@ -62,9 +62,17 @@ export function normalizeGarminPush(input: unknown): GarminHealthEvent[] {
             stress: row.averageStressLevel === -1 ? null : optional(row, "averageStressLevel", 100, 1),
             activeSeconds: optional(row, "activeTimeInSeconds", durationInSeconds) };
         } else if (kind === "sleeps") {
+          const score = row.overallSleepScore && typeof row.overallSleepScore === "object" && !Array.isArray(row.overallSleepScore)
+            ? row.overallSleepScore as Record<string, unknown> : {};
+          const scoreValue = typeof score.value === "number" && Number.isInteger(score.value) && score.value >= 0 && score.value <= 100 ? score.value : null;
+          const qualifier = typeof score.qualifierKey === "string" && ["EXCELLENT", "GOOD", "FAIR", "POOR"].includes(score.qualifierKey) ? score.qualifierKey : null;
+          const awake = optional(row, "awakeDurationInSeconds", 172800);
           values = { sleepSeconds: durationInSeconds, lightSeconds: optional(row, "lightSleepDurationInSeconds", 172800),
             deepSeconds: optional(row, "deepSleepDurationInSeconds", 172800), remSeconds: optional(row, "remSleepInSeconds", 172800),
-            awakeSeconds: optional(row, "awakeDurationInSeconds", 172800) };
+            awakeSeconds: awake, sleepScore: scoreValue, sleepScoreQualifier: scoreValue === null ? null : qualifier,
+            sleepValidation: typeof row.validation === "string" && /^[A-Z_]{1,64}$/.test(row.validation) ? row.validation : null,
+            // Garmin duration excludes awake time. Do not invent an end if awake is missing.
+            sleepEndSeconds: awake === null ? null : startTimeInSeconds + durationInSeconds + awake };
         } else if (kind === "stressDetails") {
           let latest: number | null = null, latestOffset = -1;
           if (row.timeOffsetBodyBatteryValues != null) {

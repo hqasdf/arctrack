@@ -29,7 +29,7 @@ export function chartDays(days: HealthDay[], end: string, count: number): Health
   const byDate = new Map(days.map((day) => [day.date, day]));
   return Array.from({ length: count }, (_, index) => {
     const date = dateBefore(end, count - index - 1);
-    return byDate.get(date) ?? { date, sleepMinutes: null, sleepStages: null, restingHeartRate: null, stress: null, steps: null, bodyBattery: null, activityMinutes: null };
+    return byDate.get(date) ?? { date, sleepMinutes: null, sleepStages: null, sleepScore: null, sleepScoreQualifier: null, sleepStartedAt: null, sleepEndedAt: null, sleepValidation: null, sleepAwakeMinutes: null, restingHeartRate: null, stress: null, steps: null, bodyBattery: null, activityMinutes: null };
   });
 }
 

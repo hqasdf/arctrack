@@ -23,6 +23,7 @@ export function garminHealthDataset(records: GarminHealthRecord[], lastProcessed
   }
   for (const row of chosen.values()) {
     const day = days.get(row.calendar_date) ?? { date: row.calendar_date, sleepMinutes: null, sleepStages: null,
+      sleepScore: null, sleepScoreQualifier: null, sleepStartedAt: null, sleepEndedAt: null, sleepValidation: null, sleepAwakeMinutes: null,
       restingHeartRate: null, stress: null, steps: null, bodyBattery: null, activityMinutes: null };
     const values = row.metrics;
     if (row.kind === "dailies") {
@@ -32,6 +33,12 @@ export function garminHealthDataset(records: GarminHealthRecord[], lastProcessed
       day.activityMinutes = values.activeSeconds == null ? null : values.activeSeconds / 60;
     } else if (row.kind === "sleeps") {
       day.sleepMinutes = values.sleepSeconds == null ? null : values.sleepSeconds / 60;
+      day.sleepScore = values.sleepScore ?? null;
+      day.sleepScoreQualifier = values.sleepScoreQualifier ?? null;
+      day.sleepStartedAt = new Date(row.start_seconds * 1000).toISOString();
+      day.sleepEndedAt = values.sleepEndSeconds == null ? null : new Date(values.sleepEndSeconds * 1000).toISOString();
+      day.sleepValidation = values.sleepValidation ?? null;
+      day.sleepAwakeMinutes = values.awakeSeconds == null ? null : values.awakeSeconds / 60;
       const { lightSeconds: light, deepSeconds: deep, remSeconds: rem, awakeSeconds: awake } = values;
       // The existing chart has no unknown-stage segment. Do not stretch known
       // stages over unmeasured sleep or turn an absent stage into zero.
@@ -45,7 +52,7 @@ export function garminHealthDataset(records: GarminHealthRecord[], lastProcessed
   activities.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   for (const activity of activities) {
     const date = singaporeDate(new Date(activity.startedAt));
-    if (!days.has(date)) days.set(date, { date, sleepMinutes: null, sleepStages: null, restingHeartRate: null, stress: null, steps: null, bodyBattery: null, activityMinutes: null });
+    if (!days.has(date)) days.set(date, { date, sleepMinutes: null, sleepStages: null, sleepScore: null, sleepScoreQualifier: null, sleepStartedAt: null, sleepEndedAt: null, sleepValidation: null, sleepAwakeMinutes: null, restingHeartRate: null, stress: null, steps: null, bodyBattery: null, activityMinutes: null });
   }
   return { kind: records.length ? "stored" : "empty", days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)), activities, lastSyncedAt: records.length ? lastProcessedAt : null };
 }

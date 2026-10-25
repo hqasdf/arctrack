@@ -63,7 +63,59 @@ test("missing metrics remain null and legitimate zero steps/active duration are 
 test("sleep duration and known stages retain original seconds and missing REM stays missing", () => {
   const base = daily({ durationInSeconds: 27000, deepSleepDurationInSeconds: 5000, lightSleepDurationInSeconds: 22000, awakeDurationInSeconds: 600 });
   const [event] = normalizeGarminPush({ sleeps: [base] });
-  assert.deepEqual(event.values, { sleepSeconds: 27000, lightSeconds: 22000, deepSeconds: 5000, remSeconds: null, awakeSeconds: 600 });
+  assert.deepEqual(event.values, { sleepSeconds: 27000, lightSeconds: 22000, deepSeconds: 5000, remSeconds: null, awakeSeconds: 600,
+    sleepScore: null, sleepScoreQualifier: null, sleepValidation: null, sleepEndSeconds: base.startTimeInSeconds + 27600 });
+});
+
+test("official sleep score and qualifier survive normalization, storage projection and calendar attribution", () => {
+  const start = Date.parse("2026-10-24T15:00:00Z") / 1000; // 23:00 SGT, ends the next morning.
+  const [event] = normalizeGarminPush({ sleeps: [daily({ calendarDate: "2026-10-25", startTimeInSeconds: start,
+    durationInSeconds: 27000, awakeDurationInSeconds: 1800, lightSleepDurationInSeconds: 18000,
+    deepSleepDurationInSeconds: 4500, remSleepInSeconds: 4500, validation: "ENHANCED_FINAL",
+    overallSleepScore: { value: 87, qualifierKey: "GOOD" } })] });
+  const [day] = garminHealthDataset([record("sleeps", event.values, { calendar_date: event.calendarDate, start_seconds: start, duration_seconds: 27000 })], null).days;
+  assert.equal(day.date, "2026-10-25");
+  assert.equal(day.sleepMinutes, 450, "awake time is excluded from time asleep");
+  assert.equal(day.sleepScore, 87);
+  assert.equal(day.sleepScoreQualifier, "GOOD");
+  assert.equal(day.sleepStartedAt, "2026-10-24T15:00:00.000Z");
+  assert.equal(day.sleepEndedAt, "2026-10-24T23:00:00.000Z");
+  assert.deepEqual(day.sleepStages, { light: 300, deep: 75, rem: 75, awake: 30 });
+  assert.equal(day.sleepValidation, "ENHANCED_FINAL");
+});
+
+test("missing or invalid sleep scores never discard valid sleep duration or fabricate a quality rating", () => {
+  for (const overallSleepScore of [undefined, null, {}, [], { value: -1 }, { value: 101 }, { value: 80.5 }, { value: "87" }]) {
+    const [event] = normalizeGarminPush({ sleeps: [daily({ overallSleepScore, durationInSeconds: 27000 })] });
+    assert.equal(event.values.sleepScore, null);
+    assert.equal(event.values.sleepScoreQualifier, null);
+    assert.equal(event.values.sleepSeconds, 27000);
+    assert.equal(event.values.sleepEndSeconds, null, "unknown awake duration must not become zero");
+  }
+  for (const value of [0, 100]) assert.equal(normalizeGarminPush({ sleeps: [daily({ overallSleepScore: { value } })] })[0].values.sleepScore, value);
+  assert.equal(normalizeGarminPush({ sleeps: [daily({ overallSleepScore: { value: 87, qualifierKey: "invented" } })] })[0].values.sleepScoreQualifier, null);
+});
+
+test("sleep score and duration come from the same selected summary and no notification means no sleep", () => {
+  const [day] = garminHealthDataset([record("sleeps", { sleepSeconds: 27000, sleepScore: 87 }, { duration_seconds: 27000 }),
+    record("sleeps", { sleepSeconds: 28000, sleepScore: 92 }, { duration_seconds: 28000, updated_at: "2026-10-24T00:00:00Z" })], null).days;
+  assert.equal(day.sleepScore, 92);
+  assert.equal(day.sleepMinutes, 28000 / 60);
+  const [dailyOnly] = garminHealthDataset([record("dailies", { steps: 10 })], null).days;
+  assert.equal(dailyOnly.sleepMinutes, null);
+  assert.equal(dailyOnly.sleepScore, null);
+});
+
+test("sleep notifications use the existing durable receipt and scheduled processing path", async () => {
+  const { handle, calls, scheduled } = receiver();
+  const sleep = daily({ durationInSeconds: 27000, overallSleepScore: { value: 87, qualifierKey: "GOOD" } });
+  assert.equal((await handle(request({ sleeps: [sleep] }))).status, 200);
+  const first = calls.find(call => call[0] === "stage")[1][0];
+  assert.equal(first.kind, "sleeps");
+  assert.equal(first.values.sleepScore, 87);
+  assert.deepEqual(normalizeGarminPush({ sleeps: [sleep] })[0], first, "duplicate delivery has the same identity/hash");
+  await scheduled[0]();
+  assert.equal(calls.at(-1)[0], "process");
 });
 
 test("Body Battery uses the latest actual sample, never daily charged/drained values", () => {

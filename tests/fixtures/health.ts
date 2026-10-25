@@ -9,6 +9,7 @@ export function createHealthFixture(): HealthDataset {
     const rem = 90 + index % 20;
     return {
       date: dateBefore("2026-10-23", 29 - index), sleepMinutes,
+      sleepScore: null, sleepScoreQualifier: null, sleepStartedAt: null, sleepEndedAt: null, sleepValidation: null, sleepAwakeMinutes: null,
       sleepStages: index === 25 ? null : { light: sleepMinutes - deep - rem, deep, rem, awake: 15 + index % 12 },
       restingHeartRate: 52 + index % 7, stress: 22 + index % 19,
       steps: 6200 + ((index * 431) % 5200), bodyBattery: 65 + index % 23,

@@ -2,6 +2,8 @@ export type GarminHealthKind = "dailies" | "sleeps" | "stressDetails" | "activit
 export type GarminHealthValues = {
   sleepSeconds?: number | null; lightSeconds?: number | null; deepSeconds?: number | null;
   remSeconds?: number | null; awakeSeconds?: number | null;
+  sleepScore?: number | null; sleepScoreQualifier?: string | null;
+  sleepValidation?: string | null; sleepEndSeconds?: number | null;
   restingHeartRate?: number | null; steps?: number | null; stress?: number | null;
   activeSeconds?: number | null; bodyBattery?: number | null; bodyBatteryTime?: number | null;
   activityType?: string; averageHeartRate?: number | null; distanceMeters?: number | null;

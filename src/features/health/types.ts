@@ -1,10 +1,16 @@
 import type { GarminView } from "@/features/garmin/types";
 import type { GarminHealthControl } from "@/features/garmin/health/types";
 
-export type HealthMetric = "sleepMinutes" | "restingHeartRate" | "stress" | "steps" | "bodyBattery" | "activityMinutes";
+export type HealthMetric = "sleepMinutes" | "sleepScore" | "restingHeartRate" | "stress" | "steps" | "bodyBattery" | "activityMinutes";
 export type HealthDay = {
   date: string;
   sleepMinutes: number | null;
+  sleepScore: number | null;
+  sleepScoreQualifier: string | null;
+  sleepStartedAt: string | null;
+  sleepEndedAt: string | null;
+  sleepValidation: string | null;
+  sleepAwakeMinutes: number | null;
   sleepStages: { light: number; deep: number; rem: number; awake: number } | null;
   restingHeartRate: number | null;
   stress: number | null;

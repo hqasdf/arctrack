@@ -32,6 +32,23 @@ export function MetricCards({ current, previous }: { current: HealthDay | undefi
   })}</div>;
 }
 
+export function SleepDetails({ day }: { day: HealthDay | undefined }) {
+  const score = day?.sleepScore ?? null;
+  const qualifier = day?.sleepScoreQualifier;
+  const time = (value: string) => new Intl.DateTimeFormat("en-SG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" }).format(new Date(value));
+  return <div className={styles.sleepDetails}>
+    <div className={styles.sleepScore}><span>Garmin Sleep Score</span><strong>{score === null ? "—" : score}<small>{score === null ? "Unavailable" : "/ 100"}</small></strong>
+      {qualifier && <span>{qualifier.charAt(0) + qualifier.slice(1).toLowerCase()}</span>}
+    </div>
+    {day?.sleepStartedAt && <p>Sleep window: <time dateTime={day.sleepStartedAt}>{time(day.sleepStartedAt)}</time> → {day.sleepEndedAt ? <time dateTime={day.sleepEndedAt}>{time(day.sleepEndedAt)}</time> : "End unavailable"} SGT</p>}
+    {day?.sleepValidation && <p>{day.sleepValidation.endsWith("_TENTATIVE") ? "Preliminary Garmin sleep analysis; later updates may refine it." : day.sleepValidation === "MANUAL" ? "Sleep times entered manually in Garmin Connect." : day.sleepValidation === "OFF_WRIST" ? "Garmin reported insufficient on-wrist data." : "Sleep analysis supplied by Garmin."}</p>}
+    {day?.sleepStages ? <dl className={styles.sleepStages}>
+      {([ ["Light", day.sleepStages.light], ["Deep", day.sleepStages.deep], ["REM", day.sleepStages.rem], ["Awake", day.sleepStages.awake] ] as const).map(([label, minutes]) => <div key={label}><dt>{label}</dt><dd>{formatMetric("sleepMinutes", minutes)}</dd></div>)}
+    </dl> : <p>Sleep stages unavailable{day?.sleepAwakeMinutes != null ? ` · Awake ${formatMetric("sleepMinutes", day.sleepAwakeMinutes)}` : ""}</p>}
+    {day?.sleepMinutes == null ? <p>No data available. Sleep measurements appear after your watch syncs with Garmin Connect and Garmin delivers a sleep record; delivery may not be immediate.</p> : score === null && <p>Garmin did not provide a Sleep Score for this record. Availability depends on your device and sleep analysis.</p>}
+  </div>;
+}
+
 export function WellnessSummary({ days }: { days: HealthDay[] }) {
   return <section className={`${styles.card} ${styles.wellness}`} aria-labelledby="wellness-heading">
     <div className={styles.wellnessArt} aria-hidden="true"><span /><span /><span /><Icon name="heart" size={38} /></div>

@@ -87,6 +87,15 @@ try {
   await db.query(await readFile(join(root, "supabase/migrations/20261025003708_garmin_health_admission.sql"), "utf8"));
   check(isDeepStrictEqual(before, await snapshot()), "Admission migration preserves unrelated application data and security");
   await db.query(await readFile(join(root, "supabase/tests/garmin-health-admission.sql"), "utf8"));
+  const previousSleepProcessor = (await db.query("select pg_get_functiondef('private.process_garmin_health_queue_v1(uuid[],integer)'::regprocedure) as definition")).rows[0].definition;
+  await db.query(await readFile(join(root, "supabase/migrations/20261025105626_garmin_sleep_finalization.sql"), "utf8"));
+  check(isDeepStrictEqual(before, await snapshot()), "Sleep finalization preserves unrelated application data and security");
+  await db.query(await readFile(join(root, "supabase/tests/garmin-sleep.sql"), "utf8"));
+  await db.query("begin");
+  await db.query(previousSleepProcessor);
+  check((await db.query("select pg_get_functiondef('private.process_garmin_health_queue_v1(uuid[],integer)'::regprocedure) as definition")).rows[0].definition === previousSleepProcessor,
+    "Exact predecessor processor can be restored transactionally without table changes");
+  await db.query("rollback"); // Keep the candidate installed for the remaining compatibility tests.
   await (await import("./garmin-health-admission-fixture.mjs")).testAdmissionConcurrency(db, pg.Client, configuration, check);
   await (await import("./garmin-private-webhook-fixture.mjs")).testPrivateWebhookDatabase(db, check);
   // Actual independent transactions: processing must not race an in-flight disconnect.

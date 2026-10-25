@@ -13,7 +13,7 @@ export function HealthChart({ days, metric, label, tone, stacked = false }: {
   const available = days.filter((day) => day[metric] !== null);
   if (!available.length) return <div className={styles.chartEmpty}><span aria-hidden="true">↗</span><p>No {label.toLowerCase()} measurements yet</p><small>Imported records will appear here.</small></div>;
   const values = available.map((day) => day[metric]!);
-  const max = Math.max(...values, 1) * 1.15;
+  const max = metric === "sleepScore" ? 100 : Math.max(...values, 1) * 1.15;
   const width = 420, height = 156, top = 14, bottom = 122, left = 34, right = 402;
   const x = (index: number) => left + (index / Math.max(1, days.length - 1)) * (right - left);
   const y = (value: number) => bottom - (value / max) * (bottom - top);
@@ -25,7 +25,7 @@ export function HealthChart({ days, metric, label, tone, stacked = false }: {
     else current += `${current ? " L" : "M"}${x(index)} ${y(value)}`;
   });
   if (current) paths.push(current);
-  const unit = metric === "restingHeartRate" ? " bpm" : metric === "activityMinutes" ? " min" : metric === "steps" ? " steps" : metric === "stress" || metric === "bodyBattery" ? "/100" : "";
+  const unit = metric === "restingHeartRate" ? " bpm" : metric === "activityMinutes" ? " min" : metric === "steps" ? " steps" : metric === "stress" || metric === "bodyBattery" || metric === "sleepScore" ? "/100" : "";
   return <div className={styles.chart} data-tone={tone}>
     {stacked ? <div className={styles.sleepBars} aria-label={label}>
       {days.map((day) => {

@@ -364,3 +364,15 @@
     --health-skeleton: var(--color-soft);
   }
 }
+
+.sleepDetails { margin: 0 0 1rem; color: var(--health-muted); font-size: .82rem; line-height: 1.55; }
+.sleepDetails p { margin: .55rem 0; overflow-wrap: anywhere; }
+.sleepScore { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem .8rem; }
+.sleepScore strong { color: var(--health-lavender); font-size: 1.4rem; }
+.sleepScore small { margin-left: .35rem; color: var(--health-muted); font-size: .75rem; font-weight: 400; }
+.sleepStages { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .4rem .8rem; margin: .75rem 0; }
+.sleepStages div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .3rem; }
+.sleepStages dd { margin: 0; color: var(--health-text); }
+.sleepTrend { margin-top: 1rem; border-top: 1px solid var(--health-border); padding-top: .75rem; }
+.sleepTrend summary { cursor: pointer; color: var(--health-lavender); font-size: .85rem; min-height: 32px; }
+.sleepTrend summary:focus-visible { outline: 2px solid var(--health-blue); outline-offset: 3px; }
