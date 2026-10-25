@@ -22,7 +22,7 @@ const payload={dailies:[{userId:'synthetic-provider',summaryId:'synthetic',calen
 const request=(body=JSON.stringify(payload),headers={})=>new Request('https://example.invalid/private-synthetic-request',{method:'POST',headers:{'Content-Type':'application/json',...headers},body});
 const fixture=(overrides={})=>{
  const secret=randomBytes(32).toString('hex'),calls=[],scheduled=[];
- const handle=privateHttp.createPrivateGarminPushReceiver({enabled:true,secret,inbox:()=>({stage:async(...args)=>calls.push(args),process:async()=>1}),schedule:work=>scheduled.push(work),...overrides});
+ const handle=privateHttp.createPrivateGarminPushReceiver({enabled:true,secret,inbox:()=>({stage:async(...args)=>{calls.push(args);return {status:'accepted',accepted:args[0].length,duplicate:0,ineligible:0};},process:async()=>1}),schedule:work=>scheduled.push(work),...overrides});
  return {secret,calls,handle,scheduled};
 };
 test('private capability accepts 256-bit server secret and preserves normalization/stage-before-ack',async()=>{

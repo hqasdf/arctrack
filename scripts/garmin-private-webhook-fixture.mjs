@@ -29,7 +29,7 @@ export async function testPrivateWebhookDatabase(db,check){
   const store=await load('src/features/garmin/health/store.server.ts',{'@/lib/supabase/admin.server':{createAdminClient:()=>({rpc:async(name,args)=>{
    try{
     let result;
-    if(name==='stage_garmin_health_push')result=await db.query('select public.stage_garmin_health_push($1::jsonb) as value',[JSON.stringify(args.p_events)]);
+    if(name==='admit_garmin_health_push')result=await db.query('select public.admit_garmin_health_push($1::jsonb) as value',[JSON.stringify(args.p_events)]);
     else if(name==='process_garmin_health_queue')result=await db.query('select public.process_garmin_health_queue($1::integer) as value',[args.p_limit]);
     else throw Error('Unexpected RPC');
     return {data:result.rows[0].value,error:null};
@@ -59,6 +59,10 @@ export async function testPrivateWebhookDatabase(db,check){
    catch{throw Error('Synthetic loopback request failed; URL withheld.');}
   };
   await db.query('set role service_role');
+  await db.query("update public.garmin_connections set access_expires_at=now()-interval '1 second' where user_id=$1",[user]);
+  check((await send('/private/'+secret)).status===503,'Actual SQL token expiry propagates as retryable HTTP failure');
+  check((await db.query('select count(*)::int n from public.garmin_health_inbox')).rows[0].n===0,'Expired HTTP delivery cannot be acknowledged without a durable receipt');
+  await db.query("update public.garmin_connections set access_expires_at=now()+interval '1 day' where user_id=$1",[user]);
   check((await send('/private/'+secret)).status===200,'Private HTTP authenticates and durably stages a synthetic daily');
   check((await db.query('select count(*)::int as n from public.garmin_health_inbox')).rows[0].n===1,'Receipt exists in PostgreSQL before worker runs');
   check((await db.query('select count(*)::int as n from public.garmin_health_records')).rows[0].n===0,'Acknowledgment does not pretend measurement processing completed');
@@ -78,6 +82,10 @@ export async function testPrivateWebhookDatabase(db,check){
   const gatewayRequest=()=>new Request('https://ingress.invalid/garmin/'+secret,{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({dailies:[{...daily,summaryId:'gateway-daily',calendarDate:'2026-10-25',startTimeInSeconds:daily.startTimeInSeconds+172800,steps:725}]})});
   await db.query('set role service_role');
+  await db.query("update public.garmin_connections set access_expires_at=now()-interval '1 second' where user_id=$1",[user]);
+  check((await gateway(gatewayRequest(),gatewayEnv)).status===503,'Real SQL admission expiry propagates through fixed receiver and Cloudflare adapter as 503');
+  check((await db.query("select count(*)::int n from public.garmin_health_inbox where source_id='gateway-daily'")).rows[0].n===0,'Cloudflare failure has no falsely accepted durable receipt');
+  await db.query("update public.garmin_connections set access_expires_at=now()+interval '1 day' where user_id=$1",[user]);
   check((await gateway(gatewayRequest(),gatewayEnv)).status===200,'Cloudflare adapter -> fixed authenticated HTTP receiver -> real SQL inbox');
   check((await db.query("select count(*)::int n from public.garmin_health_inbox where source_id='gateway-daily' and state='pending'")).rows[0].n===1,'Gateway acknowledgment precedes durable processing');
   check((await send('/internal',{},'POST')).status===401,'Direct fixed endpoint rejects missing server authentication');

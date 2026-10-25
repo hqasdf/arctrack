@@ -54,6 +54,14 @@ test('upstream failure, timeout and redirect never become false acknowledgments 
   for(const status of [302,500,503]){const f=fixture(async()=>new Response('private body',{status,headers:{Location:'https://untrusted.example'}}));assert.equal((await f.send(f.request(),f.env)).status,503);}
   const f=fixture(async()=>{throw Error('secret-bearing diagnostic must not escape');});const r=await f.send(f.request(),f.env);assert.equal(r.status,503);assert.equal(await r.text(),'');
 });
+
+test('admission success and retryable failure propagate through Cloudflare without becoming false 200s',async()=>{
+  for(const [downstream,expected] of [[200,200],[503,503],[429,429]]){
+    const f=fixture(async()=>new Response('must remain private',{status:downstream}));
+    const result=await f.send(f.request(),f.env);
+    assert.equal(result.status,expected);assert.equal(await result.text(),'');
+  }
+});
 test('globally shared transactional quota bounds concurrent ingress replicas and minute volume',async()=>{
   const f=fixture();let complete;const gate=new Promise(r=>complete=r);const send=createIngress({fetcher:async()=>{await gate;return new Response(null,{status:200});}});
   const first=Array.from({length:4},()=>send(f.request(),f.env));

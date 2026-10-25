@@ -84,6 +84,10 @@ try {
   await db.query(await readFile(join(root, "supabase/migrations/20261024153040_garmin_health_general_availability.sql"), "utf8"));
   check(isDeepStrictEqual(before, await snapshot()), "General availability preserves unrelated application data and security");
   await db.query(await readFile(join(root, "supabase/tests/garmin-health-general-availability.sql"), "utf8"));
+  await db.query(await readFile(join(root, "supabase/migrations/20261025003708_garmin_health_admission.sql"), "utf8"));
+  check(isDeepStrictEqual(before, await snapshot()), "Admission migration preserves unrelated application data and security");
+  await db.query(await readFile(join(root, "supabase/tests/garmin-health-admission.sql"), "utf8"));
+  await (await import("./garmin-health-admission-fixture.mjs")).testAdmissionConcurrency(db, pg.Client, configuration, check);
   await (await import("./garmin-private-webhook-fixture.mjs")).testPrivateWebhookDatabase(db, check);
   // Actual independent transactions: processing must not race an in-flight disconnect.
   const blocker = new pg.Client(configuration); await blocker.connect();

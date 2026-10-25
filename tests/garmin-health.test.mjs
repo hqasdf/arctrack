@@ -38,7 +38,7 @@ const request = (value, headers = {}) => new Request("https://arc.example/api/in
 });
 function receiver(overrides = {}) {
   const calls = [], scheduled = [];
-  const inbox = { stage: async (...args) => { calls.push(["stage", ...args]); }, process: async (...args) => { calls.push(["process", ...args]); return 1; } };
+  const inbox = { stage: async (...args) => { calls.push(["stage", ...args]); return { status: "accepted", accepted: args[0].length, duplicate: 0, ineligible: 0 }; }, process: async (...args) => { calls.push(["process", ...args]); return 1; } };
   const handle = http.createGarminPushReceiver({ enabled: true, verifier: async () => { calls.push(["verify"]); return true; },
     inbox: () => inbox, schedule: (work) => scheduled.push(work), ...overrides });
   return { handle, calls, scheduled, inbox };
@@ -171,7 +171,7 @@ test("receipt response cannot resolve before the database confirms staging", asy
   const result = handle(request({ dailies: [daily()] })).then((response) => { resolved = true; return response; });
   await new Promise((accept) => setImmediate(accept));
   assert.equal(resolved, false);
-  release();
+  release({ status: "accepted", accepted: 1, duplicate: 0, ineligible: 0 });
   assert.equal((await result).status, 200);
 });
 
@@ -179,17 +179,17 @@ test("Supabase returned error properties fail staging/processing without disclos
   for (const error of [null, { code: "private-detail" }]) {
     const calls = [];
     const store = await load("src/features/garmin/health/store.server.ts", {
-      "@/lib/supabase/admin.server": { createAdminClient: () => ({ rpc: async (...args) => { calls.push(args); return { data: 1, error }; } }) },
+      "@/lib/supabase/admin.server": { createAdminClient: () => ({ rpc: async (...args) => { calls.push(args); return { data: args[0] === "admit_garmin_health_push" ? { status: "accepted", accepted: 1, duplicate: 0, ineligible: 0 } : 1, error }; } }) },
     });
     const inbox = store.createGarminHealthInbox();
     const events = normalizeGarminPush({ dailies: [daily()] });
     if (error) {
-      await assert.rejects(inbox.stage(events), { message: "Garmin health storage unavailable." });
+      assert.equal((await inbox.stage(events)).status, "storage_failure");
       await assert.rejects(inbox.process(25), { message: "Garmin health processing unavailable." });
     } else {
       await inbox.stage(events);
       assert.equal(await inbox.process(25), 1);
-      assert.deepEqual(calls[0], ["stage_garmin_health_push", { p_events: events }]);
+      assert.deepEqual(calls[0], ["admit_garmin_health_push", { p_events: events }]);
     }
   }
 });
@@ -201,6 +201,30 @@ test("scheduling or asynchronous processing failure retains successful durable r
   b.inbox.process = async () => { throw new Error("temporary database failure"); };
   assert.equal((await b.handle(request({ dailies: [daily()] }))).status, 200);
   await assert.doesNotReject(b.scheduled[0]());
+});
+
+test("explicit admission results distinguish durable duplicates/final rejection from retryable or unconfirmed storage", async () => {
+  for (const [status, expected] of [["accepted", 200], ["duplicate", 200], ["ineligible", 200], ["temporary", 503], ["storage_failure", 503]]) {
+    const admission = { status, accepted: status === "accepted" ? 1 : 0, duplicate: status === "duplicate" ? 1 : 0, ineligible: status === "ineligible" ? 1 : 0 };
+    const f = receiver({ inbox: () => ({ stage: async () => admission, process: async () => 1 }) });
+    const response = await f.handle(request({ dailies: [daily()] }));
+    assert.equal(response.status, expected, status);
+    assert.equal(await response.text(), "");
+    assert.equal(f.scheduled.length, status === "accepted" ? 1 : 0);
+  }
+  const missing = receiver({ inbox: () => ({ stage: async () => undefined }) });
+  assert.equal((await missing.handle(request({ dailies: [daily()] }))).status, 503);
+});
+
+test("store rejects old integer, malformed, incomplete and inconsistent admission replies", async () => {
+  for (const data of [0, 1, null, [], {}, { status: "accepted", accepted: 0, duplicate: 0, ineligible: 0 },
+    { status: "accepted", accepted: 2, duplicate: 0, ineligible: 0 }, { status: "temporary", accepted: 1, duplicate: 0, ineligible: 0 },
+    { status: "unknown", accepted: 1, duplicate: 0, ineligible: 0 }]) {
+    const store = await load("src/features/garmin/health/store.server.ts", {
+      "@/lib/supabase/admin.server": { createAdminClient: () => ({ rpc: async () => ({ data, error: null }) }) },
+    });
+    assert.equal((await store.createGarminHealthInbox().stage(normalizeGarminPush({ dailies: [daily()] }))).status, "storage_failure");
+  }
 });
 
 test("worker requires its own server credential and never uses a browser session", async () => {

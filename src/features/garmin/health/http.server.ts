@@ -44,10 +44,12 @@ export function createGarminPushReceiver(options: {
       try { payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { return response(400); }
       const events = normalizeGarminPush(payload);
       const inbox = options.inbox();
-      await inbox.stage(events);
+      const admission = await inbox.stage(events);
+      // Missing/unknown results must fail closed, including during rolling deploys.
+      if (!admission || !["accepted", "duplicate", "ineligible"].includes(admission.status)) return response(503);
       // Only receipt validation + durable staging precede 200, not domain processing.
       // after() is opportunistic. The durable inbox + authenticated worker are the retry path.
-      try { options.schedule(async () => { try { await inbox.process(25); } catch { /* Queue remains pending; worker retries. Never log health payloads. */ } }); } catch { /* Staged receipt survives scheduling failure. */ }
+      if (admission.accepted > 0) try { options.schedule(async () => { try { await inbox.process(25); } catch { /* Queue remains pending; worker retries. Never log health payloads. */ } }); } catch { /* Staged receipt survives scheduling failure. */ }
       return response(200);
     } catch (error) {
       return response(error instanceof GarminHealthPayloadError ? 400 : 503);
