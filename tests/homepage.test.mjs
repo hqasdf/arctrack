@@ -15,6 +15,17 @@ const compile = text => ts.transpileModule(text, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 
+test("target retains a left three-quarter angle throughout the existing scroll choreography", () => {
+  for (const mobile of [false, true]) {
+    for (const [progress, rotation, travel] of [[0, -.48, 0], [.25, -.48, .4583762002743484], [.5, -.48, 1], [.75, -.42, 1], [1, -.36, 1]]) {
+      const pose = motion.scenePose(progress, mobile);
+      assert.ok(Math.abs(pose.targetRotation - rotation) < 1e-10);
+      assert.ok(pose.targetRotation < 0);
+      assert.ok(Math.abs(pose.arrowTravel - travel) < 1e-10);
+    }
+  }
+});
+
 test("scroll choreography is continuous, bounded and reversible, including refreshes mid-story", () => {
   assert.equal(motion.storyProgress(-100, 0, 3000, 1000), 0);
   assert.equal(motion.storyProgress(1000, 0, 3000, 1000), 0.5);

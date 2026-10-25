@@ -69,15 +69,24 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
   const message = error || (confirmedNotice && notices[confirmedNotice]) || (view.error && notices[view.error]);
   const connected = view.available && view.status === "connected";
   const reconnect = view.status === "reauthorization_required" || view.status === "error";
-  return <div className={styles.integration} data-garmin-connection aria-label="Garmin connection">
+  return <div className={`${styles.integration}${placement === "profile" ? ` ${styles.profileIntegration}` : ""}`} data-garmin-connection aria-label="Garmin connection">
     <div className={styles.row}>
-      {connected ? <span className={styles.connected} role="status"><span aria-hidden="true">✓</span>Garmin Connected</span>
-        : placement === "health" ? <form method="post" action="/api/integrations/garmin/start" onSubmit={submitting}>
+      {placement === "profile" ? <a className={styles.profileButton} href="/health">
+        <Image className={styles.profileLogo} src="/garmin-connect.png" alt="" width={100} height={27} />
+        <span className={styles.profileCopy}>
+          <strong>Garmin Connect</strong>
+          <span className={connected ? styles.profileConnected : undefined} role="status">
+            {pending || working ? "Updating…" : !view.available ? "Status unavailable" : connected ? "Connected" : reconnect ? "Reconnect Garmin" : !view.canConnect ? "Connection unavailable" : "Connect Garmin"}
+          </span>
+        </span>
+        <svg className={styles.profileChevron} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+      </a> : connected ? <span className={styles.connected} role="status"><span aria-hidden="true">✓</span>Garmin Connected</span>
+        : <form method="post" action="/api/integrations/garmin/start" onSubmit={submitting}>
           <button className={styles.connect} disabled={!view.available || !view.canConnect || pending || working}>
             <Image src="/garmin-connect.png" alt="" width={100} height={27} />
             <span>{pending || working ? "Updating…" : !view.available || !view.canConnect ? "Garmin unavailable" : reconnect ? "Reconnect Garmin" : message ? "Try Again" : "Connect Garmin"}</span>
           </button>
-        </form> : <a className={styles.link} href="/health">{reconnect ? "Reconnect Garmin" : "Connect Garmin"}<span aria-hidden="true"> ↗</span></a>}
+        </form>}
     </div>
     {placement === "health" && !connected && <p className={styles.privacyNotice}>Your Garmin data stays private to you. <a href="/privacy#garmin">Garmin privacy details</a></p>}
     {message && <p className={styles.message} role={confirmedNotice === "disconnected" && !error ? "status" : "alert"}>{message}</p>}

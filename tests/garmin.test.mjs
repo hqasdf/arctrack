@@ -851,6 +851,29 @@ test("Profile keeps advanced Garmin controls in a closed Connected Apps disclosu
   assert.doesNotMatch(profileHtml, /action="\/api\/integrations\/garmin\/start"/);
 });
 
+test("Profile Garmin row is one branded Health link with honest connection state", async () => {
+  for (const [view, label] of [
+    [{ ...emptyGarminView(true), canConnect: true }, "Connect Garmin"],
+    [{ ...emptyGarminView(true), status: "connected" }, "Connected"],
+    [{ ...emptyGarminView(true), status: "reauthorization_required" }, "Reconnect Garmin"],
+    [{ ...emptyGarminView(true), available: false, status: "connected" }, "Status unavailable"],
+    [{ ...emptyGarminView(true), status: "connecting" }, "Updating…"],
+  ]) {
+    const h = await cardHarness(view, "connected", undefined, "profile");
+    const tree = h.render();
+    const link = nodes(tree, "a").find(node => node.props.href === "/health");
+    const html = renderToStaticMarkup(link);
+    assert.match(html, /Garmin Connect/);
+    assert.ok(html.includes(label));
+    assert.match(html, /garmin-connect.png/);
+    assert.match(html, /<svg[^>]*aria-hidden="true"/);
+    assert.equal(nodes(tree, "a").filter(node => node.props.href === "/health").length, 1);
+    assert.equal(nodes(link, "button").length, 0);
+    if (label !== "Connected") assert.doesNotMatch(html, />Connected</);
+    assert.equal(nodes(tree, "details")[0].props.open, undefined);
+  }
+});
+
 test("cancelled consent offers one message and Try Again; revocation offers Reconnect Garmin", async () => {
   const retry = await cardHarness({ ...emptyGarminView(true), canConnect: true }, "cancelled");
   const html = renderToStaticMarkup(retry.render());

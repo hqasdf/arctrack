@@ -22,7 +22,7 @@ export function scenePose(progress: number, mobile: boolean, aspect = 1) {
     lookY: mobile ? 0.85 : 0,
     targetX: mobile ? 0 : mix(1.8, 1.65, approach),
     targetY: mobile ? -0.55 : 0,
-    targetRotation: mix(-0.38, 0, analysis),
+    targetRotation: mix(-0.48, -0.36, analysis),
     arrowTravel: smooth(clampProgress((p - 0.08) / 0.36)),
     groupingOpacity: analysis * 0.75,
   };

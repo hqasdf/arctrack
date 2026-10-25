@@ -1,5 +1,17 @@
 .integration { --garmin-green: #287c65; color: var(--color-text); min-width: 0; max-width: 360px; font-size: .8rem; }
 .row { display: flex; align-items: center; gap: 10px; }
+.profileIntegration { width: 100%; max-width: 420px; }
+.profileButton { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 68px; min-width: 0; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-text); text-decoration: none; transition: background .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.profileLogo { display: block; width: 70px; height: auto; flex: 0 0 auto; }
+.profileCopy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; line-height: 1.35; }
+.profileCopy strong { font-size: .86rem; font-weight: 600; }
+.profileCopy > span { font-size: .73rem; color: var(--color-muted); }
+.profileCopy > .profileConnected { color: var(--health-green, var(--garmin-green)); }
+.profileChevron { flex: 0 0 auto; color: var(--color-muted); }
+.profileButton:hover { background: var(--color-soft); border-color: var(--color-primary); }
+.profileButton:active { background: var(--color-soft); box-shadow: inset 0 0 0 1px var(--color-border); }
+@media (max-width: 430px) { .profileButton { gap: 12px; padding: 12px; } .profileLogo { width: 60px; } }
+@media (prefers-reduced-motion: reduce) { .profileButton { transition: none; } }
 .connect,.secondary { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); padding: 10px 14px; font: inherit; font-weight: 600; cursor: pointer; max-width: 100%; }
 .connect img { width: 100px; height: auto; flex: 0 0 auto; }
 .connect:hover,.secondary:hover { background: var(--color-soft); }
