@@ -10,6 +10,7 @@ export function createGarminIngressReceiver(options: Parameters<typeof createPri
   return (request: Request) => receive(request, /^Bearer ([a-f0-9]{64})$/.exec(request.headers.get("authorization") ?? "")?.[1]);
 }
 export function garminHealthIngress(request: Request) {
-  return createGarminIngressReceiver({ enabled: garminHealthEnabled(), secret: process.env.GARMIN_HEALTH_INGRESS_KEY,
+  return createGarminIngressReceiver({ enabled: garminHealthEnabled(), heartRateEnabled: process.env.GARMIN_SESSION_HR_ENABLED === "true",
+    enterprisePullEnabled: process.env.GARMIN_ACTIVITY_ENTERPRISE_PULL_ENABLED === "true", secret: process.env.GARMIN_HEALTH_INGRESS_KEY,
     inbox: createGarminHealthInbox, schedule: after })(request);
 }

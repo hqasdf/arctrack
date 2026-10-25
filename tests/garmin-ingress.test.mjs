@@ -36,6 +36,15 @@ test('private ingress strips all caller metadata and only forwards to the fixed 
   assert.equal(received.init.headers.Authorization,'Bearer '+f.env.GARMIN_FORWARD_KEY);
   assert.equal(received.init.redirect,'manual');assert.ok(!JSON.stringify(received).includes(f.env.GARMIN_ENDPOINT_SECRET));
 });
+test('Activity Details callback pings remain small and are forwarded intact to authenticated Vercel admission',async()=>{
+  const callback='https://apis.garmin.com/wellness-api/rest/activityDetails?uploadStartTimeInSeconds=1792882800&uploadEndTimeInSeconds=1792886400&token=synthetic-only';
+  const payload=JSON.stringify({activityDetails:[{userId:'synthetic-garmin-owner',callbackURL:callback}]});
+  let forwarded;const f=fixture(async(url,init)=>{forwarded={url,body:Buffer.from(init.body).toString('utf8'),headers:init.headers};return new Response(null,{status:200});});
+  const response=await f.send(f.request(payload),f.env);
+  assert.equal(response.status,200);assert.equal(forwarded.url,'https://archery-website.vercel.app/api/internal/garmin-health/ingest');
+  assert.deepEqual(JSON.parse(forwarded.body),JSON.parse(payload));assert.equal(forwarded.headers.Authorization,'Bearer '+f.env.GARMIN_FORWARD_KEY);
+  assert.equal(forwarded.headers['Content-Type'],'application/json');
+});
 test('wrong, missing, query-string, HTTP and rotated capabilities fail before forwarding',async()=>{
   let calls=0;const f=fixture(async()=>{calls++;return new Response();});
   for(const path of ['/garmin/wrong','/garmin','/garmin/'+f.env.GARMIN_ENDPOINT_SECRET+'?x=1'])assert.equal((await f.send(f.request('{}',path),f.env)).status,401);
@@ -47,7 +56,7 @@ test('disabled, missing quota or reused credentials remain fail-closed',async()=
 });
 test('malformed, oversized and compressed requests are rejected before forwarding',async()=>{
   let calls=0;const f=fixture(async()=>{calls++;return new Response();});
-  for(const [body,headers,status] of [['bad',{},400],['{}',{'Content-Encoding':'gzip'},415],['{}',{'Content-Length':'1048577'},413],['x'.repeat(1048577),{},413]])assert.equal((await f.send(f.request(body,undefined,headers),f.env)).status,status);
+  for(const [body,headers,status] of [['bad',{},400],['{}',{'Content-Encoding':'gzip'},415],['{}',{'Content-Length':'4194305'},413],['x'.repeat(4194305),{},413]])assert.equal((await f.send(f.request(body,undefined,headers),f.env)).status,status);
   assert.equal(calls,0);
 });
 test('upstream failure, timeout and redirect never become false acknowledgments or leak URLs',async()=>{

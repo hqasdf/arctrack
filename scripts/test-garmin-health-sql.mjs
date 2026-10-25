@@ -36,7 +36,7 @@ async function snapshot() {
   result.columns = (await db.query(`select c.oid,a.attname,format_type(a.atttypid,a.atttypmod) as type,a.attnotnull,
     pg_get_expr(d.adbin,d.adrelid) as default_value from pg_class c join pg_attribute a on a.attrelid=c.oid and a.attnum>0
     left join pg_attrdef d on d.adrelid=c.oid and d.adnum=a.attnum where c.oid=any($1::regclass[]) order by c.oid,a.attnum`, [tables])).rows;
-  result.policies = (await db.query("select * from pg_policies where tablename not like 'garmin%' order by schemaname,tablename,policyname")).rows;
+  result.policies = (await db.query("select * from pg_policies where tablename not like 'garmin%' and tablename<>'session_recording_windows' order by schemaname,tablename,policyname")).rows;
   result.relations = (await db.query("select oid,relname,relowner,relacl,relrowsecurity,relforcerowsecurity from pg_class where oid=any($1::regclass[]) order by oid", [tables])).rows;
   result.existingTrigger = (await db.query("select pg_get_triggerdef(oid) as definition from pg_trigger where tgname='integrity_existing_title_guard'")).rows;
   return result;
@@ -96,6 +96,9 @@ try {
   check((await db.query("select pg_get_functiondef('private.process_garmin_health_queue_v1(uuid[],integer)'::regprocedure) as definition")).rows[0].definition === previousSleepProcessor,
     "Exact predecessor processor can be restored transactionally without table changes");
   await db.query("rollback"); // Keep the candidate installed for the remaining compatibility tests.
+  await db.query(await readFile(join(root, "supabase/migrations/20261025124444_garmin_session_heart_rate.sql"), "utf8"));
+  check(isDeepStrictEqual(before, await snapshot()), "Session HR preserves existing scoring, application rows and security");
+  await db.query(await readFile(join(root, "supabase/tests/garmin-session-heart-rate.sql"), "utf8"));
   await (await import("./garmin-health-admission-fixture.mjs")).testAdmissionConcurrency(db, pg.Client, configuration, check);
   await (await import("./garmin-private-webhook-fixture.mjs")).testPrivateWebhookDatabase(db, check);
   // Actual independent transactions: processing must not race an in-flight disconnect.
@@ -115,8 +118,23 @@ try {
     await blocker.query("rollback");
     const results = await Promise.all([db.query("select public.process_garmin_health_queue(array['90000000-0000-4000-8000-000000000001']::uuid[],25) as count"), blocker.query("select public.process_garmin_health_queue(array['90000000-0000-4000-8000-000000000001']::uuid[],25) as count")]);
     check(results.reduce((sum, result) => sum + result.rows[0].count, 0) === 1, "Concurrent workers process a pending receipt exactly once");
+    await db.query(`select public.admit_garmin_hr_push(jsonb_build_array(jsonb_build_object('garminUserId','concurrency','kind','dailies',
+      'sourceId','concurrent-daily-hr','hash',repeat('d',64),'recordKey','concurrent-daily-hr','calendarDate','2026-10-25',
+      'startTimeInSeconds',1792882800,'durationInSeconds',3600,'values','{}'::jsonb,
+      'heartRate',jsonb_build_object('source','daily','revision',repeat('e',64),'part',0,'parts',1,'count',2,
+      'samples','[[1792882815,80],[1792882830,90]]'::jsonb))));`);
+    await blocker.query('begin');
+    await blocker.query("select * from public.garmin_connections where garmin_user_id='concurrency' for update");
+    check((await db.query('select public.process_garmin_health_queue(25) as count')).rows[0].count===0,
+      'HR processing skips a connection held by a concurrent lifecycle operation');
+    await blocker.query('rollback');
+    const hrResults=await Promise.all([db.query('select public.process_garmin_health_queue(25) as count'),blocker.query('select public.process_garmin_health_queue(25) as count')]);
+    check(hrResults.reduce((sum,result)=>sum+result.rows[0].count,0)===1,'Two independent workers process the same HR receipt exactly once');
+    check((await db.query("select count(*)::int n from public.garmin_hr_datasets where source_id='concurrent-daily-hr' and published and sample_count=2")).rows[0].n===1,
+      'Concurrent HR processing preserves one complete dataset and its original samples');
   } finally { await blocker.end(); }
   await (await import("./garmin-health-controls-fixture.mjs")).testHealthControlConcurrency(db, pg.Client, configuration, check);
+  await (await import("./garmin-session-controls-fixture.mjs")).testSessionControlConcurrency(db, pg.Client, configuration, check);
   console.log(JSON.stringify({ passed: assertions.length, failed: 0, assertions, version: (await db.query("select version()")).rows[0].version,
     limitation: "Synthetic Auth roles/uid; no real JWT, PostgREST, Garmin deliveries or production database." }, null, 2));
 } catch (error) { failure = error; }

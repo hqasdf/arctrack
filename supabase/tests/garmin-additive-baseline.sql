@@ -26,9 +26,18 @@ $$;
 create trigger integrity_existing_title_guard before insert or update on public.sessions
 for each row execute function private.integrity_existing_title_guard();
 alter table public.sessions enable row level security;
-create policy integrity_existing_owner on public.sessions to authenticated
+create policy sessions_select_own on public.sessions for select to authenticated
+using (user_id=(select auth.uid()));
+create policy sessions_insert_own on public.sessions for insert to authenticated
+with check (user_id=(select auth.uid()));
+create policy sessions_update_own on public.sessions for update to authenticated
 using (user_id=(select auth.uid())) with check (user_id=(select auth.uid()));
-grant select,insert,update,delete on public.sessions to authenticated;
+create policy sessions_delete_own on public.sessions for delete to authenticated
+using (user_id=(select auth.uid()));
+-- Match production's guarded scoring model: ownership RLS does not grant
+-- direct Session writes. Existing scoring mutations use privileged RPCs.
+revoke all on public.sessions from public,anon,authenticated;
+grant select on public.sessions to authenticated;
 create view public.integrity_existing_grouping as select count(*) as arrow_count,
   sum(score) as total_score, avg(x) as centre_x, avg(y) as centre_y from public.arrows;
 insert into public.profiles values ('10000000-0000-4000-8000-000000000001','Synthetic archer');

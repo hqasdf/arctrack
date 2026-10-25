@@ -74,7 +74,8 @@ confidential specifications or real credentials/payloads.
 5. **Durable scheduling:** `after()` is an opportunistic latency improvement, not a
    durable job service. An approved scheduler must invoke the internal worker and
    monitor persistent pending/conflict rows. No cron configuration was deployed or
-   enabled. Confirm provider packet sizes fit the 1 MiB / 100-record receipt limits.
+   enabled. Session HR expands the authenticated raw Push bound to 4 MiB and
+   atomically admits up to 512 normalized events (100 per internal sub-batch).
 
 ## Implemented local flow
 
@@ -98,7 +99,21 @@ Endpoints prepared:
 
 Unsupported summary types are rejected; do not enable them in API Tools. Supported
 input types are dailies, sleeps, stressDetails, activities,
-manuallyUpdatedActivities, userPermissionsChange and deregistrations.
+manuallyUpdatedActivities, userPermissionsChange and deregistrations. With
+`GARMIN_SESSION_HR_ENABLED=true`, Starter `activityDetails` Push is also supported:
+`{ "activityDetails": [{ "userId": "...", "summaryId": "...", "activityId": "...",
+"summary": { "startTimeInSeconds": 0, "durationInSeconds": 0, "activityType": "..." },
+"samples": [{ "startTimeInSeconds": 0, "heartRate": 100 }] }] }` (shape only;
+zero timestamps are not accepted measurements). The owner is on the outer record;
+`summary` and optional `samples` follow Activity API sections 4 and 6.3. A sample's
+`startTimeInSeconds` is UTC seconds and `heartRate` is recorded integer bpm.
+Manual/unsupported recordings may have no samples. They retain a genuine activity
+summary but do not invent a timeline from an average.
+
+This is full-data Push, not the separate Enterprise Ping/Pull mode in section 8.
+`GARMIN_ACTIVITY_ENTERPRISE_PULL_ENABLED` must remain unset/false on Starter.
+Callback messages and outbound callback processing require that independent gate
+as well as the Session HR gate. No historical access/backfill is implemented.
 
 ## Data and units
 
@@ -114,11 +129,66 @@ manuallyUpdatedActivities, userPermissionsChange and deregistrations.
   or counted as Garmin activities. Numeric activity IDs in the official JSON
   example and string IDs in its field table are both supported without unsafe
   numeric coercion. Manual updates reconcile by activity ID where supplied.
+- Activity Details Push: validate the owner, activity ID, summary interval and each
+  timestamped HR sample. Discard GPS/device and non-HR fields. Each receipt is split
+  into at most 289 chunks of 300 samples, bounded by 24 hours / 86,401 samples and
+  512 events per whole notification. `admit_garmin_hr_push` admits every sub-batch
+  in one transaction before HTTP 200; one retryable failure rolls back the whole
+  notification. Processing remains bounded to 50 receipts per worker request;
+  partial datasets stay unpublished until all chunks are present.
+- Both Cloudflare and Vercel reject raw notifications above 4 MiB (HTTP 413), below
+  Vercel's 4.5 MB function limit. Nothing is silently truncated or acknowledged.
+  The provider does not document a universal payload maximum: long or GPS-heavy
+  recordings/batched notifications can exceed this bound even below 24 hours.
+  Confirm actual delivery sizes before enabling at scale. Larger supported
+  provider batching or a separately reviewed large-payload ingress is required
+  if this bound is exceeded; do not solve that by enabling Enterprise callbacks.
+- Daily `timeOffsetHeartRateSamples` map offsets from the summary's start to bpm.
+  Each entry represents the preceding 15 seconds; absent entries remain missing.
+  The Session UI labels these as lower-resolution all-day samples. Statistics and
+  tooltips use original samples, not interpolated points or activity averages.
+- Enterprise-only callback support remains isolated and disabled on Starter.
+  When explicitly entitled, the bearer capability is AES-GCM encrypted before
+  service-only persistence; same-host HTTPS GETs do not follow redirects and are
+  bounded at 16 MiB. No callback tokens appear in browser data or diagnostics.
 - Garmin daily `calendarDate` is preserved. Activity calendar filtering/display
   follows Arc Track's existing Asia/Singapore convention. Source offsets are
   validated, not misrepresented as an IANA timezone.
-- Raw GPS, device names, heart-rate/stress time series and unused fields are
-  discarded. No provider tokens enter the inbox or dashboard DTOs.
+- Raw GPS, device names, unused fields and detailed HR samples are excluded from
+  Health metric snapshots. Garmin callback tokens exist only as authenticated
+  encrypted queue capabilities until the pull completes; they are not written
+  plaintext to the inbox or included in dashboard DTOs.
+
+## Session heart-rate activation order
+
+The local additive migration is `20261025124444_garmin_session_heart_rate.sql`.
+Session controls keep `SECURITY INVOKER` and SELECT-only access to scoring
+Sessions. A namespaced transaction advisory lock serializes edits per Session,
+with ownership checked before and after waiting, a two-second lock timeout, and
+revision checks both before mutation and at the final upsert. Recording-window
+revisions advance monotonically; existing scoring grants remain unchanged.
+The maintained fixture now uses production-equivalent restricted scoring grants
+and tests independent connections, competing first writes, stale activity links,
+coach-visible parent Sessions, deletion races and lock cleanup.
+Apply and verify it before deploying the matching website/backend release. Keep
+`GARMIN_SESSION_HR_ENABLED` unset/false and leave the Garmin Activity Details
+notification category disabled until the backend is deployed and the private
+ingress, queue, owner read path and cleanup behavior have been verified. Deploy
+the matching Cloudflare 4 MiB bound before enabling the server Session HR flag.
+Keep the Enterprise Pull flag false. Then enable the existing **Push** Activity
+Details category for a consenting real-device test; configured endpoints are not
+proof of delivery. Check raw delivery sizes, durable receipts, complete sample
+datasets, explicit Session matching and owner-only display. Existing independent
+Cloudflare-to-Vercel capability authentication is URL-possession authentication,
+not cryptographic proof of Garmin identity. Existing emergency shutdown, privacy,
+permission, replay, pause and deletion gates remain required.
+
+Local SQL verification can reuse the previously provisioned tooling without an
+installation: `PG_BIN` is the `extracted/package/native/bin` directory under the
+temporary `arctrack-feedback-pg17-tooling` folder; `PG_DRIVER_MODULE` is its
+`node_modules/pg` directory. Set absolute paths and run
+`node scripts/test-garmin-health-sql.mjs`. The runner creates and removes a new
+loopback-only cluster, reads no `.env`, and accepts no production database URL.
 
 ## Local migration and security
 

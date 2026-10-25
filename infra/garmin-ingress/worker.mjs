@@ -1,7 +1,8 @@
 import { timingSafeEqual, randomUUID } from 'node:crypto';
 
 const TARGET = 'https://archery-website.vercel.app/api/internal/garmin-health/ingest';
-const MAX_BYTES = 1048576;
+// Match the private receiver and stay below Vercel's 4.5 MB function ceiling.
+const MAX_BYTES = 4 * 1024 * 1024;
 const validKey = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const reply = status => new Response(null, { status, headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
 

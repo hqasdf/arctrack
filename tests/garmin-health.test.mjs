@@ -20,6 +20,11 @@ async function load(path, dependencies = {}, globals = {}) {
 const model = await load("src/features/health/model.ts");
 const { normalizeGarminPush, GarminHealthPayloadError } = await load("src/features/garmin/health/normalize.server.ts", { "@/features/health/model": model });
 const { garminHealthDataset } = await load("src/features/garmin/health/dashboard.ts", { "@/features/health/model": model });
+const storeOnlyHealthDependencies = {
+  "@/features/garmin/config.server": { getGarminConfig: () => null },
+  "@/features/garmin/crypto.server": { seal: () => "", unseal: () => ({}) },
+  "./activity-pull.server": { createGarminActivityPullProcessor: () => async () => 0 },
+};
 const http = await load("src/features/garmin/health/http.server.ts", {
   "next/server": { after: () => { throw new Error("Must not schedule production work"); } },
   "./config.server": { garminHealthEnabled: () => true, garminHealthTestUsers: () => ["owner-id"] },
@@ -188,7 +193,7 @@ test("actual configured endpoints cannot be activated without a reviewed provide
 
 test("bounded body handling rejects oversized content-length and streamed bodies without staging", async () => {
   const a = receiver();
-  assert.equal((await a.handle(request({}, { "Content-Length": "1048577" }))).status, 413);
+  assert.equal((await a.handle(request({}, { "Content-Length": "4194305" }))).status, 413);
   const b = receiver();
   let cancelled = false;
   const stream = new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array(600000)); }, cancel() { cancelled = true; } });
@@ -231,6 +236,7 @@ test("Supabase returned error properties fail staging/processing without disclos
   for (const error of [null, { code: "private-detail" }]) {
     const calls = [];
     const store = await load("src/features/garmin/health/store.server.ts", {
+      ...storeOnlyHealthDependencies,
       "@/lib/supabase/admin.server": { createAdminClient: () => ({ rpc: async (...args) => { calls.push(args); return { data: args[0] === "admit_garmin_health_push" ? { status: "accepted", accepted: 1, duplicate: 0, ineligible: 0 } : 1, error }; } }) },
     });
     const inbox = store.createGarminHealthInbox();
@@ -273,6 +279,7 @@ test("store rejects old integer, malformed, incomplete and inconsistent admissio
     { status: "accepted", accepted: 2, duplicate: 0, ineligible: 0 }, { status: "temporary", accepted: 1, duplicate: 0, ineligible: 0 },
     { status: "unknown", accepted: 1, duplicate: 0, ineligible: 0 }]) {
     const store = await load("src/features/garmin/health/store.server.ts", {
+      ...storeOnlyHealthDependencies,
       "@/lib/supabase/admin.server": { createAdminClient: () => ({ rpc: async () => ({ data, error: null }) }) },
     });
     assert.equal((await store.createGarminHealthInbox().stage(normalizeGarminPush({ dailies: [daily()] }))).status, "storage_failure");
@@ -315,6 +322,7 @@ test("scheduled refresh is authenticated first and finishes before bounded proce
 test("refresh maintenance selects a bounded database-owned set and isolates provider failures", async () => {
   const calls = [], refreshed = [];
   const store = await load("src/features/garmin/health/store.server.ts", {
+    ...storeOnlyHealthDependencies,
     "@/lib/supabase/admin.server": { createAdminClient: () => ({ rpc: async (...args) => { calls.push(args); return { data: ["owner-one", "owner-two"], error: null }; } }) },
   });
   await store.createGarminHealthInbox().refreshDue(async user => { refreshed.push(user); if (user === "owner-one") throw Error("provider unavailable"); });

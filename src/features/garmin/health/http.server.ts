@@ -6,7 +6,8 @@ import { normalizeGarminPush, GarminHealthPayloadError } from "./normalize.serve
 import { createGarminHealthInbox, type GarminHealthInbox } from "./store.server";
 import { configuredGarminService } from "../service.server";
 
-const MAX_BYTES = 1048576;
+// Keep the raw Push below Vercel's 4.5 MB function request ceiling.
+const MAX_BYTES = 4 * 1024 * 1024;
 const headers = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
 const response = (status: number) => new Response(null, { status, headers });
 
@@ -17,7 +18,7 @@ export type GarminNotificationVerifier = (request: Request, bytes: Uint8Array) =
 export function configuredGarminNotificationVerifier(): GarminNotificationVerifier | null { return null; }
 
 export function createGarminPushReceiver(options: {
-  enabled: boolean; verifier: GarminNotificationVerifier | null;
+  enabled: boolean; verifier: GarminNotificationVerifier | null; heartRateEnabled?: boolean; enterprisePullEnabled?: boolean;
   inbox: () => GarminHealthInbox; schedule: (work: () => Promise<void>) => void;
 }) {
   return async (request: Request): Promise<Response> => {
@@ -42,7 +43,8 @@ export function createGarminPushReceiver(options: {
       if (!await options.verifier(request, bytes)) return response(401);
       let payload: unknown;
       try { payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { return response(400); }
-      const events = normalizeGarminPush(payload);
+      const events = normalizeGarminPush(payload, { heartRate: options.heartRateEnabled === true,
+        enterprisePull: options.enterprisePullEnabled === true });
       const inbox = options.inbox();
       const admission = await inbox.stage(events);
       // Missing/unknown results must fail closed, including during rolling deploys.

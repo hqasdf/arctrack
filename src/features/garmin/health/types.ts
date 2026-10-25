@@ -11,6 +11,8 @@ export type GarminHealthValues = {
 export type GarminHealthEvent = {
   garminUserId: string; kind: GarminHealthKind; sourceId: string; recordKey: string;
   calendarDate: string | null; startTimeInSeconds: number | null; durationInSeconds: number | null;
+  activityDetailsPull?: { kind: "activities" | "activityDetails"; callbackUrl?: string; callbackCiphertext?: string };
+  heartRate?: { source: string; revision: string; part: number; parts: number; count: number; activityType: string | null; samples: [number, number | null][] };
   values: GarminHealthValues; permissions: string[] | null; changeTimeInSeconds: number | null; hash: string;
 };
 export type GarminHealthRecord = {

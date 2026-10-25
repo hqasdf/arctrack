@@ -28,18 +28,62 @@ function date(value: unknown): string {
 }
 const unix = (value: unknown) => number(value, 4102444800, 946684800);
 
+// Enterprise Ping/Pull is a separate delivery entitlement from Starter Push.
+// Its bearer callback URL must be encrypted before persistence.
+function activityPull(row: Record<string, unknown>, kind: "activities" | "activityDetails"): GarminHealthEvent {
+  const garminUserId = text(row.userId);
+  const raw = text(row.callbackURL, 8192);
+  let callback: URL;
+  try { callback = new URL(raw); } catch { return fail(); }
+  if (callback.protocol !== "https:" || callback.hostname !== "apis.garmin.com" || callback.port
+    || callback.username || callback.password || callback.hash
+    || callback.pathname !== `/wellness-api/rest/${kind}` || callback.searchParams.size !== 3) return fail();
+  const keys = [...callback.searchParams.keys()];
+  if (new Set(keys).size !== 3 || keys.some(key => !["uploadStartTimeInSeconds", "uploadEndTimeInSeconds", "token"].includes(key))) return fail();
+  const start = unix(Number(callback.searchParams.get("uploadStartTimeInSeconds")));
+  const end = unix(Number(callback.searchParams.get("uploadEndTimeInSeconds")));
+  if (end <= start || end - start > 2678400 || !callback.searchParams.get("token") || callback.searchParams.get("token")!.length > 4096) return fail();
+  // Hash only to form an opaque dedupe key; never expose the bearer URL in JSON
+  // retained by the database or in diagnostic errors.
+  const callbackHash = createHash("sha256").update(callback.href).digest("hex");
+  const sourceId = `activity-pull:${callbackHash}`;
+  const normalized = { garminUserId, kind: "activities" as const, sourceId, recordKey: sourceId,
+    calendarDate: singaporeDate(new Date(end * 1000)), startTimeInSeconds: end,
+    durationInSeconds: 0, values: {}, permissions: null, changeTimeInSeconds: null,
+    activityDetailsPull: { kind, callbackUrl: callback.href } };
+  return { ...normalized, hash: createHash("sha256").update(JSON.stringify(normalized)).digest("hex") };
+}
+
 // Provider fields verified against Health API 2.0 §§4–6 and Activity API 2.0 §§4–6.
-// Drop GPS, device names, sample series and all fields not needed by the dashboard.
-export function normalizeGarminPush(input: unknown): GarminHealthEvent[] {
+// Drop GPS/device metadata. HR series are separate bounded inbox chunks, never dashboard metrics.
+export function normalizeGarminPush(input: unknown, options: { heartRate?: boolean; enterprisePull?: boolean } = {}): GarminHealthEvent[] {
   const root = object(input);
   const events: GarminHealthEvent[] = [];
-  const supported = new Set(["dailies", "sleeps", "stressDetails", "activities", "manuallyUpdatedActivities", "userPermissionsChange", "deregistrations"]);
+  const supported = new Set(["dailies", "sleeps", "stressDetails", "activities", "manuallyUpdatedActivities", "activityDetails", "userPermissionsChange", "deregistrations"]);
   if (!Object.keys(root).length) return fail();
   for (const [type, list] of Object.entries(root)) {
     if (!supported.has(type) || !Array.isArray(list) || !list.length || list.length > 100) return fail();
     for (const item of list) {
-      if (events.length >= 100) return fail();
+      if (events.length >= 512) return fail();
       const row = object(item);
+      if ((type === "activityDetails" || type === "activities") && row.callbackURL != null) {
+        if (!options.heartRate || !options.enterprisePull) return fail();
+        events.push(activityPull(row, type === "activityDetails" ? "activityDetails" : "activities"));
+        continue;
+      }
+      if (type === "activityDetails") {
+        if (!options.heartRate) return fail();
+        const userId = text(row.userId);
+        const summary = object(row.summary);
+        // Starter Push includes the complete Details record, with its owner on
+        // the outer object. Never trust a conflicting nested owner.
+        const hr = normalizeGarminActivityDetails([row], userId);
+        const summaryEvents = normalizeGarminPush({ activities: [{ ...summary, userId,
+          summaryId: text(row.summaryId), activityId: row.activityId }] });
+        events.push(...hr, ...summaryEvents);
+        if (events.length > 512) return fail();
+        continue;
+      }
       const kind = (type === "manuallyUpdatedActivities" ? "activities" : type) as GarminHealthKind;
       const garminUserId = text(row.userId);
       let sourceId = kind === "deregistrations" ? "deregistration" : text(row.summaryId);
@@ -96,8 +140,76 @@ export function normalizeGarminPush(input: unknown): GarminHealthEvent[] {
         }
       }
       const normalized = { garminUserId, kind, sourceId, recordKey, calendarDate, startTimeInSeconds, durationInSeconds, values, permissions, changeTimeInSeconds };
+      if (options.heartRate && kind === "dailies" && row.timeOffsetHeartRateSamples != null) events.push(...heartRateEvents(row, false));
+      if (events.length >= 512) return fail();
       events.push({ ...normalized, hash: createHash("sha256").update(JSON.stringify(normalized)).digest("hex") });
     }
   }
+  if (events.length > 100 && !events.some(event => event.heartRate)) return fail();
   return events;
+}
+
+// Shared sample validation for Starter full-data Push and explicitly entitled
+// Enterprise responses. The authenticated delivery owner is authoritative.
+export function normalizeGarminActivityDetails(input: unknown, expectedGarminUserId: string): GarminHealthEvent[] {
+  const rows = input;
+  if (!Array.isArray(rows) || rows.length > 100) return fail();
+  const userId = text(expectedGarminUserId);
+  const output: GarminHealthEvent[] = [];
+  for (const value of rows) {
+    const row = object(value);
+    if (row.userId != null && text(row.userId) !== userId) return fail();
+    if (row.summary != null) {
+      const summary = object(row.summary);
+      if (summary.userId != null && text(summary.userId) !== userId) return fail();
+    }
+    const events = heartRateEvents({ ...row, userId }, true);
+    if (events[0]?.heartRate?.count) output.push(...events);
+    if (output.length > 30000) return fail();
+  }
+  return output;
+}
+
+// Bounded chunks travel through the existing atomic inbox admission. They are NOT
+// dashboard metrics. SQL publishes a dataset only once every chunk is present.
+function heartRateEvents(row: Record<string, unknown>, activity: boolean): GarminHealthEvent[] {
+  const summary = activity ? object(row.summary) : row;
+  const start = unix(summary.startTimeInSeconds);
+  const duration = number(summary.durationInSeconds, activity ? 86400 : 172800);
+  const sourceId = activity ? (typeof row.activityId === "number" ? String(number(row.activityId, Number.MAX_SAFE_INTEGER)) : text(row.activityId, 180)) : text(row.summaryId, 180);
+  const samples = new Map<number, number | null>();
+  const add = (time: unknown, value: unknown) => {
+    const timestamp = unix(time);
+    if (timestamp < start || timestamp > start + duration) return fail();
+    const bpm = value == null || value === 0 ? null : number(value, 300, 1);
+    if (samples.has(timestamp) && samples.get(timestamp) !== bpm) return fail();
+    samples.set(timestamp, bpm);
+  };
+  if (activity) {
+    if (row.samples != null && !Array.isArray(row.samples)) return fail();
+    const list = (row.samples ?? []) as unknown[];
+    if (list.length > 86401) return fail();
+    for (const item of list) { const sample = object(item); add(sample.startTimeInSeconds, sample.heartRate); }
+  } else {
+    const series = object(row.timeOffsetHeartRateSamples);
+    if (Object.keys(series).length > 18000) return fail();
+    for (const [offset, value] of Object.entries(series)) {
+      if (!/^\d+$/.test(offset)) return fail();
+      add(start + number(Number(offset), duration), value);
+    }
+  }
+  const pairs = [...samples].sort((a,b) => a[0]-b[0]);
+  const source = activity ? "activity" : "daily";
+  const activityType = activity ? text(summary.activityType, 100) : null;
+  const revision = createHash("sha256").update(JSON.stringify({ sourceId, start, duration, pairs, activityType })).digest("hex");
+  if (pairs.length > 86401) return fail();
+  if (activity && !pairs.some(([, bpm]) => bpm !== null)) return [];
+  const parts = Math.max(1, Math.ceil(pairs.length / 300));
+  return Array.from({length: parts}, (_, part) => {
+    const normalized = { garminUserId: text(row.userId), kind: activity ? "activities" as const : "dailies" as const,
+      sourceId, recordKey: sourceId, calendarDate: activity ? singaporeDate(new Date(start*1000)) : date(row.calendarDate),
+      startTimeInSeconds: start, durationInSeconds: duration, values: {}, permissions: null, changeTimeInSeconds: null,
+      heartRate: { source, revision, part, parts, count: pairs.length, activityType, samples: pairs.slice(part*300, (part+1)*300) } };
+    return { ...normalized, hash: createHash("sha256").update(JSON.stringify(normalized)).digest("hex") };
+  });
 }

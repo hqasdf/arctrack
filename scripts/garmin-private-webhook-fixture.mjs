@@ -25,21 +25,24 @@ export async function testPrivateWebhookDatabase(db,check){
    values($1,'synthetic-webhook-provider','connected','synthetic',now()+interval '1 day',now()+interval '1 day',now(),'["HEALTH_EXPORT","ACTIVITY_EXPORT"]')`,[user]);
   const model=await load('src/features/health/model.ts');
   const normalize=await load('src/features/garmin/health/normalize.server.ts',{'@/features/health/model':model});
-  // Bridge the unchanged Supabase store contract to actual local SQL, not an in-memory inbox.
+  const pull=await load('src/features/garmin/health/activity-pull.server.ts',{'./normalize.server':normalize});
+  const crypto=await load('src/features/garmin/crypto.server.ts');
+  // Bridge the actual Supabase store contract to local SQL, not an in-memory inbox.
   const store=await load('src/features/garmin/health/store.server.ts',{'@/lib/supabase/admin.server':{createAdminClient:()=>({rpc:async(name,args)=>{
    try{
     let result;
     if(name==='admit_garmin_health_push')result=await db.query('select public.admit_garmin_health_push($1::jsonb) as value',[JSON.stringify(args.p_events)]);
+    else if(name==='admit_garmin_hr_push')result=await db.query('select public.admit_garmin_hr_push($1::jsonb) as value',[JSON.stringify(args.p_events)]);
     else if(name==='process_garmin_health_queue')result=await db.query('select public.process_garmin_health_queue($1::integer) as value',[args.p_limit]);
     else throw Error('Unexpected RPC');
     return {data:result.rows[0].value,error:null};
    }catch{return {data:null,error:{code:'synthetic-sql-failure'}};}
-  }})}});
+  }})},'@/features/garmin/config.server':{getGarminConfig:()=>null},'@/features/garmin/crypto.server':crypto,'./activity-pull.server':pull});
   const config={garminHealthEnabled:()=>false,garminHealthTestUsers:()=>[]};
   const http=await load('src/features/garmin/health/http.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./normalize.server':normalize,'../service.server':{configuredGarminService:()=>null},'./store.server':store});
   const ingressHttp=await load('src/features/garmin/health/ingress.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./store.server':store,'./private-push.server':await load('src/features/garmin/health/private-push.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./store.server':store,'./http.server':http})});
   const forwardKey=randomBytes(32).toString('hex');
-  const internal=ingressHttp.createGarminIngressReceiver({enabled:true,secret:forwardKey,inbox:store.createGarminHealthInbox,schedule:()=>{}});
+  const internal=ingressHttp.createGarminIngressReceiver({enabled:true,heartRateEnabled:true,secret:forwardKey,inbox:store.createGarminHealthInbox,schedule:()=>{}});
   const privateHttp=await load('src/features/garmin/health/private-push.server.ts',{'next/server':{after:()=>{}},'./config.server':config,'./store.server':store,'./http.server':http});
   const receive=privateHttp.createPrivateGarminPushReceiver({enabled:true,secret:process.env.GARMIN_HEALTH_WEBHOOK_SECRET,inbox:store.createGarminHealthInbox,schedule:()=>{}});
   const worker=http.createGarminHealthWorker({enabled:true,verifierReady:true,secret:workerSecret,inbox:store.createGarminHealthInbox});
@@ -139,6 +142,50 @@ export async function testPrivateWebhookDatabase(db,check){
   const next=await reader.readGarminHealth(user,'2026-10-24');
   check(!next.unavailable&&dashboard.garminHealthDataset(next.records,null).days.find(day=>day.date==='2026-10-24')?.steps===600,
    'Owner Health reader shows a subsequent distinct day while retaining the earlier known measurement');
+  // Documented Starter full-data Push, deliberately >1 MiB and >100 chunks.
+  // No callback, provider token or external network is involved.
+  const hrStart=1792882800, sampleCount=36001;
+  const activity={userId:'synthetic-webhook-provider',summaryId:'starter-details',activityId:'starter-recording',
+   summary:{startTimeInSeconds:hrStart,durationInSeconds:36000,activityType:'ARCHERY'},
+   samples:Array.from({length:sampleCount},(_,i)=>({startTimeInSeconds:hrStart+i,heartRate:80+i%100}))};
+  const activityBody=JSON.stringify({activityDetails:[activity]});
+  check(Buffer.byteLength(activityBody)>1048576&&Buffer.byteLength(activityBody)<=4194304,'Realistic full-data Starter fixture fits the shared 4 MiB Push bound');
+  const push=()=>gateway(new Request('https://ingress.invalid/garmin/'+secret,{method:'POST',headers:{'Content-Type':'application/json'},body:activityBody}),gatewayEnv);
+  await db.query('reset role');await db.query('set role service_role');
+  check((await push()).status===200,'Starter full-data Push reaches atomic durable SQL admission through authenticated ingress');
+  check((await db.query("select count(*)::int n from public.garmin_health_inbox where source_id='starter-recording' and state='pending'")).rows[0].n===122,'Every Starter sample chunk and activity summary is durable before acknowledgment');
+  check((await db.query("select count(*)::int n from public.garmin_hr_datasets where source_id='starter-recording'")).rows[0].n===0,'Push acknowledgment does not falsely claim HR processing completed');
+  for(let i=0;i<3;i++)check((await send('/worker',null,'GET',{Authorization:'Bearer '+workerSecret})).status===200,'Bounded authenticated worker processes a Starter HR batch');
+  check((await db.query("select sample_count,published from public.garmin_hr_datasets where source_id='starter-recording'")).rows.some(row=>row.published&&row.sample_count===sampleCount),'All original Starter HR samples are published after durable processing');
+  check((await push()).status===200,'Starter full-data replay is idempotent through the real SQL receiver');
+  check((await db.query("select count(*)::int n from public.garmin_hr_datasets where source_id='starter-recording'")).rows[0].n===1,'Duplicate Starter delivery cannot create a second HR dataset');
+  await db.query('reset role');
+  const session='91000000-0000-4000-8000-000000000010';
+  await db.query("insert into public.sessions values($1,$2,'Starter Session',0)",[session,user]);
+  await db.query('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);
+  await db.query("select public.set_session_recording_window($1,'manual',null,to_timestamp($2),to_timestamp($3))",[session,hrStart,hrStart+36000]);
+  await db.query("select public.set_session_recording_window($1,'link',(select updated_at from public.session_recording_windows where session_id=$1),null,null,'starter-recording')",[session]);
+  const sessionData=(await db.query('select public.read_session_garmin_hr($1) as value',[session])).rows[0].value;
+  check(sessionData.datasets[0].samples.length===sampleCount,'Owner Session reader returns actual original Starter HR samples');
+  const hrModel=await load('src/features/session-health/model.ts');
+  const timeline=await load('src/features/session-health/heart-rate-timeline.tsx',{'./model':hrModel});
+  const analysis=hrModel.hrAnalysis(sessionData.datasets,hrStart,hrStart+36000);
+  const hrHtml=renderToStaticMarkup(React.createElement(timeline.HeartRateTimeline,{analysis,start:hrStart,end:hrStart+36000}));
+  check(analysis.count===sampleCount&&hrHtml.includes('Recorded heart rate'),'Starter ingress -> SQL inbox -> worker -> owner reader -> actual Session timeline renders without fabricated data');
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
+  check((await db.query('select public.read_session_garmin_hr($1) as value',[session])).rows[0].value===null,'Other athlete cannot access the pushed Session recording');
+  await db.query('reset role');await db.query('set role service_role');
+  const dailyHr={userId:'synthetic-webhook-provider',summaryId:'starter-daily-hr',calendarDate:'2026-10-25',
+   startTimeInSeconds:hrStart,durationInSeconds:86400,timeOffsetHeartRateSamples:{15:80,30:90}};
+  check((await send('/internal',{dailies:[dailyHr]},'POST',{Authorization:'Bearer '+forwardKey})).status===200,
+   'Documented all-day offset HR samples pass authenticated durable admission');
+  await send('/worker',null,'GET',{Authorization:'Bearer '+workerSecret});
+  await db.query('reset role');await db.query('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);
+  await db.query("select public.set_session_recording_window($1,'manual',(select updated_at from public.session_recording_windows where session_id=$1),to_timestamp($2),to_timestamp($3))",[session,hrStart,hrStart+60]);
+  const fallback=(await db.query('select public.read_session_garmin_hr($1) as value',[session])).rows[0].value;
+  const dailyAnalysis=hrModel.hrAnalysis(fallback.datasets,hrStart,hrStart+60);
+  check(fallback.datasets[0].source==='daily'&&dailyAnalysis.count===2&&dailyAnalysis.covered===30&&dailyAnalysis.average===85,
+   'Unlinked Session uses genuine all-day samples as preceding 15-second fallback bins without invented points');
  } finally {
   await db.query('reset role');
   if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

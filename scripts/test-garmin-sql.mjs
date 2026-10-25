@@ -104,7 +104,15 @@ async function assertExistingFunctionality() {
     await owner.query('set local role authenticated');
     await owner.query("select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true)");
     assert(await scalar('select count(*)::int from public.sessions')===1,'Existing RLS still isolates the owner');
-    assert((await owner.query("update public.sessions set title='Updated in rollback' where id='20000000-0000-4000-8000-000000000001'")).rowCount===1,'Existing owner UPDATE still works');
+    await owner.query('savepoint denied_direct_update');
+    let directUpdateCode;
+    try { await owner.query("update public.sessions set title='Client update must fail' where id='20000000-0000-4000-8000-000000000001'"); }
+    catch(error) { directUpdateCode=error.code; }
+    await owner.query('rollback to savepoint denied_direct_update');
+    assert(directUpdateCode==='42501','Authenticated direct Session UPDATE remains denied under production grants');
+    await owner.query('reset role');
+    await owner.query('set local role service_role');
+    assert((await owner.query("update public.sessions set title='Updated in rollback' where id='20000000-0000-4000-8000-000000000001'")).rowCount===1,'Existing privileged backend Session UPDATE still works');
     await owner.query('savepoint invalid_title');
     let code;
     try { await owner.query("update public.sessions set title='' where id='20000000-0000-4000-8000-000000000001'"); }
