@@ -772,15 +772,17 @@ test("Garmin real Supabase query builder preserves user/version/expiry fencing i
   assert.equal(requests.at(-1).url.searchParams.get("connection_version"), "eq.version-a");
 });
 
-async function cardHarness(view = { ...emptyGarminView(true), canConnect: true }, notice, fetcher = async () => Response.json(view), placement = "health") {
+async function cardHarness(view = { ...emptyGarminView(true), canConnect: true }, notice, fetcher = async () => Response.json(view), placement = "health", globals = {}) {
   const states = [], effects = []; let index = 0;
   const loaded = await load("src/features/garmin/components/garmin-connection-card.tsx", {
     react: { useState: initial => { const slot = index++; if (!(slot in states)) states[slot] = initial;
       return [states[slot], value => { states[slot] = typeof value === "function" ? value(states[slot]) : value; }]; },
+      useRef: initial => { const slot = index++; if (!(slot in states)) states[slot] = { current: initial }; return states[slot]; },
+      useCallback: callback => callback,
       useEffect: effect => { effects.push(effect); } },
     "./garmin-connection.module.css": { __esModule: true, default: {} },
     "next/image": { __esModule: true, default: (props) => React.createElement("img", props) },
-  }, { fetch: fetcher });
+  }, { fetch: fetcher, ...globals });
   const render = () => { index = 0; effects.length = 0; return loaded.GarminConnectionCard({ initialStatus: view, notice, placement }); };
   return { render, states, effects };
 }
@@ -847,31 +849,103 @@ test("Profile keeps advanced Garmin controls in a closed Connected Apps disclosu
   assert.doesNotMatch(html, /Last authorized|Last checked|Connection status/);
   const disconnected = await cardHarness(undefined, undefined, undefined, "profile");
   const profileHtml = renderToStaticMarkup(disconnected.render());
-  assert.match(profileHtml, /href="\/health"/);
-  assert.doesNotMatch(profileHtml, /action="\/api\/integrations\/garmin\/start"/);
+  assert.doesNotMatch(profileHtml, /href="\/health"/);
+  assert.match(profileHtml, /action="\/api\/integrations\/garmin\/start"/);
 });
 
-test("Profile Garmin row is one branded Health link with honest connection state", async () => {
+test("Profile Garmin row is a branded isolated new-tab POST with honest connection state", async () => {
   for (const [view, label] of [
     [{ ...emptyGarminView(true), canConnect: true }, "Connect Garmin"],
     [{ ...emptyGarminView(true), status: "connected" }, "Connected"],
-    [{ ...emptyGarminView(true), status: "reauthorization_required" }, "Reconnect Garmin"],
+    [{ ...emptyGarminView(true), canConnect: true, status: "reauthorization_required" }, "Reconnect Garmin"],
     [{ ...emptyGarminView(true), available: false, status: "connected" }, "Status unavailable"],
     [{ ...emptyGarminView(true), status: "connecting" }, "Updating…"],
   ]) {
     const h = await cardHarness(view, "connected", undefined, "profile");
     const tree = h.render();
-    const link = nodes(tree, "a").find(node => node.props.href === "/health");
-    const html = renderToStaticMarkup(link);
+    const form = nodes(tree, "form").find(node => node.props.action === "/api/integrations/garmin/start");
+    const button = nodes(form, "button")[0];
+    const html = renderToStaticMarkup(button);
     assert.match(html, /Garmin Connect/);
     assert.ok(html.includes(label));
     assert.match(html, /garmin-connect.png/);
     assert.match(html, /<svg[^>]*aria-hidden="true"/);
-    assert.equal(nodes(tree, "a").filter(node => node.props.href === "/health").length, 1);
-    assert.equal(nodes(link, "button").length, 0);
+    assert.equal(form.props.method, "post");
+    assert.equal(form.props.target, "_blank");
+    assert.equal(form.props.rel, "noopener");
+    assert.equal(button.props.disabled, !["Connect Garmin", "Reconnect Garmin"].includes(label));
+    assert.equal(nodes(tree, "a").filter(node => node.props.href === "/health").length, 0);
+    if (button.props.disabled) {
+      let prevented = false;
+      form.props.onSubmit({ preventDefault() { prevented = true; } });
+      assert.equal(prevented, true);
+    }
     if (label !== "Connected") assert.doesNotMatch(html, />Connected</);
     assert.equal(nodes(tree, "details")[0].props.open, undefined);
   }
+});
+
+function profileBrowser() {
+  const window = new EventTarget(), document = new EventTarget(), timers = new Map();
+  document.visibilityState = "visible";
+  let serial = 0;
+  return { window, document, timers, setTimeout: callback => { const id = ++serial; timers.set(id, callback); return id; }, clearTimeout: id => timers.delete(id) };
+}
+
+test("Profile native authorization blocks immediate duplicate submits and recovers if its new tab never returns", async () => {
+  const browser = profileBrowser(), h = await cardHarness(undefined, undefined, undefined, "profile", browser);
+  const submit = nodes(h.render(), "form")[0].props.onSubmit;
+  submit({ preventDefault: () => assert.fail("first native POST must proceed") });
+  let blocked = false;
+  submit({ preventDefault: () => { blocked = true; } });
+  assert.equal(blocked, true, "synchronous guard works before React rerenders");
+  assert.match(renderToStaticMarkup(h.render()), /Updating/);
+  for (const [id, callback] of browser.timers) { browser.timers.delete(id); callback(); }
+  assert.equal(nodes(h.render(), "form")[0].props.children.props.disabled, false);
+  nodes(h.render(), "form")[0].props.onSubmit({ preventDefault: () => assert.fail("retry allowed after cancellation or blocked tab") });
+  h.effects[2]()();
+  assert.equal(browser.timers.size, 0, "unmount clears launch recovery timer");
+});
+
+test("Profile focus and visible return refresh server status once, with no polling and complete listener cleanup", async () => {
+  const browser = profileBrowser(), gate = deferred(); let calls = 0;
+  const connected = { ...emptyGarminView(true), canConnect: true, status: "connected" };
+  const h = await cardHarness(undefined, "connected", async () => { calls++; await gate.promise; return Response.json(connected); }, "profile", browser);
+  h.render(); const cleanups = h.effects.map(effect => effect()).filter(Boolean);
+  assert.equal(calls, 0); assert.equal(browser.timers.size, 0, "no polling timer");
+  browser.document.visibilityState = "hidden";
+  browser.document.dispatchEvent(new Event("visibilitychange"));
+  assert.equal(calls, 0);
+  browser.document.visibilityState = "visible";
+  browser.document.dispatchEvent(new Event("visibilitychange"));
+  browser.window.dispatchEvent(new Event("focus"));
+  assert.equal(calls, 1, "overlapping focus and visibility events share one request");
+  assert.doesNotMatch(renderToStaticMarkup(h.render()), />Connected</);
+  gate.resolve(); await new Promise(resolve => setImmediate(resolve));
+  assert.match(renderToStaticMarkup(h.render()), />Connected</);
+  cleanups.forEach(cleanup => cleanup());
+  browser.window.dispatchEvent(new Event("focus"));
+  browser.document.dispatchEvent(new Event("visibilitychange"));
+  assert.equal(calls, 1);
+});
+
+test("Profile returning from failed authorization clears loading, shows an error and permits a verified retry", async () => {
+  const browser = profileBrowser(); let fail = true;
+  const view = { ...emptyGarminView(true), canConnect: true, status: "reauthorization_required" };
+  const h = await cardHarness(view, undefined, async () => { if (fail) throw Error("offline"); return Response.json(view); }, "profile", browser);
+  h.render(); const cleanup = h.effects[1]();
+  nodes(h.render(), "form")[0].props.onSubmit({ preventDefault: () => assert.fail("allow native POST") });
+  browser.window.dispatchEvent(new Event("focus"));
+  await new Promise(resolve => setImmediate(resolve));
+  let html = renderToStaticMarkup(h.render());
+  assert.match(html, /could not be refreshed/); assert.doesNotMatch(html, /Updating|>Connected</);
+  assert.equal(browser.timers.size, 0);
+  fail = false; browser.window.dispatchEvent(new Event("focus"));
+  await new Promise(resolve => setImmediate(resolve));
+  html = renderToStaticMarkup(h.render());
+  assert.match(html, /Reconnect Garmin/); assert.doesNotMatch(html, /could not be refreshed/);
+  assert.equal(nodes(h.render(), "form")[0].props.children.props.disabled, false);
+  cleanup();
 });
 
 test("cancelled consent offers one message and Try Again; revocation offers Reconnect Garmin", async () => {

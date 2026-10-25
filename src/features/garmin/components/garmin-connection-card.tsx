@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
 import type { GarminView } from "../types";
 import styles from "./garmin-connection.module.css";
@@ -28,6 +28,8 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
   const [view, setView] = useState(initialStatus);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const refreshing = useRef(false);
+  const launchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // A tab left open must not continue advertising an expired access token as healthy.
   useEffect(() => {
     if (view.status !== "connected" || !view.expiresAt) return;
@@ -44,8 +46,9 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
     if (pending) event.preventDefault();
     else setPending(true);
   }
-  async function refresh() {
-    if (pending) return;
+  const refresh = useCallback(async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
     setPending(true);
     setError("");
     try {
@@ -60,8 +63,28 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
       onStatusChange?.(next);
       setError("Your Garmin connection status could not be refreshed. Please try again.");
     }
-    finally { setPending(false); }
-  }
+    finally { refreshing.current = false; setPending(false); }
+  }, [view, onStatusChange]);
+  useEffect(() => {
+    if (placement !== "profile") return;
+    const returning = () => {
+      if (document.visibilityState !== "visible") return;
+      if (launchTimer.current !== null) {
+        clearTimeout(launchTimer.current);
+        launchTimer.current = null;
+      }
+      void refresh();
+    };
+    window.addEventListener("focus", returning);
+    document.addEventListener("visibilitychange", returning);
+    return () => {
+      window.removeEventListener("focus", returning);
+      document.removeEventListener("visibilitychange", returning);
+    };
+  }, [placement, refresh]);
+  useEffect(() => () => {
+    if (launchTimer.current !== null) clearTimeout(launchTimer.current);
+  }, []);
   const working = view.status === "connecting" || view.status === "disconnecting" || view.error === "account_deletion_pending";
   const confirmedNotice = notice && notice !== "connected"
     && (notice !== "disconnected" || view.status === "disconnected")
@@ -69,9 +92,23 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
   const message = error || (confirmedNotice && notices[confirmedNotice]) || (view.error && notices[view.error]);
   const connected = view.available && view.status === "connected";
   const reconnect = view.status === "reauthorization_required" || view.status === "error";
+  function authorizing(event: FormEvent) {
+    if (pending || refreshing.current || launchTimer.current !== null || connected || !view.available || !view.canConnect || working) {
+      event.preventDefault();
+      return;
+    }
+    setPending(true);
+    // Native target=_blank submission needs no popup API. Release the local
+    // launch state even if the browser blocks the tab or the user closes it.
+    launchTimer.current = setTimeout(() => {
+      launchTimer.current = null;
+      if (!refreshing.current) setPending(false);
+    }, 2000);
+  }
   return <div className={`${styles.integration}${placement === "profile" ? ` ${styles.profileIntegration}` : ""}`} data-garmin-connection aria-label="Garmin connection">
     <div className={styles.row}>
-      {placement === "profile" ? <a className={styles.profileButton} href="/health">
+      {placement === "profile" ? <form className={styles.profileForm} method="post" action="/api/integrations/garmin/start" target="_blank" rel="noopener" onSubmit={authorizing}>
+        <button className={styles.profileButton} type="submit" aria-label={!connected && view.available && view.canConnect && !working ? `${reconnect ? "Reconnect" : "Connect"} Garmin (opens in a new tab)` : undefined} disabled={connected || !view.available || !view.canConnect || pending || working}>
         <Image className={styles.profileLogo} src="/garmin-connect.png" alt="" width={100} height={27} />
         <span className={styles.profileCopy}>
           <strong>Garmin Connect</strong>
@@ -80,7 +117,8 @@ export function GarminConnectionCard({ initialStatus, notice, placement = "profi
           </span>
         </span>
         <svg className={styles.profileChevron} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
-      </a> : connected ? <span className={styles.connected} role="status"><span aria-hidden="true">✓</span>Garmin Connected</span>
+        </button>
+      </form> : connected ? <span className={styles.connected} role="status"><span aria-hidden="true">✓</span>Garmin Connected</span>
         : <form method="post" action="/api/integrations/garmin/start" onSubmit={submitting}>
           <button className={styles.connect} disabled={!view.available || !view.canConnect || pending || working}>
             <Image src="/garmin-connect.png" alt="" width={100} height={27} />
