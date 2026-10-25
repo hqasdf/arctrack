@@ -7,6 +7,7 @@ import * as insights from "@arc-track/core/insights";
 import * as scoring from "@arc-track/core/scoring";
 import * as geometry from "../src/native-target-geometry.ts";
 import * as scoringState from "../src/scoring-state.ts";
+import * as arrowQueue from "../src/arrow-save-queue.ts";
 
 function load(path, dependencies, getPalette = () => ({})) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
@@ -65,6 +66,7 @@ async function runtime(faceType = "full_face") {
     "expo-router": { useLocalSearchParams: () => ({ roundId: "round" }) },
     "@arc-track/core/analytics": { targetFaceLabel: () => "Target" }, "@arc-track/core/presets": { DIVISIONS: ["Recurve"] }, "@arc-track/core/scoring": scoring,
     "../../../src/auth": { useAuth: () => ({ user }) }, "../../../src/scoring-state": scoringState,
+    "../../../src/arrow-save-queue": arrowQueue,
     "../../../src/sessions": { readOwnRound: async () => { io.roundReads++; return { session: { id: "session", title: "Practice", date: "2026-10-20" }, round }; } },
     "../../../src/arrow-writes": { readRoundEndIds: async () => { io.endReads++; return new Map([[1, "end"]]); }, saveArrowRecord: async entry => { io.saves.push(structuredClone(entry)); return "saved"; }, deleteArrowRecord: async () => { io.deletes++; } },
     "../../../src/icons": { ArcIcon: "Icon" }, "../../../src/grouping-export": { GroupingExportButton: "Export" }, "../../../src/session-weather": { ScoringWeather: "Weather" },

@@ -7,10 +7,10 @@ test("selected increments add their full amount and can vary each time", () => {
   assert.equal(state.totalArrows, 6);
   state = addArrows(setIncrement(state, 14));
   assert.equal(state.totalArrows, 20);
-  assert.deepEqual(state.history, [6, 14]);
+  assert.deepEqual(state.history.map(entry => entry.amount), [6, 14]);
   state = addArrows(setIncrement(state, 6));
   assert.equal(state.totalArrows, 26);
-  assert.deepEqual(state.history, [6, 14, 6]);
+  assert.deepEqual(state.history.map(entry => entry.amount), [6, 14, 6]);
 });
 
 test("multiple Undo actions subtract each last addition in reverse order", () => {
@@ -37,13 +37,13 @@ test("any positive whole-number increment is accepted and invalid values are ign
 
 test("Reset clears total and undo history while keeping the selected increment", () => {
   const state = addArrows(setIncrement(DEFAULT_COUNTER, 14));
-  assert.deepEqual(resetCounter(state), { version: 2, totalArrows: 0, increment: 14, history: [] });
+  assert.deepEqual(resetCounter(state), { version: 3, totalArrows: 0, increment: 14, history: [] });
 });
 
 test("saved counter and undo history survive reload; legacy totals are preserved", () => {
   const saved = addArrows(setIncrement(addArrows(DEFAULT_COUNTER), 14));
   assert.deepEqual(readCounter(JSON.parse(JSON.stringify(saved))), saved);
   assert.deepEqual(readCounter({ version: 1, arrowsPerEnd: 50, totalArrows: 151 }), { ...DEFAULT_COUNTER, totalArrows: 151 });
-  assert.deepEqual(readCounter({ version: 2, totalArrows: 10, increment: 6, history: [14] }), { ...DEFAULT_COUNTER, totalArrows: 10, history: [] });
-  assert.deepEqual(readCounter({ version: 2, totalArrows: -1, increment: 6, history: [] }), DEFAULT_COUNTER);
+  assert.throws(() => readCounter({ version: 2, totalArrows: 10, increment: 6, history: [14] }));
+  assert.throws(() => readCounter({ version: 2, totalArrows: -1, increment: 6, history: [] }));
 });

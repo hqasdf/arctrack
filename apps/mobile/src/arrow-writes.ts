@@ -16,7 +16,14 @@ export async function readRoundEndIds(roundId: string): Promise<Map<number, stri
   return new Map((data ?? []).map((row) => [row.end_number, row.id]));
 }
 
-export async function saveArrowRecord(entry: ArrowEntry, endId: string, savedId?: string): Promise<string> {
+async function requireCurrentOwner(expectedUserId?: string) {
+  if (!expectedUserId) return;
+  const { data, error } = await client().auth.getSession();
+  if (error || data.session?.user.id !== expectedUserId) throw new Error("The scoring account changed. Sign in again before saving.");
+}
+
+export async function saveArrowRecord(entry: ArrowEntry, endId: string, savedId?: string, expectedUserId?: string): Promise<string> {
+  await requireCurrentOwner(expectedUserId);
   const fields = arrowWriteFields(entry);
   const { data, error } = await client().rpc("save_owned_arrow", {
     p_session_end_id: endId,
@@ -32,7 +39,8 @@ export async function saveArrowRecord(entry: ArrowEntry, endId: string, savedId?
   return data.id;
 }
 
-export async function deleteArrowRecord(savedId: string, endId: string): Promise<void> {
+export async function deleteArrowRecord(savedId: string, endId: string, expectedUserId?: string): Promise<void> {
+  await requireCurrentOwner(expectedUserId);
   const { data, error } = await client().rpc("delete_owned_arrow", {
     p_session_end_id: endId, p_arrow_number: null, p_arrow_id: savedId,
   });

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { deleteArrowRecord, readRoundEndIds, saveArrowRecord } from "../../../src/arrow-writes";
+import { enqueueArrowWrite, waitForRoundWrites } from "../../../src/arrow-save-queue";
 import { useAuth } from "../../../src/auth";
 import { ArcIcon } from "../../../src/icons";
 import { GroupingExportButton } from "../../../src/grouping-export";
@@ -45,6 +46,11 @@ export default function ScoreRoundScreen() {
   const { colors } = useAppearance();
   const { roundId } = useLocalSearchParams<{ roundId: string }>();
   const { user } = useAuth();
+  const userId = user?.id;
+  const lifecycle = useRef(0);
+  const loadVersion = useRef(0);
+  const mounted = useRef(false);
+  const [loadedOwner, setLoadedOwner] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<LoadedRound | null>(null);
   const [arrows, setArrows] = useState<ArrowEntry[]>([]);
   const arrowsRef = useRef<ArrowEntry[]>([]);
@@ -56,7 +62,6 @@ export default function ScoreRoundScreen() {
   const endIds = useRef(new Map<number, string>());
   const persistedIds = useRef(new Map<string, string>());
   const versions = useRef(new Map<string, number>());
-  const queues = useRef(new Map<string, Promise<void>>());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -74,36 +79,48 @@ export default function ScoreRoundScreen() {
     if (active) pageScroll.current?.scrollTo({ ...pageOffset.current, animated: false });
   }, []);
 
+  const selectSlot = useCallback((next: ArrowSlot, explicit = false) => { slotRef.current = next; editingKeyRef.current = explicit ? arrowKey(next.end, next.arrow) : null; setEditingKey(editingKeyRef.current); setSlot(next); }, []);
   const load = useCallback(async (preferredSlot?: ArrowSlot) => {
-    if (!user || !roundId) return;
+    const request = ++loadVersion.current;
+    const generation = lifecycle.current;
+    if (!userId || !roundId) { setLoaded(null); setLoading(false); return; }
+    const current = () => mounted.current && generation === lifecycle.current && request === loadVersion.current;
     setLoading(true);
     setLoadError(null);
     try {
-      const result = await readOwnRound(user.id, roundId);
+      await waitForRoundWrites(userId, roundId);
+      if (!current()) return;
+      const result = await readOwnRound(userId, roundId);
+      if (!current()) return;
       if (!result) { setLoaded(null); return; }
       const plannedEnds = await readRoundEndIds(roundId);
+      if (!current()) return;
       if (plannedEnds.size !== result.round.ends) throw new Error("The planned Ends could not be loaded.");
       endIds.current = plannedEnds;
       persistedIds.current = new Map(result.round.arrows.map((arrow) => [arrowKey(arrow.end, arrow.arrow), arrow.id]));
-      versions.current.clear();
-      queues.current.clear();
+      versions.current = new Map();
       arrowsRef.current = result.round.arrows;
       setArrows(result.round.arrows);
       const defaultSlot = firstEmptySlot(result.round, result.round.arrows);
       selectSlot(preferredSlot && preferredSlot.end <= result.round.ends ? preferredSlot : defaultSlot);
       setLatestPlotKey(null);
       setLoaded(result);
+      setLoadedOwner(`${userId}:${roundId}`);
     } catch {
-      setLoadError("This Round could not be loaded. Check your connection and try again.");
+      if (current()) setLoadError("This Round could not be loaded. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
-  }, [user, roundId]);
+  }, [userId, roundId, selectSlot]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mounted.current = true;
+    const generation = lifecycle.current;
+    queueMicrotask(() => { if (mounted.current && generation === lifecycle.current) void load(); });
+    return () => { mounted.current = false; lifecycle.current = generation + 1; };
+  }, [load]);
 
   function commitArrows(next: ArrowEntry[]) { arrowsRef.current = next; setArrows(next); }
-  function selectSlot(next: ArrowSlot, explicit = false) { slotRef.current = next; editingKeyRef.current = explicit ? arrowKey(next.end, next.arrow) : null; setEditingKey(editingKeyRef.current); setSlot(next); }
   function replaceEntry(key: string, change: (entry: ArrowEntry) => ArrowEntry) {
     commitArrows(arrowsRef.current.map((item) => arrowKey(item.end, item.arrow) === key ? change(item) : item));
   }
@@ -113,23 +130,21 @@ export default function ScoreRoundScreen() {
     return version;
   }
   function enqueue(key: string, task: () => Promise<void>) {
-    const previous = queues.current.get(key) ?? Promise.resolve();
-    const job = previous.catch(() => {}).then(task);
-    queues.current.set(key, job);
-    void job.finally(() => { if (queues.current.get(key) === job) queues.current.delete(key); });
+    if (userId) void enqueueArrowWrite(userId, roundId, key, task);
   }
   function persist(entry: ArrowEntry) {
     const key = arrowKey(entry.end, entry.arrow);
     const version = nextVersion(key);
+    const generation = lifecycle.current, savedIds = persistedIds.current, plannedIds = endIds.current, slotVersions = versions.current;
     enqueue(key, async () => {
       try {
-        const endId = endIds.current.get(entry.end);
+        const endId = plannedIds.get(entry.end);
         if (!endId) throw new Error("The planned End could not be found.");
-        const id = await saveArrowRecord(entry, endId, persistedIds.current.get(key));
-        persistedIds.current.set(key, id);
-        commitArrows(applyArrowSaveResult(arrowsRef.current, key, version, versions.current.get(key) ?? 0, { id }));
+        const id = await saveArrowRecord(entry, endId, savedIds.get(key), userId);
+        savedIds.set(key, id);
+        if (mounted.current && generation === lifecycle.current) commitArrows(applyArrowSaveResult(arrowsRef.current, key, version, slotVersions.get(key) ?? 0, { id }));
       } catch {
-        commitArrows(applyArrowSaveResult(arrowsRef.current, key, version, versions.current.get(key) ?? 0, { failed: true }));
+        if (mounted.current && generation === lifecycle.current) commitArrows(applyArrowSaveResult(arrowsRef.current, key, version, slotVersions.get(key) ?? 0, { failed: true }));
       }
     });
   }
@@ -177,19 +192,20 @@ export default function ScoreRoundScreen() {
     if (!removed) return;
     const key = arrowKey(removed.end, removed.arrow);
     const version = nextVersion(key);
+    const generation = lifecycle.current, savedIds = persistedIds.current, plannedIds = endIds.current, slotVersions = versions.current;
     commitArrows(arrowsRef.current.filter((item) => arrowKey(item.end, item.arrow) !== key));
     selectSlot({ end: removed.end, arrow: removed.arrow });
     setActionError(null);
     enqueue(key, async () => {
-      const id = persistedIds.current.get(key);
+      const id = savedIds.get(key);
       if (!id) return;
       try {
-        const endId = endIds.current.get(removed.end);
+        const endId = plannedIds.get(removed.end);
         if (!endId) throw new Error("The planned End could not be found.");
-        await deleteArrowRecord(id, endId);
-        persistedIds.current.delete(key);
+        await deleteArrowRecord(id, endId, userId);
+        savedIds.delete(key);
       } catch {
-        if (versions.current.get(key) === version) {
+        if (mounted.current && generation === lifecycle.current && slotVersions.get(key) === version) {
           commitArrows(restoreDeletedArrow(arrowsRef.current, removed));
           selectSlot({ end: removed.end, arrow: removed.arrow });
           setActionError("The Arrow could not be deleted. Try again.");
@@ -209,19 +225,21 @@ export default function ScoreRoundScreen() {
   async function saveConfigure() {
     if (!loaded || !configureDraft || !roundUpdateEnabled || arrowsRef.current.length > 0 || savingConfigure) return;
     setSavingConfigure(true);
+    const generation = lifecycle.current;
     setConfigureError(null);
     try {
       await updateMobileRoundSettings(loaded.round.id, loaded.round.ends, configureDraft);
+      if (!mounted.current || generation !== lifecycle.current) return;
       setShowConfigure(false);
       await load(slotRef.current);
     } catch (issue) {
-      setConfigureError(issue instanceof Error ? issue.message : "Round settings could not be saved.");
+      if (mounted.current && generation === lifecycle.current) setConfigureError(issue instanceof Error ? issue.message : "Round settings could not be saved.");
     } finally {
-      setSavingConfigure(false);
+      if (mounted.current && generation === lifecycle.current) setSavingConfigure(false);
     }
   }
 
-  if (loading) return <View style={styles.state}><ActivityIndicator color={colors.accent} accessibilityLabel="Loading scoring Round" /></View>;
+  if (loading || loaded && loadedOwner !== `${userId}:${roundId}`) return <View style={styles.state}><ActivityIndicator color={colors.accent} accessibilityLabel="Loading scoring Round" /></View>;
   if (loadError) return <View style={styles.state}><Text style={styles.message}>{loadError}</Text><Pressable accessibilityRole="button" onPress={() => void load()} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable></View>;
   if (!loaded) return <View style={styles.state}><Text style={styles.message}>Round not found or you do not have access.</Text></View>;
 

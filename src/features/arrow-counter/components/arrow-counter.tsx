@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
-import { addArrows, COUNTER_STORAGE_KEY, DEFAULT_COUNTER, readCounter, resetCounter, setIncrement, undoLastAddition, type ArrowCounterState } from "../counter-model";
+import { addArrows, COUNTER_STORAGE_KEY, DEFAULT_COUNTER, lastAdditionDisplay, readCounter, resetCounter, setIncrement, undoLastAddition, type ArrowCounterState } from "../counter-model";
 import styles from "./arrow-counter.module.css";
 
 export function ArrowCounter() {
   const [counter, setCounter] = useState<ArrowCounterState>(DEFAULT_COUNTER);
   const [ready, setReady] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const currentCounter = useRef(DEFAULT_COUNTER);
+  const writable = useRef(false);
   const [previewIncrement, setPreviewIncrement] = useState(DEFAULT_COUNTER.increment);
   const [incrementInput, setIncrementInput] = useState(String(DEFAULT_COUNTER.increment));
   const [confirmReset, setConfirmReset] = useState(false);
@@ -32,29 +36,37 @@ export function ArrowCounter() {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
+      writable.current = false;
       let stored = DEFAULT_COUNTER;
       try {
         const raw = window.localStorage.getItem(COUNTER_STORAGE_KEY);
         if (raw !== null) {
           const parsed: unknown = JSON.parse(raw);
           stored = readCounter(parsed);
-          if (typeof parsed === "object" && parsed !== null && "version" in parsed && parsed.version !== 2) {
-            window.localStorage.setItem(COUNTER_STORAGE_KEY, JSON.stringify(stored));
-          }
         }
       } catch {
         setMessage("This browser could not load the saved counter.");
+        setLoadFailed(true);
+        setReady(false);
+        return;
       }
+      currentCounter.current = stored;
+      writable.current = true;
       setCounter(stored);
       setPreviewIncrement(stored.increment);
       previewRef.current = stored.increment;
       setIncrementInput(String(stored.increment));
       setReady(true);
+      setLoadFailed(false);
+      setMessage(null);
     });
     return () => { active = false; };
-  }, []);
+  }, [loadAttempt]);
 
-  function apply(next: ArrowCounterState) {
+  function apply(change: (current: ArrowCounterState) => ArrowCounterState) {
+    if (!writable.current) return;
+    const next = change(currentCounter.current);
+    currentCounter.current = next;
     setCounter(next);
     setPreviewIncrement(next.increment);
     previewRef.current = next.increment;
@@ -67,10 +79,11 @@ export function ArrowCounter() {
   }
 
   function chooseIncrement(increment: number) {
-    if (!Number.isSafeInteger(increment) || increment < 1) return;
-    const next = setIncrement(counter, increment);
+    if (!writable.current || !Number.isSafeInteger(increment) || increment < 1) return;
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    const next = setIncrement(currentCounter.current, increment);
     setIncrementInput(String(next.increment));
-    apply(next);
+    apply(current => setIncrement(current, increment));
   }
 
   function editIncrement(value: string) {
@@ -89,10 +102,11 @@ export function ArrowCounter() {
   }
 
   function adjustIncrement(amount: number) {
-    chooseIncrement(Math.max(1, counter.increment + amount));
+    chooseIncrement(Math.max(1, currentCounter.current.increment + amount));
   }
 
   function handleSelectorScroll(event: UIEvent<HTMLDivElement>) {
+    if (!writable.current) return;
     const selector = event.currentTarget;
     const firstRow = selector.querySelector<HTMLElement>("[data-increment]");
     if (!firstRow) return;
@@ -111,7 +125,7 @@ export function ArrowCounter() {
     }
     if (settleTimer.current) clearTimeout(settleTimer.current);
     settleTimer.current = setTimeout(() => {
-      if (Number.isSafeInteger(value) && value > 0 && value !== counter.increment) chooseIncrement(value);
+      if (Number.isSafeInteger(value) && value > 0 && value !== currentCounter.current.increment) chooseIncrement(value);
     }, 70);
   }
 
@@ -142,7 +156,7 @@ export function ArrowCounter() {
     <div className={styles.toolbar}>
       <Link href="/sessions" className={styles.back} aria-label="Back to Sessions"><Icon name="back"/></Link>
       <div className={styles.tools}>
-        <button type="button" aria-label="Undo last addition" title="Undo last addition" disabled={!ready || counter.history.length === 0} onClick={() => apply(undoLastAddition(counter))}><Icon name="undo"/></button>
+        <button type="button" aria-label="Undo last addition" title="Undo last addition" disabled={!ready || counter.history.length === 0} onClick={() => apply(undoLastAddition)}><Icon name="undo"/></button>
         <button type="button" aria-label="Reset counter" title="Reset counter" disabled={!ready || (counter.totalArrows === 0 && counter.history.length === 0)} onClick={() => setConfirmReset(true)}><Icon name="reset"/></button>
       </div>
     </div>
@@ -165,10 +179,12 @@ export function ArrowCounter() {
       </div>
     </div>
 
-    <button className={styles.clicker} type="button" aria-label={`Add ${previewIncrement} arrows`} disabled={!ready || counter.totalArrows > Number.MAX_SAFE_INTEGER - previewIncrement} onClick={() => apply(addArrows({ ...counter, increment: previewIncrement }))}>
+    <div className={styles.lastAdded} aria-live="polite"><span>Last added</span><strong>{lastAdditionDisplay(counter).time}</strong><small>{lastAdditionDisplay(counter).detail}</small></div>
+    <button className={styles.clicker} type="button" aria-label={`Add ${previewIncrement} arrows`} disabled={!ready || counter.totalArrows > Number.MAX_SAFE_INTEGER - previewIncrement} onClick={() => apply(current => addArrows(setIncrement(current, previewRef.current)))}>
       <Icon name="up"/><span>+{previewIncrement}</span>
     </button>
     {message && <p className={styles.message} role="alert">{message}</p>}
+    {loadFailed && <button type="button" onClick={() => setLoadAttempt(value => value + 1)}>Retry loading saved counter</button>}
 
     {confirmReset && <div className={styles.modalBackdrop}>
       <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="counter-confirm-title" onKeyDown={(event) => { if (event.key === "Escape") setConfirmReset(false); }}>
@@ -176,7 +192,7 @@ export function ArrowCounter() {
         <p>The total and Undo history will be cleared.</p>
         <div className={styles.confirmActions}>
           <button type="button" onClick={() => setConfirmReset(false)}>Cancel</button>
-          <button type="button" className={styles.apply} onClick={() => { apply(resetCounter(counter)); setConfirmReset(false); }}>Reset</button>
+          <button type="button" className={styles.apply} onClick={() => { if (settleTimer.current) clearTimeout(settleTimer.current); apply(resetCounter); setConfirmReset(false); }}>Reset</button>
         </div>
       </div>
     </div>}

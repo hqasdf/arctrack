@@ -6,6 +6,7 @@ import React from "react";
 import ts from "typescript";
 import * as scoring from "@arc-track/core/scoring";
 import * as nativeState from "../apps/mobile/src/scoring-state.ts";
+import * as nativeQueue from "../apps/mobile/src/arrow-save-queue.ts";
 import { WebArrowQueue } from "../src/features/sessions/web-arrow-queue.ts";
 
 const require = createRequire(import.meta.url);
@@ -24,16 +25,17 @@ const roundTemplate = { id: "round", roundNumber: 1, name: "Practice", division:
 const plotted = (end, arrow) => ({ id: `saved-${end}-${arrow}`, end, arrow, score: "9", plot: { x: .15, y: 0 }, syncState: "saved" });
 
 // Exercise the actual screen handlers with persistent hooks and mocked I/O. No browser or database writes.
-async function screen(platform, initial = {}, save = async entry => ({ ...entry, id: `saved-${entry.end}-${entry.arrow}` })) {
+async function screen(platform, initial = {}, save = async entry => ({ ...entry, id: `saved-${entry.end}-${entry.arrow}` }), options = {}) {
   let round = { ...roundTemplate, ...initial }, cursor = 0, tree;
   const hooks = [], effects = [], calls = [];
-  const user = { id: "owner" };
+  let user = { id: "owner" }, unmounted = false, lateUpdates = 0;
+  const reads = [];
   const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
   const react = { ...React,
     useState(initial) {
       const index = cursor++;
       if (!(index in hooks)) hooks[index] = typeof initial === "function" ? initial() : initial;
-      return [hooks[index], value => { hooks[index] = typeof value === "function" ? value(hooks[index]) : value; }];
+      return [hooks[index], value => { if (unmounted) lateUpdates++; hooks[index] = typeof value === "function" ? value(hooks[index]) : value; }];
     },
     useRef(initial) { const index = cursor++; return hooks[index] ??= { current: initial }; },
     useCallback(callback, deps) {
@@ -43,7 +45,7 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
     },
     useEffect(effect, deps) {
       const index = cursor++;
-      if (!hooks[index] || !sameDeps(hooks[index].deps, deps)) { hooks[index] = { deps }; effects.push(effect); }
+      if (!hooks[index] || !sameDeps(hooks[index].deps, deps)) { const previous = hooks[index]; hooks[index] = { deps }; effects.push(() => { previous?.cleanup?.(); hooks[index].cleanup = effect(); }); }
     },
   };
   async function write(entry) { calls.push(structuredClone(entry)); return save(entry); }
@@ -55,8 +57,9 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
     if (name === "../scoring-model" || name === "@arc-track/core/scoring") return scoring;
     if (name === "../web-arrow-queue") return { WebArrowQueue };
     if (name.endsWith("/scoring-state")) return nativeState;
+    if (name.endsWith("/arrow-save-queue")) return nativeQueue;
     if (name.endsWith("/auth")) return { useAuth: () => ({ user }) };
-    if (name.endsWith("/sessions")) return { readOwnRound: async () => ({ session: { id: "session", title: "Practice", date: "2026-10-17" }, round }) };
+    if (name.endsWith("/sessions")) return { readOwnRound: async (owner, id) => { reads.push([owner, id]); return options.read ? options.read(owner, id) : { session: { id: "session", title: "Practice", date: "2026-10-17" }, round }; } };
     if (name.endsWith("/arrow-writes")) return { readRoundEndIds: async () => new Map(Array.from({ length: round.ends }, (_, i) => [i + 1, `end-${i + 1}`])), saveArrowRecord: async entry => (await write(entry)).id, deleteArrowRecord: async () => {} };
     if (name.endsWith("/actions")) return { removeArrow: async () => ({ ok: true }) };
     if (name.endsWith("/target-face")) return { TargetFace: "Target" };
@@ -102,8 +105,49 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
     (node.props.onClick ?? node.props.onPress)();
   }
   render(); await tick(); render();
-  return { target, press, calls, settle: async () => { await tick(); await tick(); render(); } };
+  return { target, press, calls, reads, refreshToken() { user = { ...user }; render(); },
+    changeUser(next) { user = next; render(); }, changeRound(next) { round = { ...roundTemplate, ...next }; render(); },
+    unmount() { hooks.forEach(hook => hook?.cleanup?.()); unmounted = true; }, lateUpdates: () => lateUpdates,
+    settle: async () => { await tick(); await tick(); render(); } };
 }
+
+const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+test('Expo same-account token refresh preserves pending per-slot saves and the latest repeated correction', async () => {
+  const gate = deferred(); let count = 0;
+  const ui = await screen('expo', {}, async entry => { if (++count === 1) await gate.promise; return { ...entry, id: 'saved' }; });
+  ui.target().onPlot({ x: .15, y: 0 }); await ui.settle();
+  ui.refreshToken(); assert.equal(ui.reads.length, 1); assert.equal(ui.target().arrows.length, 1);
+  ui.press('End 1, Arrow 1,'); ui.target().onPlot({ x: .05, y: 0 });
+  ui.press('End 1, Arrow 1,'); ui.target().onPlot({ x: .01, y: 0 });
+  assert.equal(ui.calls.length, 1, 'corrections serialize behind the first save');
+  gate.resolve(); await ui.settle();
+  assert.equal(ui.calls.length, 3); assert.equal(ui.target().arrows[0].plot.x, .01); assert.equal(ui.target().arrows[0].syncState, 'saved');
+});
+test('Expo different-slot responses may finish out of order without replacing newer local plots', async () => {
+  const gate = deferred(); const ui = await screen('expo', {}, async entry => { if (entry.arrow === 1) await gate.promise; return { ...entry, id: 'saved-' + entry.arrow }; });
+  ui.target().onPlot({ x: .1, y: 0 }); ui.target().onPlot({ x: .2, y: 0 }); await ui.settle();
+  assert.equal(ui.target().arrows[1].syncState, 'saved'); gate.resolve(); await ui.settle();
+  assert.deepEqual(ui.target().arrows.map(a => a.plot.x), [.1, .2]);
+});
+test('Expo stale Round loads cannot replace the newly selected Round', async () => {
+  const old = deferred(), fresh = deferred();
+  const result = id => ({ session: { id: 'session', date: '2026-10-25' }, round: { ...roundTemplate, id, arrows: [plotted(1, id === 'new' ? 2 : 1)] } });
+  const ui = await screen('expo', {}, undefined, { read: (_owner, id) => id === 'new' ? fresh.promise : old.promise });
+  ui.changeRound({ id: 'new' }); fresh.resolve(result('new')); await ui.settle();
+  assert.equal(ui.target().arrows[0].arrow, 2); old.resolve(result('round')); await ui.settle(); assert.equal(ui.target().arrows[0].arrow, 2);
+});
+test('Expo unmount drains the existing save chain without updating a retired screen', async () => {
+  const gate = deferred(); const ui = await screen('expo', {}, async entry => { await gate.promise; return { ...entry, id: 'saved' }; });
+  ui.target().onPlot({ x: .1, y: 0 }); await ui.settle(); ui.unmount(); gate.resolve(); await tick(); await tick();
+  assert.equal(ui.lateUpdates(), 0); assert.equal(ui.calls.length, 1);
+});
+test('Expo logout and account switching invalidate late save results and load by the new owner', async () => {
+  const gate = deferred(); const ui = await screen('expo', {}, async entry => { await gate.promise; return { ...entry, id: 'old-owner-save' }; });
+  ui.target().onPlot({ x: .1, y: 0 }); await ui.settle();
+  ui.changeUser(null); await ui.settle(); ui.changeUser({ id: 'other-owner' }); await ui.settle();
+  gate.resolve(); await ui.settle(); assert.deepEqual(ui.reads.at(-1), ['other-owner', 'round']);
+  assert.equal(ui.target().arrows.some(a => a.id === 'old-owner-save'), false);
+});
 
 for (const platform of ["web", "expo"]) {
   test(`${platform}: sequential plotting, final save, repeated completion taps and one-shot explicit replot`, async () => {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, FlatList, type NativeScrollEvent, type NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  addArrows, COUNTER_STORAGE_KEY, DEFAULT_COUNTER, readCounter,
+  addArrows, COUNTER_STORAGE_KEY, DEFAULT_COUNTER, lastAdditionDisplay, readCounter,
   resetCounter, setIncrement, undoLastAddition, type CounterState,
 } from "../../src/counter-model";
 import { PAGE_TOP_SPACING } from "../../src/theme";
@@ -95,6 +95,7 @@ export default function CounterScreen() {
         </View>
       </View>
     </View>
+    <View style={styles.lastAdded} accessibilityLiveRegion="polite"><Text style={styles.lastAddedLabel}>Last added</Text><Text style={styles.lastAddedTime}>{lastAdditionDisplay(counter).time}</Text><Text style={styles.lastAddedLabel}>{lastAdditionDisplay(counter).detail}</Text></View>
     {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
     {loadFailed ? <Pressable accessibilityRole="button" accessibilityLabel="Retry loading saved counter"
       onPress={() => { setLoadFailed(false); setMessage(null); setLoadAttempt(value => value + 1); }} style={styles.tool}>
@@ -132,6 +133,9 @@ const useStyles = createThemedStyles((colors) => StyleSheet.create({
   wheelSelected: { color: colors.accent, fontSize: 25, fontWeight: "900" },
   wheelSelection: { position: "absolute", top: 16 + COUNTER_WHEEL_ROW_HEIGHT * 2, width: "96%", height: COUNTER_WHEEL_ROW_HEIGHT, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.accent, borderRadius: 8 },
   error: { color: colors.error, fontSize: 12, textAlign: "center" },
+  lastAdded: { alignItems: "center", paddingVertical: 6, gap: 2, borderRadius: 12, backgroundColor: colors.surface },
+  lastAddedLabel: { color: colors.muted, fontSize: 11 },
+  lastAddedTime: { color: colors.text, fontSize: 14, fontWeight: "700" },
   clicker: { flex: 1, minHeight: 160, borderRadius: 20, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   compactClicker: { minHeight: 88 },
   compactArrow: { fontSize: 40 },

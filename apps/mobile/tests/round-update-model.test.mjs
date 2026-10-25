@@ -5,7 +5,7 @@ import { counterWheelRangeStart, counterWheelValueFromOffset, isPositiveCounterI
 import { ANALYTICS_AXIS_LABELS, verticalBarHeight } from "../src/analytics-chart-model.ts";
 import { MAIN_TAB_ICONS } from "../src/navigation-model.ts";
 import { PAGE_TOP_SPACING } from "../src/theme.ts";
-import { addArrows, setIncrement } from "../src/counter-model.ts";
+import { addArrows, readCounter, setIncrement } from "../src/counter-model.ts";
 
 const emptyRound = { id: "round-a", roundNumber: 4, name: "Practice", division: "Recurve", distanceMetres: 70, ends: 6, arrowsPerEnd: 6, faceDiameterCm: 122, faceType: "full_face", arrows: [] };
 const settings = { name: "  Tune-up  ", division: "Compound", distanceMetres: 50, faceDiameterCm: 80, plannedEnds: 8 };
@@ -52,11 +52,11 @@ test("counter wheel maps its centred snapped row to a positive whole increment",
 });
 
 test("counter increment selection does not alter total and supports varied values", () => {
-  const state = { version: 2, totalArrows: 190, increment: 6, history: [6, 10] };
+  const state = readCounter({ version: 2, totalArrows: 190, increment: 6, history: [6, 10] });
   const selected = setIncrement(state, 14);
   assert.equal(selected.increment, 14);
   assert.equal(selected.totalArrows, 190);
-  assert.deepEqual(addArrows(selected), { ...selected, totalArrows: 204, history: [6, 10, 14] });
+  assert.deepEqual(addArrows(selected, "2026-10-25T05:00:00.000Z"), { ...selected, totalArrows: 204, history: [...state.history, { amount: 14, addedAt: "2026-10-25T05:00:00.000Z" }] });
 });
 
 test("haptic tick condition is discrete selection change only", () => {

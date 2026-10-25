@@ -8,7 +8,7 @@ import * as wheelModel from "../src/counter-wheel-model.ts";
 
 // Run the real screen with persistent hooks. Native measurements are supplied,
 // not calculated: physical clipping, keyboard and gestures still need device QA.
-function counterRuntime({ getItem, renderWheel = false, storedState = { version: 2, totalArrows: 190, increment: 15, history: [] } } = {}) {
+function counterRuntime({ getItem, setItem, renderWheel = false, storedState = { version: 2, totalArrows: 190, increment: 15, history: [] } } = {}) {
   let dimensions = { width: 390, height: 844 };
   let insets = { top: 24, right: 0, bottom: 34, left: 0 };
   let palette = {};
@@ -53,7 +53,7 @@ function counterRuntime({ getItem, renderWheel = false, storedState = { version:
     "react-native-safe-area-context": { useSafeAreaInsets: () => insets },
     "@react-native-async-storage/async-storage": { __esModule: true, default: {
       getItem: async () => { reads++; return getItem ? getItem() : JSON.stringify(storedState); },
-      setItem: async (key, value) => { writes.push([key, JSON.parse(value)]); },
+      setItem: async (key, value) => { if (setItem) await setItem(key, value); writes.push([key, JSON.parse(value)]); },
     } },
     "expo-haptics": { selectionAsync: async () => { ticks++; } },
     "../../src/counter-model": model,
@@ -218,7 +218,7 @@ test("failed Counter read blocks every write until Retry restores the original t
   button(tree, "Add 15 Arrows").props.onPress();
   tree = await runtime.settle();
   assert.equal(runtime.writes.at(-1)[1].totalArrows, 220);
-  assert.deepEqual(runtime.writes.at(-1)[1].history, [10, 15, 15, 15]);
+  assert.deepEqual(runtime.writes.at(-1)[1].history.map(entry => entry.amount), [10, 15, 15, 15]);
   button(tree, "Undo last addition").props.onPress();
   await runtime.settle();
   assert.equal(runtime.writes.at(-1)[1].totalArrows, 205);
@@ -308,4 +308,25 @@ test("Counter theme rerender updates presentation without reloading, persisting,
   assert.equal(runtime.reads(), reads);
   assert.equal(runtime.writes.length, writes);
   assert.equal(runtime.ticks(), ticks);
+});
+
+
+test("Counter timestamp survives restart, Undo returns to unknown legacy time, and corrupt storage cannot be overwritten", async () => {
+  const runtime = counterRuntime({ storedState: { version: 2, totalArrows: 12, increment: 6, history: [6,6] } });
+  runtime.render(); let tree = await runtime.settle();
+  button(tree, "Add 6 Arrows").props.onPress(); await runtime.settle();
+  const saved = runtime.writes.at(-1)[1];
+  assert.equal(saved.version, 3); assert.equal(saved.totalArrows, 18); assert.ok(saved.history.at(-1).addedAt);
+  const restarted = counterRuntime({ storedState: saved }); restarted.render(); tree = await restarted.settle();
+  button(tree, "Undo last addition").props.onPress(); await restarted.settle();
+  assert.deepEqual(restarted.writes.at(-1)[1].history, [{amount:6,addedAt:null},{amount:6,addedAt:null}]);
+  assert.equal(model.lastAdditionDisplay(restarted.writes.at(-1)[1]).time, "Time not recorded");
+  const corrupt = counterRuntime({ getItem: async () => '{' }); corrupt.render(); tree = await corrupt.settle();
+  assert.equal(button(tree, "Add 6 Arrows").props.disabled, true); button(tree, "Add 6 Arrows").props.onPress(); await corrupt.settle(); assert.equal(corrupt.writes.length,0);
+});
+test("Counter write failure keeps the timestamped in-memory tally and reports the persistence failure", async () => {
+  const runtime = counterRuntime({ setItem: async () => { throw Error("Storage unavailable"); } }); runtime.render(); let tree = await runtime.settle();
+  button(tree,"Add 15 Arrows").props.onPress(); tree = await runtime.settle();
+  assert.equal(runtime.writes.length,0); assert.ok(nodes(tree).some(node => node.props?.accessibilityRole === "alert"));
+  assert.ok(nodes(tree).some(node => node.props?.children === 205));
 });

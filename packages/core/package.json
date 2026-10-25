@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./counter": "./src/counter-model.ts",
     ".": "./src/index.ts",
     "./scoring": "./src/scoring-model.ts",
     "./presets": "./src/round-presets.ts",
