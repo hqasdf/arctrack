@@ -15,7 +15,12 @@
     "lint": "eslint . --max-warnings 0",
     "lint:mobile": "eslint --config eslint.mobile.config.mjs apps/mobile/app apps/mobile/src --max-warnings 0",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:essential": "node --experimental-strip-types --test tests/auth-policy.test.mjs tests/account-deletion.test.mjs tests/garmin.test.mjs tests/garmin-health.test.mjs tests/arrow-counter.test.mjs tests/counter-reliability.test.mjs tests/scoring-replot.test.mjs",
+    "test:maintenance": "node --experimental-strip-types --test tests/maintenance.test.mjs tests/counter-parity.test.mjs",
+    "check:migrations": "node scripts/check-migrations.mjs",
+    "check:workflow": "node scripts/check-workflow.mjs",
+    "check:maintenance": "npm run check:workflow && npm run check:migrations && npm run test:maintenance"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -37,6 +42,12 @@
     "@types/three": "0.186.0",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.1",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "typescript-eslint": "8.70.0",
+    "yaml": "2.9.1"
+  },
+  "overrides": {
+    "zod@4.6.5": "4.6.6"
   }
 }

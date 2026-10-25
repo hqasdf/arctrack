@@ -6,6 +6,8 @@ It allows archers to record training and competition sessions, plot arrows direc
 
 The goal of Arc Track is to go beyond simply recording scores by turning every plotted arrow into useful performance data.
 
+For setup, focused checks, CI and release boundaries, see the [developer guide](docs/development.md). Production deployment requires explicit user approval.
+
 ---
 
 ## 🌐 Live Website
@@ -16,11 +18,12 @@ The goal of Arc Track is to go beyond simply recording scores by turning every p
 
 ## ✨ Features
 
-Arc Track is built around five main areas:
+Arc Track includes these main areas:
 
 - **Sessions**
 - **Arrow Counter**
 - **Analytics**
+- **Health**
 - **Organisation**
 - **Profile**
 
@@ -123,7 +126,7 @@ An archer can:
 
 New Arrows automatically advance the scoring cursor.
 
-Editing an existing Arrow keeps that Arrow selected instead of automatically advancing.
+Replotting an existing Arrow requires explicit selection. A successful replot clears that editing selection to prevent accidental movement.
 
 ---
 
@@ -206,6 +209,7 @@ It supports:
 - Tap-to-add
 - Undo
 - Reset
+- Persistent Last Added time and amount, with Undo-aware timestamp history
 
 This is useful when an archer only wants to track training volume without recording a full scoring Session.
 
@@ -407,9 +411,9 @@ This helps keep score calculations and analytics consistent across different par
 
 ## Mobile
 
-Arc Track also has an **Expo / React Native mobile application** in development.
+Arc Track also has an **Expo / React Native mobile application** distributed through the existing Google Play closed-testing workflow.
 
-The mobile application shares scoring, analytics, grouping and Round logic with the web application while keeping platform-specific navigation and gestures separate.
+The mobile application shares scoring, analytics, grouping, Round and Counter logic with the web application while keeping navigation, gestures and storage adapters separate. A website deployment does not release mobile changes.
 
 ---
 

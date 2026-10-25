@@ -9,3 +9,5 @@ next-env.d.ts
 .verification/
 .npm-cache/
 *.log
+supabase/.temp/
+supabase/.branches/

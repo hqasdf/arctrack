@@ -1,0 +1,122 @@
+name: Validate Arc Track
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['src/**', 'tests/**', 'public/**', 'apps/mobile/**', 'packages/core/**', 'scripts/**', 'supabase/**', '.github/workflows/**', '*.json', '*.mjs', '*.ts']
+  push:
+    branches: [main]
+    paths: ['src/**', 'tests/**', 'public/**', 'apps/mobile/**', 'packages/core/**', 'scripts/**', 'supabase/**', '.github/workflows/**', '*.json', '*.mjs', '*.ts']
+  workflow_dispatch:
+    inputs:
+      full_regression:
+        description: Run full web and mobile regressions instead of essential suites
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      web: ${{ steps.scope.outputs.web }}
+      mobile: ${{ steps.scope.outputs.mobile }}
+      core: ${{ steps.scope.outputs.core }}
+      maintenance: ${{ steps.scope.outputs.maintenance }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        run: node scripts/ci-scope.mjs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' }}
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - if: github.event_name != 'workflow_dispatch' || !inputs.full_regression
+        run: npm run test:essential
+      - if: github.event_name == 'workflow_dispatch' && inputs.full_regression
+        run: npm test
+
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck --workspace @arc-track/mobile
+      - run: node --experimental-strip-types --test tests/scoring-replot.test.mjs
+      - if: github.event_name != 'workflow_dispatch' || !inputs.full_regression
+        run: npm run test:essential --workspace @arc-track/mobile
+      - if: github.event_name == 'workflow_dispatch' && inputs.full_regression
+        run: npm test --workspace @arc-track/mobile
+
+  core:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck --workspace @arc-track/core
+      - run: npm test --workspace @arc-track/core
+
+  maintenance:
+    needs: changes
+    if: needs.changes.outputs.maintenance == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run check:maintenance

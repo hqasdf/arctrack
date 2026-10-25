@@ -1,0 +1,140 @@
+{
+  "format": 1,
+  "description": "Canonical local source snapshot, LF-normalized for cross-platform Git checkouts. Not a live migration-history check or production execution checksum.",
+  "source": "docs/notes-feedback-production-deployment.md#preserve-historical-mismatches",
+  "historicalAliases": [
+    {
+      "name": "organization_hierarchy",
+      "localVersion": "20260924031957",
+      "recordedVersion": "20260924072616"
+    },
+    {
+      "name": "coach_athlete_roster",
+      "localVersion": "20260924080600",
+      "recordedVersion": "20260924081628"
+    },
+    {
+      "name": "allow_all_members_to_leave_organization",
+      "localVersion": "20260924132000",
+      "recordedVersion": "20260924133550"
+    },
+    {
+      "name": "join_code_organization_model",
+      "localVersion": "20260924160000",
+      "recordedVersion": "20260924155552"
+    },
+    {
+      "name": "atomic_round_creation",
+      "localVersion": "20260926010823",
+      "recordedVersion": "20260926081514"
+    },
+    {
+      "name": "guarded_scoring_mutations",
+      "localVersion": "20261005010000",
+      "recordedVersion": "20261004230822"
+    },
+    {
+      "name": "session_weather_snapshots",
+      "localVersion": "20261016000901",
+      "recordedVersion": "20261016130846"
+    }
+  ],
+  "migrations": [
+    {
+      "file": "20260917143411_create_profiles.sql",
+      "sha256": "c78fee5ca74cc656d8718feae61b1a39e32aecdfd5f1634f82d489381839900d"
+    },
+    {
+      "file": "20260917150016_extend_profile_details.sql",
+      "sha256": "0d9560c4a9c7effd70dfa997897f00b9c25eda8592c4ef86468d7302561633af"
+    },
+    {
+      "file": "20260918020718_remove_profile_bio.sql",
+      "sha256": "648bf0a143f4c82bf91cdd4b90c75005e0ac8daa0526c987040f3b8af71606bd"
+    },
+    {
+      "file": "20260922122159_create_session_scoring.sql",
+      "sha256": "970d128314c235b74d8d2207b202c4b825a598c16eb879ce7466edb6dabce63b"
+    },
+    {
+      "file": "20260922131032_add_session_arrow_count.sql",
+      "sha256": "2121e0b52c145a3b4cb84c9cc2c71008569259d1f73ca9cc1b0149c55a584d09"
+    },
+    {
+      "file": "20260922133140_add_session_type.sql",
+      "sha256": "7a78d749683757f7b50dafd6e4ce7b5b517acad5340cb530c44edcb54055e869"
+    },
+    {
+      "file": "20260924031957_organization_hierarchy.sql",
+      "sha256": "106756904fc7281bf6e6fa0713dff7e4175f62cfc05cc040a58e3f07c331abba"
+    },
+    {
+      "file": "20260924080600_coach_athlete_roster.sql",
+      "sha256": "1c645ecd871168a9ddbd1ea612f4bed18f753d88b5be02bf6683df08aa0e5a55"
+    },
+    {
+      "file": "20260924132000_allow_all_members_to_leave_organization.sql",
+      "sha256": "bf7f46c5aa2ceec9aa189bda8c20cb2484729cd9a2d53f773681da64234679cd"
+    },
+    {
+      "file": "20260924160000_join_code_organization_model.sql",
+      "sha256": "02459d4604789f4af95e4a3c794bce602d8b96c91b407e75630b4493d47f7a53"
+    },
+    {
+      "file": "20260926010823_atomic_round_creation.sql",
+      "sha256": "254276c509a8c5ae55aca42c8369b11a2cf61b9fa5cdc98b6dc3970795d63493"
+    },
+    {
+      "file": "20260926113425_prepare_owner_round_update.sql",
+      "sha256": "7de6a0be9ae588a801418704f7e951a68a2bf5df2bdb39062530fc16fa72e146"
+    },
+    {
+      "file": "20260930142448_training_plans_v1.sql",
+      "sha256": "8d1626c5e645e037eab887ba014f210041415cf962dd56414643c830d39e7b32"
+    },
+    {
+      "file": "20261005010000_guarded_scoring_mutations.sql",
+      "sha256": "dec6e8b61f83312fc4a6d4f6e372b937087970d642ea055513358e508f273f71"
+    },
+    {
+      "file": "20261005110858_backend_abuse_protection.sql",
+      "sha256": "e5444723e94335d37dcc89de1b8803bc5be42a266d92c810ac09c8f7dbd37a46"
+    },
+    {
+      "file": "20261016000901_session_weather_snapshots.sql",
+      "sha256": "4f6a58bcfe14ca63bde555aa402a246609e7ceb233813396f09503e4a1593373"
+    },
+    {
+      "file": "20261022022012_session_notes_shared_coach_feedback.sql",
+      "sha256": "5aeb5df920c8f1473d72d9f03e3f5205458564bfb8c44379d47ea3cde3723dc4"
+    },
+    {
+      "file": "20261022100526_remove_general_coach_feedback.sql",
+      "sha256": "93313f630d464b8ea2de509532e5235b354f14baf0514fcec6eea39565f813ac"
+    },
+    {
+      "file": "20261023074736_garmin_oauth_connections.sql",
+      "sha256": "be23751c339629253e8c7d0599c527b273f96863a4ded2f09629d1f5b139bb0b"
+    },
+    {
+      "file": "20261023082837_garmin_account_deletion_fence.sql",
+      "sha256": "0d2a34a53e09cec07567117b6662371c43cd6477a62e7b2c30fda9c7109a7107"
+    },
+    {
+      "file": "20261023155612_garmin_health_sync.sql",
+      "sha256": "bd47cdfbd33eb1de46a71e9e0b9ac0eee9e14a91f83d090b78be9aeea8746ac4"
+    },
+    {
+      "file": "20261024104429_garmin_health_controls.sql",
+      "sha256": "36e568621aa195bdad481374062c8380caff53829b320a140209c591733cac89"
+    },
+    {
+      "file": "20261024153040_garmin_health_general_availability.sql",
+      "sha256": "53889f666f7344b5be01920c5d5443b78c813e8465e390ae1136e44009b81f96"
+    },
+    {
+      "file": "20261025003708_garmin_health_admission.sql",
+      "sha256": "1f4fb83a6915a56f829ba5761671fda2c20319832573d43facc1af17b20e3cf9"
+    }
+  ]
+}

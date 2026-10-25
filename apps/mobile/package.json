@@ -16,7 +16,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:essential": "node --experimental-strip-types --test tests/auth-flow.test.mjs tests/auth-routing.test.mjs tests/auth-storage.test.mjs tests/session-authority.test.mjs tests/passkey-session-security.test.mjs tests/secure-store-android-patch.test.mjs tests/counter-responsive.test.mjs tests/arrow-owner.test.mjs tests/arrow-save-queue.test.mjs tests/native-target-gestures.test.mjs tests/scoring-state.test.mjs tests/guarded-writes.test.mjs tests/parity.test.mjs"
   },
   "dependencies": {
     "@arc-track/core": "*",
