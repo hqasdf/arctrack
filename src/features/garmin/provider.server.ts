@@ -1,12 +1,13 @@
 import "server-only";
 import type { GarminConfig } from "./config.server";
 
-// Garmin's OAuth2.0 PKCE Specification, retrieved 23 October 2026.
+// Garmin's OAuth2.0 PKCE specification: saved current contract in
+// .verification/garmin-sync/oauth.txt, sections 5, 6 and 8.
 export const GARMIN_AUTHORIZE = "https://connect.garmin.com/oauth2Confirm";
 export const GARMIN_TOKEN = "https://diauth.garmin.com/di-oauth2-service/oauth/token";
-const USER_URL = "https://apis.garmin.com/wellness-api/rest/user/";
+const USER_URL = "https://apis.garmin.com/partner-gateway/rest/user/";
 export class GarminError extends Error {
-  constructor(public code: string, public reauthorize = false) { super(code); }
+  constructor(public code: string, public reauthorize = false, public stage?: "token_response_validation") { super(code); }
 }
 export type GarminTokens = { accessToken: string; refreshToken: string; accessExpiresAt: string; refreshExpiresAt: string | null; refreshAfter: string };
 const text = (value: unknown, maximum = 8192): value is string => typeof value === "string" && value.length > 0 && value.length <= maximum;
@@ -55,11 +56,11 @@ export function createGarminProvider(config: GarminConfig, fetcher: typeof fetch
   async function tokens(parameters: Record<string, string>): Promise<GarminTokens> {
     const body = await request(GARMIN_TOKEN, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       body: new URLSearchParams({ ...parameters, client_id: config.clientId, client_secret: config.clientSecret }) }, true);
-    if (!body || typeof body !== "object") throw new GarminError("provider_response");
+    if (!body || typeof body !== "object") throw new GarminError("provider_response", false, "token_response_validation");
     const data = body as Record<string, unknown>;
     const expiry = (seconds: unknown) => typeof seconds === "number" && Number.isSafeInteger(seconds) && seconds > 0 && Number.isFinite(new Date(now() + seconds * 1000).valueOf());
     if (!text(data.access_token) || !text(data.refresh_token) || typeof data.token_type !== "string" || data.token_type.toLowerCase() !== "bearer" || !expiry(data.expires_in)
-      || (data.refresh_token_expires_in !== undefined && !expiry(data.refresh_token_expires_in))) throw new GarminError("provider_response");
+      || (data.refresh_token_expires_in !== undefined && !expiry(data.refresh_token_expires_in))) throw new GarminError("provider_response", false, "token_response_validation");
     const lifetime = (data.expires_in as number) * 1000;
     return { accessToken: data.access_token, refreshToken: data.refresh_token,
       accessExpiresAt: new Date(now() + lifetime).toISOString(),
@@ -78,8 +79,10 @@ export function createGarminProvider(config: GarminConfig, fetcher: typeof fetch
     },
     async permissions(token: string) {
       const body = await request(`${USER_URL}permissions`, { headers: bearer(token) });
-      if (!Array.isArray(body) || body.length > 100 || !body.every(value => text(value, 128))) throw new GarminError("provider_response");
-      return [...new Set(body)] as string[];
+      // Current contract wraps the list; retain compatibility with legacy arrays.
+      const permissions = Array.isArray(body) ? body : body && typeof body === "object" ? (body as Record<string, unknown>).permissions : null;
+      if (!Array.isArray(permissions) || permissions.length > 100 || !permissions.every(value => text(value, 128))) throw new GarminError("provider_response");
+      return [...new Set(permissions)] as string[];
     },
     async revoke(token: string) { await request(`${USER_URL}registration`, { method: "DELETE", headers: bearer(token) }); },
   };

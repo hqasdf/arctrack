@@ -7,6 +7,14 @@ import type { GarminConnection, GarminView } from "./types";
 
 type Secrets = { accessToken: string; refreshToken: string };
 const erased = { token_ciphertext: null, access_expires_at: null, refresh_expires_at: null, refresh_after: null };
+type CallbackStage = "verifier_decryption" | "token_exchange" | "identity_lookup" | "account_validation" | "permissions_lookup" | "token_encryption" | "connection_persistence" | "failure_persistence";
+function callbackFailure(stage: CallbackStage, error: unknown) {
+  const codes = ["provider_response", "provider_unavailable", "provider_configuration", "reauthorization_required", "account_mismatch", "invalid_transaction"];
+  const code = error instanceof GarminStorageError ? error.duplicate ? "storage_conflict" : "storage_unavailable"
+    : error instanceof GarminError && codes.includes(error.code) ? error.code : "internal_error";
+  // Never log error objects/messages, identities, URLs, state, cookies or payloads.
+  console.warn("Garmin OAuth callback failed", { stage: stage === "token_exchange" && error instanceof GarminError && error.stage === "token_response_validation" ? error.stage : stage, code });
+}
 export const emptyGarminView = (available: boolean): GarminView => ({ available, canConnect: false, status: "disconnected", permissions: [], authorizedAt: null, checkedAt: null, expiresAt: null, error: null });
 
 export function createGarminService(config: GarminConfig, store: GarminStore, fetcher: typeof fetch = fetch, now = Date.now, eligible = mayConnectGarmin) {
@@ -147,18 +155,29 @@ export function createGarminService(config: GarminConfig, store: GarminStore, fe
       if (!lease) throw new GarminError("invalid_transaction");
       if (!eligible(userId)) { await store.finish(lease, {}); throw new GarminError("access_unavailable"); }
       if (denied || !code) { await store.finish(lease, {}); throw new GarminError(denied ? "cancelled" : "invalid_callback"); }
+      let stage: CallbackStage = "verifier_decryption";
       try {
         const verifier = unseal<string>(transaction.verifier_ciphertext, config.encryptionKey, `verifier:${userId}:${hashState(state)}`);
+        stage = "token_exchange";
         const tokens = await provider.exchange(code, verifier);
+        stage = "identity_lookup";
         const garminId = await provider.identity(tokens.accessToken);
+        stage = "account_validation";
         if (lease.garmin_user_id && lease.garmin_user_id !== garminId) throw new GarminError("account_mismatch");
+        stage = "permissions_lookup";
         const permissions = await provider.permissions(tokens.accessToken);
+        stage = "token_encryption";
+        const encrypted = tokenFields(userId, tokens);
         // Check+commit under the lease/version: stale callbacks cannot overwrite a disconnect/reconnect.
-        const saved = await store.finish(lease, { ...tokenFields(userId, tokens), garmin_user_id: garminId,
+        stage = "connection_persistence";
+        const saved = await store.finish(lease, { ...encrypted, garmin_user_id: garminId,
           permissions, status: "connected", connected_at: lease.connected_at ?? timestamp(), authorized_at: timestamp(), checked_at: timestamp(), error_code: null });
         if (!saved) throw new GarminError("invalid_transaction");
       } catch (error) {
-        await store.finish(lease, { status: "reauthorization_required", error_code: "exchange_uncertain" });
+        callbackFailure(stage, error);
+        try {
+          if (!await store.finish(lease, { status: "reauthorization_required", error_code: "exchange_uncertain" })) callbackFailure("failure_persistence", new GarminError("invalid_transaction"));
+        } catch (failure) { callbackFailure("failure_persistence", failure); }
         throw new GarminError(error instanceof GarminStorageError && error.duplicate ? "already_connected" : error instanceof GarminError ? error.code : "connection_error");
       }
     },

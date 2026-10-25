@@ -31,10 +31,38 @@ const config = {
   clientId: "test-client", clientSecret: "test-secret", encryptionKey: Buffer.alloc(32, 7),
   cookieName: "__Secure-arctrack-garmin", secure: true,
 };
+test("Garmin current user contract uses partner gateway and wrapped permissions", async () => {
+  const requests = [];
+  const provider = createGarminProvider(config, async (url, init) => {
+    requests.push({ url: String(url), method: init.method ?? "GET" });
+    if (String(url).endsWith("/id")) return Response.json({ userId: "contract-user" });
+    if (String(url).endsWith("/permissions")) return Response.json({ permissions: ["HEALTH_EXPORT", "ACTIVITY_EXPORT", "HEALTH_EXPORT"] });
+    return new Response(null, { status: 204 });
+  });
+  assert.equal(await provider.identity("synthetic-token"), "contract-user");
+  assert.deepEqual(await provider.permissions("synthetic-token"), ["HEALTH_EXPORT", "ACTIVITY_EXPORT"]);
+  await provider.revoke("synthetic-token");
+  assert.deepEqual(requests, [
+    { url: "https://apis.garmin.com/partner-gateway/rest/user/id", method: "GET" },
+    { url: "https://apis.garmin.com/partner-gateway/rest/user/permissions", method: "GET" },
+    { url: "https://apis.garmin.com/partner-gateway/rest/user/registration", method: "DELETE" },
+  ]);
+});
+test("Garmin permissions retain legacy compatibility and reject malformed wrapped lists", async () => {
+  for (const body of [["HEALTH_EXPORT"], { permissions: [] }, { permissions: ["ACTIVITY_EXPORT"] }]) {
+    const provider = createGarminProvider(config, async () => Response.json(body));
+    assert.deepEqual(await provider.permissions("synthetic-token"), Array.isArray(body) ? body : body.permissions);
+  }
+  for (const body of [null, {}, { permissions: "HEALTH_EXPORT" }, { permissions: [null] }, { permissions: Array(101).fill("HEALTH_EXPORT") }]) {
+    const provider = createGarminProvider(config, async () => Response.json(body));
+    await assert.rejects(provider.permissions("synthetic-token"), { code: "provider_response" });
+  }
+});
+const callbackDiagnostics = [];
 const { createGarminService, emptyGarminView, prepareGarminAccountDeletion } = await load("src/features/garmin/service.server.ts", {
   "./crypto.server": crypto, "./config.server": { getGarminConfig: () => null },
   "./provider.server": providerModule, "./store.server": storeModule,
-});
+}, { console: { warn: (...values) => callbackDiagnostics.push(values) } });
 const copy = value => structuredClone(value);
 const deferred = () => { let resolve; const promise = new Promise(accept => { resolve = accept; }); return { promise, resolve }; };
 
@@ -110,7 +138,7 @@ function fixture() {
       return Response.json({ access_token: `test-access-${serial}`, refresh_token: `test-refresh-${serial}`, token_type: "Bearer", expires_in: 3600, refresh_token_expires_in: 86400 });
     }
     if (String(url).endsWith("/id")) return Response.json({ userId: remoteId });
-    if (String(url).endsWith("/permissions")) return Response.json(["HEALTH_EXPORT", "ACTIVITY_EXPORT"]);
+    if (String(url).endsWith("/permissions")) return Response.json({ permissions: ["HEALTH_EXPORT", "ACTIVITY_EXPORT"] });
     if (String(url).endsWith("/registration") && init.method === "DELETE") return new Response(null, { status: 204 });
     throw new Error("Unexpected provider endpoint");
   };
@@ -266,6 +294,52 @@ test("Garmin callback exchanges form-encoded PKCE server-side and exposes only s
   assert.equal(f.requests.length, 3, "valid tokens do not cause repeated provider calls");
 });
 
+for (const stage of ["token_exchange", "token_response_validation", "identity_lookup", "permissions_lookup", "connection_persistence"]) {
+  test(`Garmin callback identifies ${stage} without logging sensitive data`, async () => {
+    const f = fixture(), attempt = await f.begin();
+    const firstLog = callbackDiagnostics.length;
+    if (stage === "token_exchange") f.setFailure({ suffix: providerModule.GARMIN_TOKEN, status: 503, body: { secret: "synthetic-private-response" } });
+    if (stage === "token_response_validation") f.setFailure({ suffix: providerModule.GARMIN_TOKEN, status: 200, body: { access_token: "synthetic-private-response" } });
+    if (stage === "identity_lookup") f.setFailure({ suffix: "/id", status: 200, body: { unexpected: "synthetic-private-response" } });
+    if (stage === "permissions_lookup") f.setFailure({ suffix: "/permissions", status: 200, body: { permissions: "synthetic-private-response" } });
+    if (stage === "connection_persistence") {
+      const finish = f.store.finish;
+      f.store.finish = async (row, patch, expired) => {
+        if (patch.status === "connected") throw new storeModule.GarminStorageError();
+        return finish.call(f.store, row, patch, expired);
+      };
+    }
+    await assert.rejects(f.complete(attempt));
+    const logs = callbackDiagnostics.slice(firstLog);
+    assert.equal(logs[0][0], "Garmin OAuth callback failed");
+    assert.equal(logs[0][1].stage, stage);
+    assert.deepEqual(Object.keys(logs[0][1]), ["stage", "code"]);
+    const serialized = JSON.stringify(logs);
+    for (const value of [attempt.state, attempt.binding, "test-code", "test-access", "test-refresh", "synthetic-private-response", "athlete-a", "garmin-test-user", "test-secret"]) {
+      assert.equal(serialized.includes(value), false);
+    }
+    const row = f.rows.get(attempt.user);
+    assert.equal(row.status, "reauthorization_required");
+    assert.equal(row.error_code, "exchange_uncertain");
+    assert.equal(row.garmin_user_id, null);
+    assert.equal(row.token_ciphertext, null);
+    assert.equal(row.authorized_at, null);
+    assert.equal(row.operation, null);
+  });
+}
+
+test("Garmin callback logs sanitized cleanup failure without hiding the original provider failure", async () => {
+  const f = fixture(), attempt = await f.begin(), firstLog = callbackDiagnostics.length;
+  f.setFailure({ suffix: "/permissions", status: 200, body: { permissions: null } });
+  f.store.finish = async () => { throw new GarminError("synthetic-secret-must-not-be-logged"); };
+  await assert.rejects(f.complete(attempt), { code: "provider_response" });
+  const logs = callbackDiagnostics.slice(firstLog);
+  assert.deepEqual(logs.map(entry => entry[1]), [
+    { stage: "permissions_lookup", code: "provider_response" },
+    { stage: "failure_persistence", code: "internal_error" },
+  ]);
+});
+
 for (const scenario of ["state", "binding", "expired", "different-user", "callback-uri"]) {
   test(`Garmin callback rejects ${scenario} without exchanging the code`, async () => {
     const f = fixture(), a = await f.begin();
@@ -390,7 +464,7 @@ for (const failed of [false, true]) {
       f.setFailure(null);
     }
     assert.equal((await f.service.disconnect("athlete-a")).warning, false);
-    assert.equal(f.requests.at(-1).url, "https://apis.garmin.com/wellness-api/rest/user/registration");
+    assert.equal(f.requests.at(-1).url, "https://apis.garmin.com/partner-gateway/rest/user/registration");
     assert.equal(f.requests.at(-1).init.method, "DELETE");
     assert.equal(f.rows.get("athlete-a").token_ciphertext, null);
     assert.equal(f.rows.get("athlete-a").garmin_user_id, null);
