@@ -161,20 +161,51 @@ as well as the Session HR gate. No historical access/backfill is implemented.
 
 ## Session heart-rate activation order
 
-The local additive migration is `20261025124444_garmin_session_heart_rate.sql`.
-Session controls keep `SECURITY INVOKER` and SELECT-only access to scoring
-Sessions. A namespaced transaction advisory lock serializes edits per Session,
-with ownership checked before and after waiting, a two-second lock timeout, and
-revision checks both before mutation and at the final upsert. Recording-window
-revisions advance monotonically; existing scoring grants remain unchanged.
-The maintained fixture now uses production-equivalent restricted scoring grants
-and tests independent connections, competing first writes, stale activity links,
-coach-visible parent Sessions, deletion races and lock cleanup.
-Apply and verify it before deploying the matching website/backend release. Keep
-`GARMIN_SESSION_HR_ENABLED` unset/false and leave the Garmin Activity Details
-notification category disabled until the backend is deployed and the private
-ingress, queue, owner read path and cleanup behavior have been verified. Deploy
-the matching Cloudflare 4 MiB bound before enabling the server Session HR flag.
+The applied baseline is `20261025124444_garmin_session_heart_rate.sql`.
+The LOCAL follow-up `20261026022713_garmin_activity_session_links.sql` removes manual timing.
+Activity discovery uses the owner's Session calendar date in Asia/Singapore, including
+recordings that overlap midnight. Only explicit selection associates an activity.
+The selected provider start and duration determine the HR interval; a summary can
+supply timing while authorized all-day samples provide a labelled fallback. No score
+creation timestamp or whole-day interval is substituted for a missing recording.
+
+`set_session_garmin_activity` is the only client association writer. Its narrow
+SECURITY DEFINER boundary verifies auth.uid() and Session ownership, serializes on
+connection/control rows and a per-Session advisory lock, and uses exact optimistic
+revisions. It returns no credentials and grants no direct association or scoring writes.
+Lifecycle cleanup clears associations and HR as before. The old timer RPC and reader
+are dropped, and old rows move intact to a restricted private archive. Service-role
+access to the archive is limited to clearing imported association IDs for privacy.
+Destructive removal of that archive requires separate authorization.
+
+This is a coordinated migration/application release, not a production db push.
+Do not deploy the new application before its new RPCs exist. The old application
+must not remain in use after the migration removes its timing RPCs. Capture exact
+predecessor function definitions and archive/grant state for an approved rollback;
+new associations must be preserved if rolling back. Never blindly revert migrations
+or rerun the old baseline. Historical SQL fixtures intentionally test the old schema
+BEFORE this upgrade; current JS fixtures and UI exercise only activity associations.
+
+For the separately approved production release:
+1. Build and stage the exact matching application without assigning the production
+   domain. Record the current application deployment and exact predecessor SQL,
+   grants and archive location; confirm the new migration is still pending.
+2. Use a short, explicitly arranged Session HR maintenance window to drain legacy
+   Session HR requests. Do not run the old application against the retired RPCs.
+   Ordinary Garmin ingestion does not require the old timer RPCs.
+3. Apply only `20261026022713_garmin_activity_session_links` transactionally through
+   the version-preserving migration workflow, recording history with successful SQL.
+   Verify association preservation, archive restrictions, grants, RLS and RPCs.
+4. Promote the already-validated matching application, refresh open Session pages
+   and verify owner-only discovery, link/unlink and provider timestamps before
+   restoring Session HR access. Old manual commands are rejected by the new API.
+5. If application promotion fails, keep Session HR unavailable while reviewing a
+   coordinated application/SQL rollback. Preserve new associations and historical
+   timestamps; an old application rollback alone is incompatible with this schema.
+   Zero-interruption rollout would require a separately reviewed compatibility
+   bridge rather than applying this decommissioning migration to a live old UI.
+
+Keep the matching Cloudflare 4 MiB ingress and the existing activation/security gates.
 Keep the Enterprise Pull flag false. Then enable the existing **Push** Activity
 Details category for a consenting real-device test; configured endpoints are not
 proof of delivery. Check raw delivery sizes, durable receipts, complete sample

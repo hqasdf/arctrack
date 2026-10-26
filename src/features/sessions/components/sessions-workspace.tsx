@@ -12,7 +12,7 @@ import { SessionNotesPanel } from "@/features/notes-feedback/session-notes-panel
 import { CoachFeedbackPanel } from "@/features/notes-feedback/coach-feedback-panel";
 import { confirmDraftNavigation } from "@/features/notes-feedback/draft-guard";
 import styles from "./sessions.module.css";
-import { SessionHealthSections } from '@/features/session-health/garmin-session-health';
+import { GarminSessionHealth } from '@/features/session-health/garmin-session-health';
 import { SessionWeatherHistory } from "@/features/weather/components/session-weather";
 
 type View="sessions"|"new-session"|"session"|"setup"|"scoring";
@@ -146,14 +146,12 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId}
       <div className={styles.sessionHeading}><div><p className={styles.kicker}>{session.sessionType==="competition"?"Competition":"Training Session"}</p><h2>{session.title}</h2></div><button className={styles.primary} type="button" disabled={pending} onClick={()=>void startRound()}>{pending?"Starting…":"Start Round"}</button></div>
       </header>
       <div className={styles.sessionLayout}>
-      {viewerId?<SessionHealthSections key={`health:${viewerId}:${session.id}`} sessionId={session.id} details={sessionDetails}>
+      <section className={styles.detailsPanel}><h3>Session Details</h3>{sessionDetails}</section>
 <section className={styles.scoringRounds} aria-labelledby={`scoring-rounds-${session.id}`}><div className={styles.roundsHeading}><h3 id={`scoring-rounds-${session.id}`}>Scoring Rounds</h3><span>{session.rounds.length} {session.rounds.length===1?"Round":"Rounds"}</span></div>
       {roundCards}
       </section>
       {viewerId&&<SessionNotesPanel key={`notes:${viewerId}:${session.id}`} context={{viewerId,sessionId:session.id}} onDirtyChange={onNotesDirtyChange}/>}
-      </SessionHealthSections>:<><section className={styles.detailsPanel}><h3>Session Details</h3>{sessionDetails}</section><section className={styles.scoringRounds}><h3>Scoring Rounds</h3>
-      {roundCards}
-      </section></>}
+      {viewerId&&<GarminSessionHealth key={`health:${viewerId}:${session.id}`} sessionId={session.id}/>}
       {viewerId&&<CoachFeedbackPanel key={`feedback:${viewerId}:${session.id}`} context={{viewerId,sessionId:session.id}} activeMembershipOnly/>}
       </div>
     </div>}

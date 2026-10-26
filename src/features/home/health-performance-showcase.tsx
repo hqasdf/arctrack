@@ -10,7 +10,7 @@ const previews = [
   { label: "Sleep", icon: "moon", title: "See the night behind the next Session.", copy: "Explore total sleep, Light, Deep, REM and Awake periods, sleep timing and trends. Garmin’s official Sleep Score and quality description appear when supplied." },
   { label: "Daily health", icon: "battery", title: "A little more context. Every day.", copy: "Follow resting heart rate, stress, Body Battery, steps and recorded activity minutes. Each measurement depends on your device, permissions and Garmin delivery." },
   { label: "Activities", icon: "activity", title: "Keep the work between Sessions in view.", copy: "Browse imported Garmin activities by date and type. Review duration, available distance and average heart rate, then select an overlapping recording in Session Health." },
-  { label: "Session HR", icon: "analytics", title: "Put recorded heart rate beside your shooting.", copy: "Set your shooting interval, choose a Garmin activity and inspect available timestamped samples. Dedicated activity recordings and lower-resolution all-day fallback are identified separately." },
+  { label: "Session HR", icon: "analytics", title: "Put recorded heart rate beside your shooting.", copy: "Choose a Garmin activity and inspect available timestamped samples across its recorded interval. Dedicated activity recordings and lower-resolution all-day fallback are identified separately." },
 ] as const;
 
 // Public illustrations only. No athlete DTOs, authenticated readers or network requests.
@@ -77,12 +77,12 @@ export function HealthPerformanceShowcase() {
           {selected === 3 && <>
             <PanelTitle eyebrow="MOVEMENT BETWEEN THE ARROWS" title="Your activity history" detail="Illustrative recordings · no real account connected" />
             <div className={styles.activityList}>{[{ type: "Archery", time: "09:00 · example day", duration: "75 min", hr: "98 bpm", distance: "Distance unavailable" }, { type: "Walking", time: "18:20 · example day", duration: "28 min", hr: "107 bpm", distance: "2.1 km" }].map(activity => <div className={styles.activityRow} key={activity.type}><span className={styles.activityIcon}><Icon name="activity" size={22} /></span><div><h4>{activity.type}</h4><p>{activity.time}</p><small>{activity.distance}</small></div><div><strong>{activity.duration}</strong><p>{activity.hr} average</p></div></div>)}</div>
-            <div className={styles.quietCard}><Icon name="sessions" size={26} /><div><h4>Choose the recording. Keep scoring independent.</h4><p>Use confirmed Session times to find overlapping activities. Linking a recording does not import a scorecard or change your scores.</p></div></div>
+            <div className={styles.quietCard}><Icon name="sessions" size={26} /><div><h4>Choose the recording. Keep scoring independent.</h4><p>Find recordings that overlap your Session date, then explicitly choose the right activity. Linking a recording does not import a scorecard or change your scores.</p></div></div>
             <p className={styles.previewNote}>Activity summaries and detailed HR are separate deliveries. A summary does not guarantee recorded HR samples.</p>
           </>}
           {selected === 4 && <>
             <PanelTitle eyebrow="PRIVATE SESSION HEALTH" title="The rhythm of a Session" detail="Feature preview · detailed activity delivery verification pending" />
-            <div className={styles.interval}><span><Icon name="sessions" size={17} /> Shooting interval</span><strong>09:00–10:15 SGT</strong><span>Illustrative linked activity</span></div>
+            <div className={styles.interval}><span><Icon name="sessions" size={17} /> Garmin recording</span><strong>09:00–10:15 SGT</strong><span>Illustrative linked activity</span></div>
             <div className={styles.chartCard}><div className={styles.cardHeading}><h4>Recorded heart rate</h4><span>Illustrative samples · bpm</span></div><Trend values={illustrativeSessionHR} min={60} max={140} label="Illustrative Session heart-rate samples, between 82 and 126 bpm, with a break for missing data. Not a live recording." /><div className={styles.chartEnds}><span>09:00</span><span>Gaps remain gaps</span><span>10:15</span></div></div>
             <div className={styles.hrFacts}><div><span>Inspect</span><strong>Original samples</strong></div><div><span>Review</span><strong>Average · min · max</strong></div><div><span>Understand</span><strong>Recording coverage</strong></div></div>
             <p className={styles.previewNote}>The released interface supports interactive inspection. Actual workout HR depends on Garmin Activity Details delivery; all-day fallback is lower resolution when available. No live streaming or historical backfill is promised.</p>

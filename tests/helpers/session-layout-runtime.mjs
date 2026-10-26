@@ -38,9 +38,9 @@ export function createSessionUI(responder) {
   const compiled = loadSessionModule('src/features/session-health/garmin-session-health.tsx', {
     './model': sessionModel, './heart-rate-timeline': { HeartRateTimeline: () => React.createElement('div', null, 'Recorded HR timeline') },
   }, hooks, { document, window, setInterval: fn => { timers.add(fn); return fn; }, clearInterval: fn => timers.delete(fn), fetch: async (url, options) => { calls.push({ url, options }); return responder(url, options); } });
-  const props = { sessionId: 'synthetic-session', details: React.createElement('p', null, 'Arrow count'), children: [React.createElement('section', { key: 'rounds' }, React.createElement('h3', null, 'Scoring Rounds')), React.createElement('section', { key: 'notes' }, 'Session Notes')] };
+  const props = { sessionId: 'synthetic-session' };
   return {
-    render() { cursor = 0; tree = compiled.SessionHealthSections(props); while (effects.length) effects.shift()(); return tree; },
+    render() { cursor = 0; tree = compiled.GarminSessionHealth(props); while (effects.length) effects.shift()(); return tree; },
     calls, listeners, timers, nodes: () => treeNodes(tree), text: () => treeText(tree),
     async click(label) { const button = treeNodes(tree).find(n => n.type === 'button' && treeText(n) === label); if (!button) throw Error('Missing button: ' + label); await button.props.onClick?.(); },
     visibility(state) { document.visibilityState = state; listeners.get('document:visibilitychange')?.(); },

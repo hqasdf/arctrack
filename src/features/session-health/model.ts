@@ -1,19 +1,9 @@
 export type HRSample = [number, number | null];
-export type RecordingWindow = { session_id: string; started_at: string | null; finished_at: string | null; activity_id: string | null; updated_at: string };
+export type SessionActivityLink = { session_id: string; activity_id: string | null; updated_at: string };
 export type HRCandidate = { source_id: string; start_seconds: number; duration_seconds: number; activity_type: string | null; state: string; sample_count: number; published: boolean };
 export type HRDataset = { id: string; source: 'activity' | 'daily'; sourceId: string; start: number; duration: number; samples: HRSample[] };
-export type SessionHealth = { window: RecordingWindow | null; authorized: boolean; paused?: boolean; sync?: {state:string;error:string|null}|null; candidates: HRCandidate[]; datasets: HRDataset[] };
+export type SessionHealth = { link: SessionActivityLink | null; recording: HRCandidate | null; authorized: boolean; paused?: boolean; sync?: {state:string;error:string|null}|null; candidates: HRCandidate[]; datasets: HRDataset[] };
 export const singaporeTime = (seconds: number) => new Intl.DateTimeFormat('en-SG', { timeZone:'Asia/Singapore', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).format(new Date(seconds*1000));
-export function singaporeInput(iso: string | null | undefined): string {
-  return iso ? new Date(new Date(iso).getTime()+8*3600000).toISOString().slice(0,16) : '';
-}
-export function singaporeUTC(input: string): string | null {
-  if (!input) return null;
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input)) throw new Error('Enter a valid Singapore date and time.');
-  const date = new Date(`${input}:00+08:00`);
-  if (!Number.isFinite(date.getTime()) || singaporeInput(date.toISOString())!==input) throw new Error('Enter a valid Singapore date and time.');
-  return date.toISOString();
-}
 // Statistics use all original points, never graph downsampling. Activity values
 // hold until the next sample; we cap uncertain gaps at 60s rather than imply
 // uninterrupted recording. Daily samples describe only the PRECEDING 15 seconds.

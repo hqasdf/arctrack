@@ -36,7 +36,7 @@ async function snapshot() {
   result.columns = (await db.query(`select c.oid,a.attname,format_type(a.atttypid,a.atttypmod) as type,a.attnotnull,
     pg_get_expr(d.adbin,d.adrelid) as default_value from pg_class c join pg_attribute a on a.attrelid=c.oid and a.attnum>0
     left join pg_attrdef d on d.adrelid=c.oid and d.adnum=a.attnum where c.oid=any($1::regclass[]) order by c.oid,a.attnum`, [tables])).rows;
-  result.policies = (await db.query("select * from pg_policies where tablename not like 'garmin%' and tablename<>'session_recording_windows' order by schemaname,tablename,policyname")).rows;
+  result.policies = (await db.query("select * from pg_policies where tablename not like 'garmin%' and tablename not in ('session_recording_windows','retired_session_recording_windows','session_garmin_activity_links') order by schemaname,tablename,policyname")).rows;
   result.relations = (await db.query("select oid,relname,relowner,relacl,relrowsecurity,relforcerowsecurity from pg_class where oid=any($1::regclass[]) order by oid", [tables])).rows;
   result.existingTrigger = (await db.query("select pg_get_triggerdef(oid) as definition from pg_trigger where tgname='integrity_existing_title_guard'")).rows;
   return result;
@@ -99,6 +99,16 @@ try {
   await db.query(await readFile(join(root, "supabase/migrations/20261025124444_garmin_session_heart_rate.sql"), "utf8"));
   check(isDeepStrictEqual(before, await snapshot()), "Session HR preserves existing scoring, application rows and security");
   await db.query(await readFile(join(root, "supabase/tests/garmin-session-heart-rate.sql"), "utf8"));
+  // Historical HR fixtures above verify the applied predecessor; current consumers use only activity links.
+  await db.query("alter table public.sessions add column session_date date not null default '2026-10-25'");
+  await db.query("insert into public.session_recording_windows(session_id,user_id,started_at,finished_at,activity_id) select id,user_id,'2026-10-25 01:00Z','2026-10-25 02:00Z','historical-preserved-link' from public.sessions order by id limit 1");
+  const beforeActivityUpgrade=await snapshot();
+  await db.query('begin');
+  await db.query(await readFile(join(root,'supabase/migrations/20261026022713_garmin_activity_session_links.sql'),'utf8'));
+  await db.query('commit');
+  check(isDeepStrictEqual(beforeActivityUpgrade,await snapshot()),'Activity-only migration preserves scoring data, schema, grants and unrelated policies');
+  check((await db.query("select count(*)::int n from private.retired_session_recording_windows where activity_id='historical-preserved-link'")).rows[0].n===1,'Historical timestamps and imported association evidence are archived without deletion');
+  check((await db.query("select count(*)::int n from public.session_garmin_activity_links where activity_id='historical-preserved-link'")).rows[0].n===1,'Existing explicit activity association survives migration');
   await (await import("./garmin-health-admission-fixture.mjs")).testAdmissionConcurrency(db, pg.Client, configuration, check);
   await (await import("./garmin-private-webhook-fixture.mjs")).testPrivateWebhookDatabase(db, check);
   // Actual independent transactions: processing must not race an in-flight disconnect.

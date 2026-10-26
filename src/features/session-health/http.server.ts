@@ -22,21 +22,20 @@ export async function sessionHealthRequest(request:Request, sessionId:string) {
       try { while(true) {const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>2048){await reader.cancel();return reply({error:'Request too large.'},413);}bytes.push(value);} }
       finally {reader.releaseLock();}
       const input=JSON.parse(Buffer.concat(bytes).toString('utf8')) as Record<string,unknown>;
-      if(!input||!['start','finish','manual','link','unlink'].includes(String(input.action))) return reply({error:'Invalid action.'},400);
       const timestamp=(v:unknown)=>v===null||typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(v)&&Number.isFinite(Date.parse(v));
-      if(!timestamp(input.expected??null)||input.action==='manual'&&(!timestamp(input.start)||!timestamp(input.finish))
-        ||input.action==='link'&&(typeof input.activity!=='string'||input.activity.length>180)) return reply({error:'Check the Session times or activity.'},400);
-      const {error}=await db.rpc('set_session_recording_window',{p_session:sessionId,p_action:input.action,p_expected:input.expected??null,
-        p_start:input.action==='manual'?input.start:null,p_finish:input.action==='manual'?input.finish:null,p_activity:input.action==='link'?input.activity:null});
-      if(error) return reply({error:'The change could not be confirmed. Refresh and check your interval and Garmin authorization.'},409);
+      if(!input||Array.isArray(input)||Object.keys(input).some(key=>!['activityId','expected'].includes(key))
+        ||!(input.activityId===null||typeof input.activityId==='string'&&input.activityId.length>0&&input.activityId.length<=180)
+        ||!timestamp(input.expected??null)) return reply({error:'Choose a Garmin activity and refresh before retrying.'},400);
+      const {error}=await db.rpc('set_session_garmin_activity',{p_session:sessionId,p_activity:input.activityId,p_expected:input.expected??null});
+      if(error) return reply({error:'The activity link could not be confirmed. Refresh and check your Garmin authorization.'},409);
     }
-    const {data,error}=await db.rpc('read_session_garmin_hr',{p_session:sessionId,p_known:request.method==='GET'&&/^[a-f0-9]{32}$/.test(request.headers.get('if-none-match')??'')?request.headers.get('if-none-match'):null});
+    const {data,error}=await db.rpc('read_session_garmin_activity',{p_session:sessionId,p_known:request.method==='GET'&&/^[a-f0-9]{32}$/.test(request.headers.get('if-none-match')??'')?request.headers.get('if-none-match'):null});
     if(error) return reply({error:'Session Health is unavailable. Scoring remains available.'},503);
     if(!data) return reply({error:'Session unavailable.'},404);
     // Reuse the database's current connection/permission authority, not historical samples.
-    const access = await Promise.all(['daily','activity'].map(source => db.rpc('garmin_hr_owner_access',{p_source:source})));
-    const authorized = data.authorized === true && access.some(result => !result.error && result.data === true);
-    if(!authorized) return reply({...data,authorized:false,unchanged:false,candidates:[],datasets:[]});
+    const permission = await db.rpc('garmin_hr_owner_access',{p_source:'activity'});
+    const authorized = data.authorized === true && !permission.error && permission.data === true;
+    if(!authorized) return reply({...data,authorized:false,unchanged:false,recording:null,candidates:[],datasets:[]});
     if(data.unchanged&&request.method==='GET')return new Response(null,{status:304,headers});
     return reply({...data,authorized:true});
   } catch {return reply({error:'Session Health could not be loaded. Please retry.'},400);}

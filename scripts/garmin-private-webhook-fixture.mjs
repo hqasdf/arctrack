@@ -163,9 +163,8 @@ export async function testPrivateWebhookDatabase(db,check){
   const session='91000000-0000-4000-8000-000000000010';
   await db.query("insert into public.sessions values($1,$2,'Starter Session',0)",[session,user]);
   await db.query('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);
-  await db.query("select public.set_session_recording_window($1,'manual',null,to_timestamp($2),to_timestamp($3))",[session,hrStart,hrStart+36000]);
-  await db.query("select public.set_session_recording_window($1,'link',(select updated_at from public.session_recording_windows where session_id=$1),null,null,'starter-recording')",[session]);
-  const sessionData=(await db.query('select public.read_session_garmin_hr($1) as value',[session])).rows[0].value;
+  await db.query("select public.set_session_garmin_activity($1,'starter-recording',null)",[session]);
+  const sessionData=(await db.query('select public.read_session_garmin_activity($1) as value',[session])).rows[0].value;
   check(sessionData.datasets[0].samples.length===sampleCount,'Owner Session reader returns actual original Starter HR samples');
   const hrModel=await load('src/features/session-health/model.ts');
   const timeline=await load('src/features/session-health/heart-rate-timeline.tsx',{'./model':hrModel});
@@ -173,7 +172,7 @@ export async function testPrivateWebhookDatabase(db,check){
   const hrHtml=renderToStaticMarkup(React.createElement(timeline.HeartRateTimeline,{analysis,start:hrStart,end:hrStart+36000}));
   check(analysis.count===sampleCount&&hrHtml.includes('Recorded heart rate'),'Starter ingress -> SQL inbox -> worker -> owner reader -> actual Session timeline renders without fabricated data');
   await db.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
-  check((await db.query('select public.read_session_garmin_hr($1) as value',[session])).rows[0].value===null,'Other athlete cannot access the pushed Session recording');
+  check((await db.query('select public.read_session_garmin_activity($1) as value',[session])).rows[0].value===null,'Other athlete cannot access the pushed Session recording');
   await db.query('reset role');await db.query('set role service_role');
   const dailyHr={userId:'synthetic-webhook-provider',summaryId:'starter-daily-hr',calendarDate:'2026-10-25',
    startTimeInSeconds:hrStart,durationInSeconds:86400,timeOffsetHeartRateSamples:{15:80,30:90}};
@@ -181,8 +180,10 @@ export async function testPrivateWebhookDatabase(db,check){
    'Documented all-day offset HR samples pass authenticated durable admission');
   await send('/worker',null,'GET',{Authorization:'Bearer '+workerSecret});
   await db.query('reset role');await db.query('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);
-  await db.query("select public.set_session_recording_window($1,'manual',(select updated_at from public.session_recording_windows where session_id=$1),to_timestamp($2),to_timestamp($3))",[session,hrStart,hrStart+60]);
-  const fallback=(await db.query('select public.read_session_garmin_hr($1) as value',[session])).rows[0].value;
+  await db.query('reset role');
+  await db.query("delete from public.garmin_hr_datasets where user_id=$1 and source='activity'",[user]);
+  await db.query('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);
+  const fallback=(await db.query('select public.read_session_garmin_activity($1) as value',[session])).rows[0].value;
   const dailyAnalysis=hrModel.hrAnalysis(fallback.datasets,hrStart,hrStart+60);
   check(fallback.datasets[0].source==='daily'&&dailyAnalysis.count===2&&dailyAnalysis.covered===30&&dailyAnalysis.average===85,
    'Unlinked Session uses genuine all-day samples as preceding 15-second fallback bins without invented points');

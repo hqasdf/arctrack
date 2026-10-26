@@ -1,67 +1,19 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { createSessionUI, settle, treeText } from './helpers/session-layout-runtime.mjs';
-
-const base = { revision: 'a'.repeat(32), authorized: false, window: null, candidates: [], datasets: [] };
-const reply = data => Response.json(data);
-
-for (const state of ['never_connected', 'disconnected', 'reauthorization_required', 'revoked']) test('General timing survives hidden Health: ' + state, async () => {
-  const h = createSessionUI(async () => reply(base)); h.render(); await settle(); h.render();
-  assert.match(h.text(), /Session Details.*Arrow count.*Start Session timer.*Scoring Rounds.*Session Notes/s);
-  assert.doesNotMatch(h.text(), /Garmin Session Health|Manage Garmin|Confirm Garmin activity/);
-  assert.equal(h.nodes().find(n => n.type === 'button' && treeText(n) === 'Start Session timer').props.disabled, false);
-  h.dispose();
-});
-test('Loading and unavailable connection states do not render private Health or block rounds/notes', async () => {
-  let reject; const h = createSessionUI(() => new Promise((_, no) => { reject = no; }));
-  h.render(); assert.doesNotMatch(h.text(), /Garmin Session Health/); assert.match(h.text(), /Scoring Rounds.*Session Notes/s);
-  reject(Error('offline')); await settle(); h.render(); assert.doesNotMatch(h.text(), /Garmin Session Health/); assert.match(h.text(), /Retry/); h.dispose();
-});
-test('Authorised empty Health is below rounds and notes, with one general timing form', async () => {
-  const h = createSessionUI(async () => reply({ ...base, authorized: true })); h.render(); await settle(); const html = renderToStaticMarkup(h.render());
-  const order = ['Session Details', 'Scoring Rounds', 'Session Notes', 'Garmin Session Health'].map(s => html.indexOf(s));
-  assert.ok(order.every((v, i) => v >= 0 && (!i || v > order[i - 1])));
-  assert.equal((html.match(/Start Session timer/g) ?? []).length, 1); assert.match(html, /Enter both shooting times in Session Details/); h.dispose();
-});
-test('Timing start/finish preserve the exact optimistic revision and server-confirmed result without Garmin', async () => {
-  let data = base; const h = createSessionUI(async (_, options) => {
-    if (options.method === 'POST') { const body = JSON.parse(options.body); assert.equal(body.expected, data.window?.updated_at ?? null); data = { ...base, window: { started_at: '2026-10-25T06:00:00Z', finished_at: body.action === 'finish' ? '2026-10-25T07:00:00Z' : null, updated_at: body.action } }; }
-    return reply(data);
-  }); h.render(); await settle(); h.render(); await h.click('Start Session timer'); await settle(); h.render();
-  assert.match(h.text(), /Timer running/); await h.click('Finish Session timer'); await settle(); h.render(); assert.doesNotMatch(h.text(), /Timer running/);
-  assert.deepEqual(h.calls.filter(c => c.options.method === 'POST').map(c => JSON.parse(c.options.body).action), ['start', 'finish']); h.dispose();
-});
-test('Unsaved Singapore timing draft survives status refresh and Health disconnection', async () => {
-  let authorized = true; const h = createSessionUI(async () => reply({ ...base, authorized })); h.render(); await settle(); h.render();
-  h.nodes().find(n => n.type === 'input' && n.props.type === 'datetime-local').props.onChange({ target: { value: '2026-10-25T14:30' } }); h.render();
-  authorized = false; await h.click('Refresh details'); await settle(); h.render();
-  assert.equal(h.nodes().find(n => n.type === 'input').props.value, '2026-10-25T14:30'); assert.doesNotMatch(h.text(), /Garmin Session Health/); h.dispose();
-});
-test('Backgrounding hides private HR and unmount cleans up its refresh timer and listeners', async () => {
-  const h = createSessionUI(async () => reply({ ...base, authorized: true })); h.render(); await settle(); h.render(); h.visibility('hidden'); h.render();
-  assert.doesNotMatch(h.text(), /Garmin Session Health/); assert.match(h.text(), /Session Details/); h.dispose(); assert.equal(h.timers.size, 0); assert.equal(h.listeners.size, 0);
-});
-test('Manual timing still submits Singapore-local values as UTC with the exact saved revision', async () => {
-  const window = { started_at: '2026-10-24T16:30:00Z', finished_at: null, updated_at: 'microsecond-revision' };
-  const h = createSessionUI(async () => reply({ ...base, window })); h.render(); await settle(); h.render();
-  const fields = h.nodes().filter(n => n.type === 'input');
-  fields[0].props.onChange({ target: { value: '2026-10-25T00:45' } }); h.render();
-  h.nodes().filter(n => n.type === 'input')[1].props.onChange({ target: { value: '2026-10-25T01:45' } }); h.render();
-  h.nodes().find(n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await settle();
-  assert.deepEqual(JSON.parse(h.calls.find(c => c.options.method === 'POST').options.body), { action: 'manual', expected: 'microsecond-revision', start: '2026-10-24T16:45:00.000Z', finish: '2026-10-24T17:45:00.000Z' }); h.dispose();
-});
-test('Background interruption during a timing write cannot leave the controls permanently busy', async () => {
-  let resolvePost; const h = createSessionUI(async (_, options) => options.method === 'POST' ? new Promise(resolve => { resolvePost = resolve; }) : reply(base));
-  h.render(); await settle(); h.render(); await h.click('Start Session timer'); h.render(); h.visibility('hidden'); h.render();
-  resolvePost(reply({ ...base, authorized: true })); await settle(); h.render();
-  assert.doesNotMatch(h.text(), /Garmin Session Health/);
-  assert.equal(h.nodes().find(n => n.type === 'button' && treeText(n) === 'Refresh details').props.disabled, false); h.dispose();
-});
-test('Session composition preserves scoring handlers and places gated feedback last', () => {
-  const source = readFileSync(new URL('../src/features/sessions/components/sessions-workspace.tsx', import.meta.url), 'utf8');
-  assert.match(source, /SessionHealthSections.*details=/); assert.match(source, /CoachFeedbackPanel[^>]*activeMembershipOnly/);
-  assert.ok(source.indexOf('SessionNotesPanel key=') < source.lastIndexOf('CoachFeedbackPanel key='));
-  assert.match(source, /setActiveRoundId\(round.id\);setView\("scoring"\)/);
+import {renderToStaticMarkup} from 'react-dom/server';
+import {createSessionUI,settle} from './helpers/session-layout-runtime.mjs';
+const base={revision:'a'.repeat(32),authorized:false,link:null,recording:null,candidates:[],datasets:[]};
+const activity={source_id:'recording-1',start_seconds:1792882800,duration_seconds:3600,activity_type:'ARCHERY',state:'summary_only',sample_count:0,published:false};
+const reply=data=>Response.json(data);
+test('Pending authorization check exposes neither private HR nor a legacy timer',async()=>{let complete;const pending=new Promise(resolve=>{complete=resolve;});const h=createSessionUI(()=>pending);h.render();assert.equal(h.text(),'');complete(reply({...base,authorized:true}));await settle();h.render();assert.match(h.text(),/No compatible Garmin activity/);h.dispose();});
+for(const state of ['never_connected','disconnected','reauthorization_required','revoked'])test('No HR panel or timer for '+state,async()=>{const h=createSessionUI(async()=>reply(base));h.render();await settle();h.render();assert.equal(h.text(),'');h.dispose();});
+test('Connected account discovers activities without any saved interval, with no automatic association',async()=>{const h=createSessionUI(async()=>reply({...base,authorized:true,candidates:[activity]}));h.render();await settle();const html=renderToStaticMarkup(h.render());assert.match(html,/Confirm Garmin activity/);assert.match(html,/Select a Garmin activity/);assert.doesNotMatch(html,/Start Session timer|Save times|datetime-local/);assert.equal(h.nodes().find(n=>n.type==='select').props.value,'');assert.match(h.text(),/No activity is selected automatically/);h.dispose();});
+test('Selection and unlink submit only activity identity and exact optimistic revision',async()=>{let value={...base,authorized:true,candidates:[activity]};const h=createSessionUI(async(_,options)=>{if(options.method==='POST'){const body=JSON.parse(options.body);assert.equal(body.expected,value.link?.updated_at??null);value={...value,link:{activity_id:body.activityId,updated_at:'new-revision'},recording:body.activityId?activity:null};}return reply(value);});h.render();await settle();h.render();h.nodes().find(n=>n.type==='select').props.onChange({target:{value:activity.source_id}});await settle();h.render();assert.match(h.text(),/Garmin recording start/);assert.match(h.text(),/No timestamped heart-rate measurements/);await h.click('Unlink activity');await settle();h.render();assert.deepEqual(h.calls.filter(c=>c.options.method==='POST').map(c=>JSON.parse(c.options.body)),[{activityId:'recording-1',expected:null},{activityId:null,expected:'new-revision'}]);h.dispose();});
+test('Provider timestamps are shown across midnight without a manual time input',async()=>{const overnight={...activity,start_seconds:Date.parse('2026-10-25T15:30:00Z')/1000,duration_seconds:5400};const h=createSessionUI(async()=>reply({...base,authorized:true,recording:overnight,link:{activity_id:activity.source_id,updated_at:'revision'},candidates:[overnight]}));h.render();await settle();h.render();assert.match(h.text(),/25 Oct, 23:30/);assert.match(h.text(),/26 Oct, 01:00/);assert.match(h.text(),/90 minutes/);assert.doesNotMatch(h.text(),/Save times|Finish Session timer/);h.dispose();});
+test('Missing recordings and missing HR remain honest empty states',async()=>{const h=createSessionUI(async()=>reply({...base,authorized:true}));h.render();await settle();h.render();assert.match(h.text(),/No compatible Garmin activity/);assert.equal(h.nodes().filter(n=>n.type==='svg').length,0);h.dispose();});
+test('Backgrounding hides private HR and cleanup removes refresh listeners',async()=>{const h=createSessionUI(async()=>reply({...base,authorized:true}));h.render();await settle();h.render();h.visibility('hidden');h.render();assert.equal(h.text(),'');h.dispose();assert.equal(h.timers.size,0);assert.equal(h.listeners.size,0);});
+test('Failed status verification never displays cached private HR',async()=>{let fail=false;const h=createSessionUI(async()=>{if(fail)throw Error('offline');return reply({...base,authorized:true});});h.render();await settle();h.render();fail=true;await h.click('Refresh');await settle();h.render();assert.doesNotMatch(h.text(),/Garmin Session Health/);assert.match(h.text(),/could not be checked/);h.dispose();});
+test('Session layout keeps compact details, rounds, notes, Health and gated feedback in order',()=>{const s=readFileSync(new URL('../src/features/sessions/components/sessions-workspace.tsx',import.meta.url),'utf8'),view=s.slice(s.indexOf('{view==="session"&&session&&'));
+ const order=['Session Details','Scoring Rounds','SessionNotesPanel','<GarminSessionHealth','<CoachFeedbackPanel'].map(x=>view.indexOf(x));assert.ok(order.every((x,i)=>x>=0&&(!i||x>order[i-1])));assert.match(view,/CoachFeedbackPanel[^>]*activeMembershipOnly/);assert.doesNotMatch(s,/SessionHealthSections|datetime-local/);
 });
