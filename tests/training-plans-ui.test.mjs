@@ -9,7 +9,8 @@ const read = (path) => readFileSync(join(root, path), "utf8");
 test("web Coach navigation places Training Plans between Reviews and Analytics", () => {
   const nav = read("src/features/organizations/components/coach-navigation.tsx");
   const labels = [...nav.matchAll(/label: "([^"]+)"/g)].map((item) => item[1]);
-  assert.deepEqual(labels.slice(0, 6), ["Overview", "Athletes", "Reviews", "Training Plans", "Analytics", "Settings"]);
+  assert.ok(labels.includes("Live Coaching"));
+  assert.deepEqual(labels.filter(label => label !== "Live Coaching"), ["Overview", "Athletes", "Reviews", "Training Plans", "Analytics", "Settings"]);
 });
 
 test("Coach and athlete Training Plan routes exist without a new main tab", () => {

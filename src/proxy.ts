@@ -47,6 +47,7 @@ export const config = {
     "/arrow-counter/:path*",
     "/profile/:path*",
     "/organization/:path*",
+    "/live-coaching/:path*",
     "/sign-in",
     "/sign-up",
     "/forgot-password",

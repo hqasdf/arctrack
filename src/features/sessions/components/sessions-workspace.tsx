@@ -20,16 +20,16 @@ type RoundForm=Omit<RoundDraft,"id"|"roundNumber"|"arrows">;
 const today=new Date().toISOString().slice(0,10);
 const base=ROUND_PRESETS[3];
 
-export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId}:{initialSessions:SessionDraft[];trainingPlanContent?:ReactNode;viewerId?:string}) {
+export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,initialSessionId}:{initialSessions:SessionDraft[];trainingPlanContent?:ReactNode;viewerId?:string;initialSessionId?:string}) {
   const router=useRouter();
   const notesDirty=useRef(false);
   const onNotesDirtyChange=useCallback((dirty:boolean)=>{notesDirty.current=dirty;},[]);
   const mayLeaveNotes=()=>confirmDraftNavigation(notesDirty.current);
-  const [view,setView]=useState<View>("sessions");
+  const [view,setView]=useState<View>(initialSessions.some(s=>s.id===initialSessionId)?"session":"sessions");
   const [category,setCategory]=useState<SessionType>("training");
   const [sessions,setSessions]=useState(initialSessions);
   const [arrowCountDrafts,setArrowCountDrafts]=useState<Record<string,string>>(()=>Object.fromEntries(initialSessions.map((item)=>[item.id,String(item.arrowCount)])));
-  const [activeSessionId,setActiveSessionId]=useState<string|null>(null);
+  const [activeSessionId,setActiveSessionId]=useState<string|null>(initialSessions.find(s=>s.id===initialSessionId)?.id??null);
   const [activeRoundId,setActiveRoundId]=useState<string|null>(null);
   const [configuringRoundId,setConfiguringRoundId]=useState<string|null>(null);
   const [sessionForm,setSessionForm]=useState<{title:string;date:string;sessionType:SessionType}>({title:"",date:today,sessionType:"training"});

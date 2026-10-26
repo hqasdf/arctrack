@@ -13,5 +13,6 @@ export default async function MemberPage({ params }: { params: Promise<{ organiz
     <Link href="/organization?manage=1">Manage memberships</Link>
     <header><p>Coach&apos;s Workspace</p><h1>{organization.name}</h1><p>Archer membership</p></header>
     <MemberWorkspace organization={organization}/>
+    <Link href="/live-coaching">Live Coaching invitations →</Link>
   </div>;
 }

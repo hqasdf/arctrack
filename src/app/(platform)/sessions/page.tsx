@@ -8,8 +8,9 @@ import { readOwnTrainingPlanProgress } from "@/features/organizations/training-p
 import { singaporeDate } from "@/lib/date";
 import styles from "@/styles/pages.module.css";
 export const metadata: Metadata = { title: "Sessions" };
-export default async function SessionsPage() {
+export default async function SessionsPage({searchParams}:{searchParams:Promise<{session?:string}>}) {
   const user = await requireUser();
+  const {session:initialSessionId}=await searchParams;
   const today = singaporeDate(new Date());
   const [displayName, sessions, plans] = await Promise.all([
     readOwnDisplayName(), readSessions(), readOwnTrainingPlanProgress(today).catch(() => null),
@@ -18,6 +19,6 @@ export default async function SessionsPage() {
     <div className={styles.intro}>
       <h1 style={{ overflowWrap: "anywhere" }}>Your sessions, {displayName}</h1>
     </div>
-    <SessionsWorkspace initialSessions={sessions} trainingPlanContent={plans === null ? <p key="training-plan-error" role="status">Training Plans could not be loaded. Refresh to try again.</p> : <AthletePlanCard plans={plans} today={today} key="athlete-plans"/>} key={user.id} viewerId={user.id}/>
+    <SessionsWorkspace initialSessions={sessions} trainingPlanContent={plans === null ? <p key="training-plan-error" role="status">Training Plans could not be loaded. Refresh to try again.</p> : <AthletePlanCard plans={plans} today={today} key="athlete-plans"/>} key={user.id+':'+(initialSessionId??'')} viewerId={user.id} initialSessionId={initialSessionId}/>
   </>;
 }

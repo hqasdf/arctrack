@@ -124,6 +124,17 @@ try {
         nullif(current_setting('request.jwt.claims',true),'')::jsonb ->> 'sub')::uuid;
     $$;
     grant execute on function auth.uid() to anon,authenticated,service_role;
+    create schema realtime;
+    grant usage on schema realtime to authenticated;
+    create table realtime.messages(extension text,topic text,payload jsonb);
+    alter table realtime.messages enable row level security;
+    grant select on realtime.messages to authenticated;
+    create table private.fixture_live_broadcasts(topic text,payload jsonb,event text);
+    create function realtime.topic() returns text language sql stable as $$select current_setting('realtime.topic',true)$$;
+    create function realtime.send(payload jsonb,event text,topic text,private boolean) returns void language plpgsql as $$begin
+      insert into private.fixture_live_broadcasts values(topic,payload,event);
+      perform pg_notify('fixture_live_changes',jsonb_build_object('topic',topic)::text);
+    end;$$;
   `);
   const migrations = (await readdir(join(root, 'supabase/migrations'))).filter(name => name.endsWith('.sql')).sort();
   const budgetDefinition = async () => (await owner.query(`select
@@ -226,7 +237,9 @@ try {
   assert(!revokedReplay[0].ok && revokedReplay[0].code === '42501', 'Replay after committed relationship revocation is denied');
   assert(await scalar(`select hour_count=100 from private.coach_feedback_creation_budgets where user_id=${quote(coachA)}`), 'Revoked replay does not charge budget');
 
+  const liveResults = await (await import('./live-coaching-fixture.mjs')).testLiveCoaching(owner, pg, configuration);
   summary = {
+    liveCoachingAssertions: liveResults,
     runtime: await scalar('select version()'), migrations: migrations.length,
     sqlFixtureAssertions: fixtureCount, concurrencyAndHarnessAssertions: assertions, failed: 0,
     sameKey: { attempts: 8, returnedSameId: 8, feedbackRows: 1, charges: 1 },
@@ -236,6 +249,7 @@ try {
     hostedStyleBroadDefaultPrivilegesExercised: true,
     limitations: 'Supabase auth schema/roles emulated; no GoTrue, real JWT verification or PostgREST. UTC counters pinned in disposable fixtures for deterministic races.',
   };
+  if (process.env.LIVE_COACHING_DEMO === 'true') await (await import('./live-coaching-demo.mjs')).runLiveDemo(owner, pg, configuration);
 } catch (error) {
   testFailure = error;
 } finally {
