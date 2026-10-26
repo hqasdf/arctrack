@@ -3,6 +3,7 @@ import { Icon } from "@/components/ui/icon";
 import { CinematicScene } from "@/features/home/cinematic-scene";
 import { PrecisionDemo } from "@/features/home/precision-demo";
 import { CoachShowcase } from "@/features/home/coach-showcase";
+import { HealthPerformanceShowcase } from "@/features/home/health-performance-showcase";
 import { publicPageMetadata } from "@/lib/seo";
 import styles from "@/features/home/home.module.css";
 
@@ -20,7 +21,7 @@ export default function HomePage() {
     <a href="#introduction" className={styles.skip}>Skip to content</a>
     <header className={styles.header}>
       <Link href="/" aria-label="Arc Track home" className={styles.brand}><Icon name="target" size={27} /><span>ARC TRACK</span></Link>
-      <nav aria-label="Homepage navigation" className={styles.nav}><a href="#precision">The precision</a><a href="#performance">The insights</a><a href="#training">The progress</a><a href="#coaching">For coaches</a></nav>
+      <nav aria-label="Homepage navigation" className={styles.nav}><a href="#precision">The precision</a><a href="#performance">The insights</a><a href="#training">The progress</a><a href="#coaching">For coaches</a><a href="#health-performance">Health &amp; Garmin</a></nav>
       <Link href="/sign-in" className={styles.signIn}>Sign in <span aria-hidden="true" className={styles.directionUp}><Icon name="arrow" size={14} /></span></Link>
     </header>
 
@@ -70,6 +71,8 @@ export default function HomePage() {
     </section>
 
     <CoachShowcase />
+
+    <HealthPerformanceShowcase />
 
     <section className={styles.final} aria-labelledby="final-heading"><div className={styles.finalMark} aria-hidden="true"><Icon name="target" size={65} /></div><p className={styles.eyebrow}>THE NEXT ARROW IS YOURS.</p><h2 id="final-heading">Practice with purpose.<br /><em>Track with clarity.</em></h2><p>For the Arrows you shoot.<br />For the athletes you guide.</p><div className={styles.actions}><Link href="/sign-up" className={styles.primary}>Get started with Arc Track <Icon name="arrow" size={19} /></Link><Link href="/sessions" className={styles.textLink}>Open Sessions <span aria-hidden="true" className={styles.directionUp}><Icon name="arrow" size={14} /></span></Link></div></section>
     <footer className={styles.footer}><Link href="/" className={styles.brand}><Icon name="target" size={22} />ARC TRACK</Link><p>Every Arrow. Every insight. Every step forward.</p><nav aria-label="Footer"><Link href="/privacy">Privacy</Link><Link href="/delete-account">Account deletion</Link><Link href="/sign-in">Sign in</Link></nav></footer>
