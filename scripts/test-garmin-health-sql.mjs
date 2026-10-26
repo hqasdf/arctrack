@@ -1,5 +1,5 @@
 /** Disposable native PostgreSQL only. Never reads .env, URLs or production credentials. */
-import { access, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify, isDeepStrictEqual } from "node:util";
 import { join, resolve, isAbsolute, sep } from "node:path";
@@ -103,9 +103,40 @@ try {
   await db.query("alter table public.sessions add column session_date date not null default '2026-10-25'");
   await db.query("insert into public.session_recording_windows(session_id,user_id,started_at,finished_at,activity_id) select id,user_id,'2026-10-25 01:00Z','2026-10-25 02:00Z','historical-preserved-link' from public.sessions order by id limit 1");
   const beforeActivityUpgrade=await snapshot();
-  await db.query('begin');
-  await db.query(await readFile(join(root,'supabase/migrations/20261026022713_garmin_activity_session_links.sql'),'utf8'));
-  await db.query('commit');
+  const activityMigration=await readFile(join(root,'supabase/migrations/20261026022713_garmin_activity_session_links.sql'));
+  if(process.env.SUPABASE_CLI) {
+    if(!isAbsolute(process.env.SUPABASE_CLI))throw Error('SUPABASE_CLI must be an existing absolute path.');
+    await access(process.env.SUPABASE_CLI);
+    const release=join(owned,'migration-release');
+    await mkdir(join(release,'supabase/migrations'),{recursive:true});
+    await writeFile(join(release,'supabase/config.toml'),'project_id = "activity-links-disposable"\n');
+    await writeFile(join(release,'supabase/migrations/20261026022713_garmin_activity_session_links.sql'),activityMigration);
+    const predecessor=async()=>({
+      rows:(await db.query('select * from public.session_recording_windows order by session_id')).rows,
+      functions:(await db.query("select pg_get_functiondef(p.oid) definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace where (n.nspname,p.proname) in (('public','set_session_recording_window'),('public','read_session_garmin_hr'),('private','cleanup_garmin_hr_controls'),('private','cleanup_garmin_hr_connection')) order by n.nspname,p.proname")).rows,
+    });
+    const previous=await predecessor();
+    await db.query(`create schema supabase_migrations;
+      create table supabase_migrations.schema_migrations(version text primary key,statements text[],name text);
+      create function private.reject_activity_history_fixture() returns trigger language plpgsql as $$begin
+        if to_regclass('public.session_garmin_activity_links') is null or to_regclass('private.retired_session_recording_windows') is null then raise exception 'Expected migration schema not reached'; end if;
+        raise exception 'injected activity history failure'; end;$$;
+      create trigger reject_activity_history_fixture before insert on supabase_migrations.schema_migrations for each row execute function private.reject_activity_history_fixture();`);
+    const runCLI=()=>execute(process.env.SUPABASE_CLI,['migration','up','--db-url',`postgresql://postgres:disposable-only@127.0.0.1:${port}/postgres?sslmode=disable`,'--workdir',release,'--yes'],{...options,timeout:45000});
+    let rejected;try{await runCLI();}catch(error){rejected=error;}
+    check(!!rejected&&(String(rejected.stdout)+String(rejected.stderr)).includes('injected activity history failure'),'Actual CLI reaches injected history failure after activity migration SQL');
+    check((await db.query("select to_regclass('public.session_garmin_activity_links') is null and to_regclass('private.retired_session_recording_windows') is null safe")).rows[0].safe,'History failure rolls back activity table creation and archive move');
+    check(isDeepStrictEqual(previous,await predecessor()),'CLI history failure preserves exact predecessor functions and historical rows');
+    check(isDeepStrictEqual(beforeActivityUpgrade,await snapshot()),'CLI history failure preserves unrelated data, schema and privileges');
+    check((await db.query('select count(*)::int n from supabase_migrations.schema_migrations')).rows[0].n===0,'CLI history failure records no migration version');
+    await db.query('drop trigger reject_activity_history_fixture on supabase_migrations.schema_migrations;drop function private.reject_activity_history_fixture()');
+    await runCLI();
+    check((await db.query("select version,name from supabase_migrations.schema_migrations")).rows.every(row=>row.version==='20261026022713'&&row.name==='garmin_activity_session_links')&&(await db.query('select count(*)::int n from supabase_migrations.schema_migrations')).rows[0].n===1,'Successful actual CLI application records only the canonical activity-links version');
+  } else {
+    await db.query('begin');
+    await db.query(activityMigration.toString('utf8'));
+    await db.query('commit');
+  }
   check(isDeepStrictEqual(beforeActivityUpgrade,await snapshot()),'Activity-only migration preserves scoring data, schema, grants and unrelated policies');
   check((await db.query("select count(*)::int n from private.retired_session_recording_windows where activity_id='historical-preserved-link'")).rows[0].n===1,'Historical timestamps and imported association evidence are archived without deletion');
   check((await db.query("select count(*)::int n from public.session_garmin_activity_links where activity_id='historical-preserved-link'")).rows[0].n===1,'Existing explicit activity association survives migration');
