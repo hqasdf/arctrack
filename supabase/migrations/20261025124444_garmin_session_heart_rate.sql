@@ -1,4 +1,3 @@
-begin;
 -- Timing is deliberately separate: old web/Android scoring inserts remain valid.
 create table public.session_recording_windows (
  session_id uuid primary key references public.sessions(id) on delete cascade,
@@ -487,5 +486,3 @@ language sql stable security invoker set search_path='' as $$
 $$;
 revoke all on function public.read_session_garmin_hr(uuid,text) from public,anon,authenticated,service_role;
 grant execute on function public.read_session_garmin_hr(uuid,text) to authenticated;
-
-commit;
