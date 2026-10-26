@@ -12,15 +12,16 @@ function contextScope(context: FeedbackContext) {
   return `${context.viewerId}:${context.organizationId ?? "own"}:${context.athleteUserId ?? "own"}:${context.sessionId ?? "all"}`;
 }
 
-export function CoachFeedbackPanel({ context, history = false }: { context: FeedbackContext; history?: boolean }) {
-  const scope = contextScope(context);
-  return <FeedbackEditor key={scope} context={context} history={history}/>;
+export function CoachFeedbackPanel({ context, history = false, activeMembershipOnly = false }: { context: FeedbackContext; history?: boolean; activeMembershipOnly?: boolean }) {
+  const scope = `${contextScope(context)}:${activeMembershipOnly}`;
+  return <FeedbackEditor key={scope} context={context} history={history} activeMembershipOnly={activeMembershipOnly}/>;
 }
 
-function FeedbackEditor({ context, history }: { context: FeedbackContext; history: boolean }) {
+function FeedbackEditor({ context, history, activeMembershipOnly }: { context: FeedbackContext; history: boolean; activeMembershipOnly: boolean }) {
   const fieldId = useId();
   const [entries, setEntries] = useState<CoachFeedback[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visible, setVisible] = useState(!activeMembershipOnly);
   const [hasMore, setHasMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,17 +45,27 @@ function FeedbackEditor({ context, history }: { context: FeedbackContext; histor
     startTransition(async () => {
       await Promise.resolve();
       if (token !== epoch.current) return;
-      setLoading(true); setLoadError(null);
+      setLoading(true); setLoadError(null); if (activeMembershipOnly) setVisible(false);
       try {
-        const result = await loadCoachFeedback({ viewerId, organizationId, athleteUserId, sessionId });
+        const result = await loadCoachFeedback({ viewerId, organizationId, athleteUserId, sessionId }, undefined, activeMembershipOnly);
         if (token !== epoch.current) return;
         if (!result.ok) { setLoadError(result.message); return; }
-        setEntries(result.data.entries); setHasMore(result.data.hasMore);
+        setVisible(result.data.visible !== false); setEntries(result.data.entries); setHasMore(result.data.hasMore);
       } catch { if (token === epoch.current) setLoadError("Coach Feedback could not be loaded. Check your connection and try again."); }
       finally { if (token === epoch.current) setLoading(false); }
     });
     return () => { epoch.current = token + 1; };
-  }, [viewerId, organizationId, athleteUserId, sessionId, reload]);
+  }, [viewerId, organizationId, athleteUserId, sessionId, reload, activeMembershipOnly]);
+  useEffect(() => {
+    if (!activeMembershipOnly) return;
+    const refresh = () => {
+      epoch.current++; setVisible(false); setEntries([]);
+      if (document.visibilityState === "visible") setReload(value => value + 1);
+    };
+    const timer = setInterval(refresh, 60000);
+    document.addEventListener("visibilitychange", refresh); window.addEventListener("focus", refresh);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("focus", refresh); };
+  }, [activeMembershipOnly]);
 
   function cancel() {
     if (!confirmDraftNavigation(dirty)) return;
@@ -129,14 +140,16 @@ function FeedbackEditor({ context, history }: { context: FeedbackContext; histor
     const token = epoch.current;
     startTransition(async () => {
       try {
-        const result = await loadCoachFeedback(context, { createdAt: last.createdAt, id: last.id });
+        const result = await loadCoachFeedback(context, { createdAt: last.createdAt, id: last.id }, activeMembershipOnly);
         if (token !== epoch.current) return;
         if (!result.ok) { setLoadError(result.message); return; }
+        if (result.data.visible === false) { setVisible(false); setEntries([]); setHasMore(false); return; }
         setEntries((current) => [...current, ...result.data.entries.filter((entry) => !current.some((item) => item.id === entry.id))]);
         setHasMore(result.data.hasMore); setLoadError(null);
       } catch { if (token === epoch.current) setLoadError("Older feedback could not be loaded. Try again."); }
     });
   }
+  if (activeMembershipOnly && !visible) return loadError ? <p role="status">Organisation access could not be verified. <button type="button" onClick={() => setReload(value => value + 1)}>Retry</button></p> : null;
   return <section className={styles.panel} aria-labelledby={`${fieldId}-heading`} aria-busy={loading || pending}>
     <h2 id={`${fieldId}-heading`}>{history ? "Session Feedback history" : "Coach Feedback"}</h2>
     <p className={styles.hint}>{canAuthor ? "All feedback here is shared with this athlete. Only you and the recipient can read your entries while your coaching access is active. Other coaches cannot read them." : "Feedback shared with you by your coaches. Newest entries appear first."}</p>

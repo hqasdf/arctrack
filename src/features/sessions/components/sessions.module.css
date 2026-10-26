@@ -101,3 +101,18 @@
 .sessionTab:focus-visible,.sessionTabActive:focus-visible{outline:2px solid var(--color-primary);outline-offset:3px}
 .sessionPanel{min-width:0}.sessionPanel[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){.sessionTab,.sessionTabActive{transition:none}}
+/* Session detail hierarchy: compact general controls, prominent scoring, secondary private panels. */
+.sessionLayout{display:grid;gap:18px;min-width:0}
+.sessionLayout>section{margin:0;border-radius:var(--radius-md)}
+.sessionLayout h3{scroll-margin-top:24px}
+.sessionLayout .sessionArrowCount{margin:14px 0;flex-wrap:wrap}
+.scoringRounds{min-width:0;padding:20px;border:1px solid var(--color-border);background:var(--color-surface)}
+.roundsHeading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}
+.roundsHeading h3{margin:0;font-size:1.2rem}
+.roundsHeading span{color:var(--color-muted);font-size:.8rem}
+.scoringRounds .emptyRounds{margin:0;padding:22px 16px}
+@media(max-width:540px){.sessionLayout{gap:14px}.scoringRounds{padding:16px}.sessionLayout .sessionArrowCount input{width:100%;max-width:150px}.roundsHeading{align-items:center}.roundsHeading span{white-space:nowrap}}
+.sessionHeader .viewTop{margin-bottom:10px}
+.sessionHeader .sessionHeading{margin-bottom:16px;gap:16px}
+.sessionLayout>section>h2{font-size:1.15rem}
+.detailsPanel{padding:20px;border:1px solid var(--color-border);background:var(--color-surface)}

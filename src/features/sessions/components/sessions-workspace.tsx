@@ -12,7 +12,7 @@ import { SessionNotesPanel } from "@/features/notes-feedback/session-notes-panel
 import { CoachFeedbackPanel } from "@/features/notes-feedback/coach-feedback-panel";
 import { confirmDraftNavigation } from "@/features/notes-feedback/draft-guard";
 import styles from "./sessions.module.css";
-import { GarminSessionHealth } from '@/features/session-health/garmin-session-health';
+import { SessionHealthSections } from '@/features/session-health/garmin-session-health';
 import { SessionWeatherHistory } from "@/features/weather/components/session-weather";
 
 type View="sessions"|"new-session"|"session"|"setup"|"scoring";
@@ -125,6 +125,11 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId}
   const competitionSessions=sessions.filter((item)=>item.sessionType==="competition");
 
   if (view==="scoring"&&session&&activeRound) return <ScoringWorkspace key={activeRound.id} sessionId={session.id} sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>{setView("session");router.refresh();}} onConfigure={()=>configureRound(activeRound)}/>;
+  const sessionDetails = session ? <>
+      <div className={styles.sessionArrowCount}><label htmlFor={`session-arrow-count-${session.id}`}><span>Arrow count</span><input id={`session-arrow-count-${session.id}`} required type="text" inputMode="numeric" pattern="[0-9]*" value={arrowCountDrafts[session.id]??String(session.arrowCount)} onChange={(event)=>{if (/^\d*$/.test(event.target.value)) setArrowCountDrafts((current)=>({...current,[session.id]:event.target.value}));}}/></label><button type="button" disabled={arrowCountSaving} onClick={saveSessionArrowCount}>{arrowCountSaving?"Saving…":"Save"}</button></div>
+      <SessionWeatherHistory sessionId={session.id}/>
+  </> : null;
+  const roundCards = session ? (session.rounds.length===0?<div className={styles.emptyRounds}><h3>Ready to shoot?</h3><p>Start a Round with the current settings. You can configure an empty Round from the scoring screen.</p></div>:<div className={styles.roundCards}>{session.rounds.map((round)=><article key={round.id} className={styles.roundCard}><div><p className={styles.kicker}>{round.division}</p><h3>{round.name}</h3><p>{round.distanceMetres} m · {round.ends} ends × {round.arrowsPerEnd} arrows</p><p className={styles.roundScore}>Score: <strong>{roundTotal(round.arrows)}</strong> <span>· Arrow avg. <strong>{formatArrowAverage(round.arrows)}</strong></span></p></div><div className={styles.cardActions}><button type="button" onClick={()=>{if(!mayLeaveNotes())return;setActiveRoundId(round.id);setView("scoring");}}>Open</button><button type="button" className={styles.dangerText} onClick={()=>removeRound(round.id)}>Delete</button></div></article>)}</div>) : null;
   return <>{view!=="sessions"&&trainingPlanContent}<section className={styles.workspace}>
     {message&&<p className={styles.saveError} role="alert">{message}</p>}
     {view==="sessions"&&viewerId&&<details><summary>Session Feedback history</summary><CoachFeedbackPanel context={{viewerId}} history/></details>}
@@ -136,13 +141,21 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId}
       <button className={styles.primary} disabled={pending} type="submit">{pending?"Saving…":"Create Session"}</button>
     </form>}
     {view==="session"&&session&&<div>
+      <header className={styles.sessionHeader}>
       <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>{if(mayLeaveNotes())setView("sessions");}}>← Sessions</button><p>{session.date}</p></div>
       <div className={styles.sessionHeading}><div><p className={styles.kicker}>{session.sessionType==="competition"?"Competition":"Training Session"}</p><h2>{session.title}</h2></div><button className={styles.primary} type="button" disabled={pending} onClick={()=>void startRound()}>{pending?"Starting…":"Start Round"}</button></div>
-      <div className={styles.sessionArrowCount}><label htmlFor={`session-arrow-count-${session.id}`}><span>Arrow count</span><input id={`session-arrow-count-${session.id}`} required type="text" inputMode="numeric" pattern="[0-9]*" value={arrowCountDrafts[session.id]??String(session.arrowCount)} onChange={(event)=>{if (/^\d*$/.test(event.target.value)) setArrowCountDrafts((current)=>({...current,[session.id]:event.target.value}));}}/></label><button type="button" disabled={arrowCountSaving} onClick={saveSessionArrowCount}>{arrowCountSaving?"Saving…":"Save"}</button></div>
-      <SessionWeatherHistory sessionId={session.id}/>
-      {viewerId&&<GarminSessionHealth key={`health:${viewerId}:${session.id}`} sessionId={session.id}/>}
-      {viewerId&&<><SessionNotesPanel key={`notes:${viewerId}:${session.id}`} context={{viewerId,sessionId:session.id}} onDirtyChange={onNotesDirtyChange}/><CoachFeedbackPanel key={`feedback:${viewerId}:${session.id}`} context={{viewerId,sessionId:session.id}}/></>}
-      {session.rounds.length===0?<div className={styles.emptyRounds}><h3>Ready to shoot?</h3><p>Start a Round with the current settings. You can configure an empty Round from the scoring screen.</p></div>:<div className={styles.roundCards}>{session.rounds.map((round)=><article key={round.id} className={styles.roundCard}><div><p className={styles.kicker}>{round.division}</p><h3>{round.name}</h3><p>{round.distanceMetres} m · {round.ends} ends × {round.arrowsPerEnd} arrows</p><p className={styles.roundScore}>Score: <strong>{roundTotal(round.arrows)}</strong> <span>· Arrow avg. <strong>{formatArrowAverage(round.arrows)}</strong></span></p></div><div className={styles.cardActions}><button type="button" onClick={()=>{if(!mayLeaveNotes())return;setActiveRoundId(round.id);setView("scoring");}}>Open</button><button type="button" className={styles.dangerText} onClick={()=>removeRound(round.id)}>Delete</button></div></article>)}</div>}
+      </header>
+      <div className={styles.sessionLayout}>
+      {viewerId?<SessionHealthSections key={`health:${viewerId}:${session.id}`} sessionId={session.id} details={sessionDetails}>
+<section className={styles.scoringRounds} aria-labelledby={`scoring-rounds-${session.id}`}><div className={styles.roundsHeading}><h3 id={`scoring-rounds-${session.id}`}>Scoring Rounds</h3><span>{session.rounds.length} {session.rounds.length===1?"Round":"Rounds"}</span></div>
+      {roundCards}
+      </section>
+      {viewerId&&<SessionNotesPanel key={`notes:${viewerId}:${session.id}`} context={{viewerId,sessionId:session.id}} onDirtyChange={onNotesDirtyChange}/>}
+      </SessionHealthSections>:<><section className={styles.detailsPanel}><h3>Session Details</h3>{sessionDetails}</section><section className={styles.scoringRounds}><h3>Scoring Rounds</h3>
+      {roundCards}
+      </section></>}
+      {viewerId&&<CoachFeedbackPanel key={`feedback:${viewerId}:${session.id}`} context={{viewerId,sessionId:session.id}} activeMembershipOnly/>}
+      </div>
     </div>}
     {view==="setup"&&session&&<form className={styles.formCard} onSubmit={submitRound}>
       <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>{setConfiguringRoundId(null);setView(activeRoundId?"scoring":"session");}}>← {activeRoundId?"Scoring":"Session"}</button><p>Round setup</p></div><h2>Configure Round</h2><p className={styles.formIntro}>Presets are starting points. Adjust anything to match what you are shooting.</p><RoundPresetsPanel selectedId={selectedPreset} onSelect={choosePreset}/>

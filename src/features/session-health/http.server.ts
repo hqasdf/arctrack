@@ -32,7 +32,12 @@ export async function sessionHealthRequest(request:Request, sessionId:string) {
     }
     const {data,error}=await db.rpc('read_session_garmin_hr',{p_session:sessionId,p_known:request.method==='GET'&&/^[a-f0-9]{32}$/.test(request.headers.get('if-none-match')??'')?request.headers.get('if-none-match'):null});
     if(error) return reply({error:'Session Health is unavailable. Scoring remains available.'},503);
-    if(data?.unchanged&&request.method==='GET')return new Response(null,{status:304,headers});
-    return data?reply(data):reply({error:'Session unavailable.'},404);
+    if(!data) return reply({error:'Session unavailable.'},404);
+    // Reuse the database's current connection/permission authority, not historical samples.
+    const access = await Promise.all(['daily','activity'].map(source => db.rpc('garmin_hr_owner_access',{p_source:source})));
+    const authorized = data.authorized === true && access.some(result => !result.error && result.data === true);
+    if(!authorized) return reply({...data,authorized:false,unchanged:false,candidates:[],datasets:[]});
+    if(data.unchanged&&request.method==='GET')return new Response(null,{status:304,headers});
+    return reply({...data,authorized:true});
   } catch {return reply({error:'Session Health could not be loaded. Please retry.'},400);}
 }

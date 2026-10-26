@@ -82,10 +82,18 @@ export async function removeSessionNote(context: NotesContext, expectedUpdatedAt
   } catch (issue) { return failure(issue); }
 }
 
-export async function loadCoachFeedback(context: FeedbackContext, before?: { createdAt: string; id: string }): Promise<FeatureResult<FeedbackPage>> {
+export async function loadCoachFeedback(context: FeedbackContext, before?: { createdAt: string; id: string }, activeMembershipOnly = false): Promise<FeatureResult<FeedbackPage>> {
   try {
     const supabase = await client(context);
     if (before) id(before.id);
+    if (activeMembershipOnly) {
+      // Match the existing organisation reader: a real organisation and active membership.
+      // Check before reading feedback; this presentation gate never grants authoring rights.
+      const { data: memberships, error: membershipError } = await supabase.from("organization_members")
+        .select("organization_id,organizations!inner(id)").eq("user_id", context.viewerId).eq("status", "active").limit(1);
+      if (membershipError) throw membershipError;
+      if (!memberships?.length) return { ok: true, data: { entries: [], hasMore: false, visible: false } };
+    }
     const { data, error } = await supabase.rpc("read_coach_feedback", {
       p_athlete_user_id: context.athleteUserId ?? context.viewerId, p_organization_id: context.organizationId ?? null,
       p_session_id: context.sessionId ?? null, p_kind: "session",

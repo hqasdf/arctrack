@@ -17,6 +17,7 @@ const nodes = node => !node || typeof node !== "object" ? [] : Array.isArray(nod
 const text = node => Array.isArray(node) ? node.map(text).join("") : node && typeof node === "object" ? text(node.props?.children) : String(node ?? "");
 
 function ui(file, actions, opts = {}) {
+  const listeners=new Map(),timers=new Set(),document={visibilityState:"visible",addEventListener:(name,fn)=>listeners.set("document:"+name,fn),removeEventListener:name=>listeners.delete("document:"+name)};
   const slots = []; let cursor = 0, queue = [], dirty = false, confirm = true, entropy = 0;
   const same = (a,b) => a && b && a.length === b.length && a.every((item,i) => Object.is(item,b[i]));
   const hooks = { ...React,
@@ -28,10 +29,10 @@ function ui(file, actions, opts = {}) {
   };
   const compiled = ts.transpileModule(readFileSync(new URL(`../src/features/notes-feedback/${file}`,import.meta.url),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const exports = {};
-  new Function("require","exports","window",compiled)(name => name === "react" ? hooks : name === "./actions" ? actions : name === "@arc-track/core/notes-feedback" ? model : name === "./draft-guard" ? { useDraftGuard: value => { dirty = value; }, confirmDraftNavigation: value => !value || confirm } : name.endsWith(".css") ? {__esModule:true,default:new Proxy({},{get:(_,key)=>key})} : require(name),exports,{confirm:()=>confirm,crypto:opts.noCrypto?undefined:{getRandomValues:bytes=>bytes.fill(++entropy)}});
+  new Function("require","exports","window","document","setInterval","clearInterval",compiled)(name => name === "react" ? hooks : name === "./actions" ? actions : name === "@arc-track/core/notes-feedback" ? model : name === "./draft-guard" ? { useDraftGuard: value => { dirty = value; }, confirmDraftNavigation: value => !value || confirm } : name.endsWith(".css") ? {__esModule:true,default:new Proxy({},{get:(_,key)=>key})} : require(name),exports,{confirm:()=>confirm,crypto:opts.noCrypto?undefined:{getRandomValues:bytes=>bytes.fill(++entropy)},addEventListener:(name,fn)=>listeners.set("window:"+name,fn),removeEventListener:name=>listeners.delete("window:"+name)},document,fn=>{timers.add(fn);return fn;},fn=>timers.delete(fn));
   let tree;
   const render = (props = opts.props) => { cursor=0; let result = file.startsWith("session") ? exports.SessionNotesPanel(props) : exports.CoachFeedbackPanel(props); tree = result.type(result.props); const pending = queue; queue=[]; pending.forEach(fn=>fn()); return tree; };
-  return {render, nodes:()=>nodes(tree), text:()=>text(tree), dirty:()=>dirty, confirm:value=>{confirm=value;}, click(label){const button=nodes(tree).find(node=>node.type==="button" && text(node)===label);assert.ok(button,`Missing ${label}`);button.props.onClick?.();}, change(value){const field=nodes(tree).find(node=>node.type==="textarea");assert.ok(field);field.props.onChange({target:{value}});}, dispose(){slots.forEach(slot=>slot?.cleanup?.());}};
+  return {render, listeners,timers,visibility(state){document.visibilityState=state;listeners.get("document:visibilitychange")?.();}, nodes:()=>nodes(tree), text:()=>text(tree), dirty:()=>dirty, confirm:value=>{confirm=value;}, click(label){const button=nodes(tree).find(node=>node.type==="button" && text(node)===label);assert.ok(button,`Missing ${label}`);button.props.onClick?.();}, change(value){const field=nodes(tree).find(node=>node.type==="textarea");assert.ok(field);field.props.onChange({target:{value}});}, dispose(){slots.forEach(slot=>slot?.cleanup?.());}};
 }
 
 test("notes load and edit persists exact optimistic revision, with only one pending save", async () => {
@@ -171,3 +172,6 @@ test("an in-flight creation identity cannot be reused after the actor or athlete
   // exercise the additional scope check before a retained key can be sent.
   props.context={...props.context,athleteUserId:actor};h.render();await tick();h.render();h.nodes().find(n=>n.type==="form").props.onSubmit({preventDefault(){}});h.render();assert.equal(writes.length,1);assert.match(h.text(),/account or feedback context changed/);h.dispose();
 });
+
+test('Session feedback remains absent while membership loads, then stays absent for inactive membership',async()=>{const gate=deferred();const h=ui('coach-feedback-panel.tsx',{loadCoachFeedback:()=>gate.promise},{props:{context:{viewerId:athlete,sessionId:session},activeMembershipOnly:true}});h.render();assert.equal(h.text(),'');gate.resolve({ok:true,data:{entries:[],hasMore:false,visible:false}});await tick();h.render();assert.equal(h.text(),'');h.dispose();assert.equal(h.listeners.size,0);assert.equal(h.timers.size,0);});
+test('Session feedback rechecks membership after foregrounding and removes stale private entries',async()=>{let active=true;const h=ui('coach-feedback-panel.tsx',{loadCoachFeedback:async(_context,_before,required)=>{assert.equal(required,true);return {ok:true,data:{entries:active?[entry]:[],hasMore:false,visible:active}};}},{props:{context:{viewerId:athlete,sessionId:session},activeMembershipOnly:true}});h.render();await tick();h.render();assert.match(h.text(),/Coach Feedback/);active=false;h.visibility('hidden');h.render();assert.equal(h.text(),'');h.visibility('visible');h.render();await tick();h.render();assert.equal(h.text(),'');h.dispose();});

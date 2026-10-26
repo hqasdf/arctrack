@@ -8,5 +8,5 @@ export type FeedbackContext = {
 };
 export type NotesContext = FeedbackContext & { sessionId: string };
 export type FeatureResult<T> = { ok: true; data: T } | { ok: false; message: string };
-export type FeedbackPage = { entries: CoachFeedback[]; hasMore: boolean };
+export type FeedbackPage = { entries: CoachFeedback[]; hasMore: boolean; visible?: boolean };
 export type { CoachFeedback, SessionNote };
