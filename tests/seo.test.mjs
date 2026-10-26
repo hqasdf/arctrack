@@ -105,6 +105,7 @@ test("public homepage overrides only its metadata while private defaults and gua
     "@/components/ui/icon": { Icon: () => null },
     "@/features/home/cinematic-scene": { CinematicScene: () => null },
     "@/features/home/precision-demo": { PrecisionDemo: () => null },
+    "@/features/home/health-performance-showcase": await load("src/features/home/health-performance-showcase.tsx", { "next/link": link, "@/components/ui/icon": { Icon: () => null }, "react": React }),
     "@/features/home/coach-showcase": await load("src/features/home/coach-showcase.tsx", { "next/link": link, "@/components/ui/icon": { Icon: () => null } }),
   });
   const html = renderToStaticMarkup(home.default());

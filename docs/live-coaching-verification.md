@@ -3,8 +3,9 @@
 ## Result
 
 Local functionality verified. Production release remains conditional on an
-authorized hosted non-production Supabase Auth/Realtime test and review of the
-three independently reproduced baseline website failures. Nothing was committed,
+authorized hosted non-production Supabase Auth/Realtime and Vercel bridge test.
+The three baseline failures were resolved in test fixtures as described below.
+Nothing was committed,
 pushed, deployed or applied to production during this task.
 
 ## Fresh checks
@@ -12,7 +13,7 @@ pushed, deployed or applied to production during this task.
 | Check | Result |
 | --- | --- |
 | Live Coaching application tests | 18 passed, 0 failed |
-| Full website suite | 576 tests: 573 passed, 3 failed |
+| Full website suite | 577 tests: 577 passed, 0 failed |
 | Disposable PostgreSQL | 209 assertions: 36 Live Coaching, 143 existing SQL, 30 concurrency/harness; 0 failed |
 | TypeScript | Passed |
 | Repository ESLint | Passed; new lifecycle test also linted separately |
@@ -20,17 +21,32 @@ pushed, deployed or applied to production during this task.
 | Migration consistency | 28 canonical migrations; 7 historical aliases preserved |
 | git diff --check | Passed; existing LF/CRLF conversion notices only |
 
-The baseline export of unchanged HEAD reproduced all three remaining failures:
-15 tests, 12 passed, 3 failed. The homepage and Session-category failures are
-missing fixture dependencies; the Garmin private-webhook byte-limit assertion
-expects 413 and gets 200. Its pre-existence is established; this verification
-does not establish that its underlying production behavior is harmless.
-Unrelated production code was not changed to silence these failures.
+The previous baseline export reproduced three failures (15 tests: 12 passed,
+3 failed). This follow-up traced and resolved each without production changes:
+
+- Garmin: the test retained the old 1 MiB limit. Both Cloudflare's Worker and
+  the shared Vercel receiver enforce 4 MiB, explicitly documented for Starter
+  Activity Details Push. The fixture now rejects declared and streamed
+  4 MiB + 1-byte requests before staging, and a new test accepts valid JSON at
+  exactly 4 MiB. No actual size-limit bypass was established by the old failure;
+  no receiver limit or security gate was changed.
+- Homepage: load the actual HealthPerformanceShowcase with its declared React,
+  Link and Icon dependencies in the SEO fixture. Homepage source is unchanged.
+- Session categories: declare the missing GarminSessionHealth component mock
+  in the isolated navigation/draft fixture. Session source is unchanged.
+
+The affected suite now passes 16/16 tests. Full website tests include the existing
+Cloudflare ingress and scoring regressions. Fresh SQL verification again passes
+209 assertions and stops/removes its owned disposable database cluster.
 
 Evidence files (ignored): `.verification/live-coaching-website-tests.txt`,
 `live-coaching-focused-ui.txt`, `live-coaching-sql-results.txt`,
 `live-coaching-baseline-tests.txt`, `live-coaching-typecheck.txt`,
 `live-coaching-lint.txt`, and `live-coaching-build.txt`.
+Follow-up evidence: `.verification/live-coaching-hosted-website-tests.txt`,
+`live-coaching-baseline-fixed.txt`, `live-coaching-hosted-sql.txt`,
+`live-coaching-hosted-typecheck.txt`, `live-coaching-hosted-lint.txt`, and
+`live-coaching-hosted-build.txt`.
 
 ## Actual local browser workflow
 
@@ -79,6 +95,27 @@ delivery was attempted against production. The local demo uses transactional
 PostgreSQL NOTIFY to emulate the transport; the database assertions emulate
 Auth roles and realtime.messages. Neither proves hosted broker JWT validation,
 PostgREST behavior or Vercel stream operation.
+
+Follow-up inventory confirmed the same single project and default main branch.
+The existing organization is on Free. The connector quotes a separate project
+at $0/month and a preview branch at $0.01344/hour; these are creation quotes,
+not guarantees against future usage/plan costs. The user explicitly chose
+"Do not create infrastructure; finish local checks." No new project/branch,
+hosted test identities, migrations or Vercel preview were created. Local checks
+are complete. Hosted Supabase WebSocket and Vercel EventSource verification
+remain unperformed and are retained as a separate production release gate.
+
+Official Realtime documentation confirms that Broadcast channel authorization
+is cached until reconnect/new JWT, rather than checked per message:
+https://supabase.com/docs/guides/realtime/authorization
+The implementation therefore checks recipients on emission and authorizes every
+fresh score read, independently of the cached subscription. Previously queued
+empty invalidations can still arrive; they cannot supply scores or authorize a
+read. Hosted cached-authorization behavior, JWT renewal and logout remain test
+requirements. A stream captures its opening request's cookie/token, so the
+15-second membership check is not proof of immediate cross-tab logout detection;
+the stream is bounded to 55 seconds and new requests must authenticate again.
+Do not claim an immediate global JWT revocation guarantee from this mechanism.
 
 Before a separately authorized production migration/deployment, verify actual
 private Broadcast delivery with real test Auth identities, combined existing

@@ -10,8 +10,8 @@ export function CoachNavigation({ organizationId, name, workspaces }: { organiza
   const path = usePathname();
   const base = `/organization/${organizationId}`;
   const items = [
-    { label: "Live Coaching", href: `${base}/live-coaching`, icon: "activity" },
     { label: "Overview", href: base, icon: "target" }, { label: "Athletes", href: `${base}/athletes`, icon: "profile" },
+    { label: "Live Coaching", href: `${base}/live-coaching`, icon: "activity" },
     { label: "Reviews", href: `${base}/reviews`, icon: "sessions" }, { label: "Training Plans", href: `${base}/training-plans`, icon: "target" },
     { label: "Analytics", href: `${base}/analytics`, icon: "analytics" },
     { label: "Settings", href: `${base}/settings`, icon: "organization" },

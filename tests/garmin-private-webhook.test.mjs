@@ -36,8 +36,16 @@ test('missing, malformed, wrong and case-changed secrets reject before reading a
  }assert.equal(f.calls.length,0);
 });
 test('private URL preserves media, encoding, payload and byte limits',async()=>{
- const f=fixture();for(const [req,status] of [[request('{'),400],[request('{}'),400],[request(undefined,{'Content-Type':'text/plain'}),415],[request(undefined,{'Content-Encoding':'gzip'}),415],[request(undefined,{'Content-Length':'1048577'}),413],[request('x'.repeat(1048577)),413]])assert.equal((await f.handle(req,f.secret)).status,status);
+ // Session HR intentionally raised the shared Cloudflare/Vercel Push bound to 4 MiB.
+ const overLimit=4*1024*1024+1;
+ const f=fixture();for(const [req,status] of [[request('{'),400],[request('{}'),400],[request(undefined,{'Content-Type':'text/plain'}),415],[request(undefined,{'Content-Encoding':'gzip'}),415],[request(undefined,{'Content-Length':String(overLimit)}),413],[request('x'.repeat(overLimit)),413]])assert.equal((await f.handle(req,f.secret)).status,status);
  assert.equal(f.calls.length,0);
+});
+
+test('private receiver accepts a valid bounded payload at the current 4 MiB boundary',async()=>{
+ const f=fixture(),body=JSON.stringify(payload).padEnd(4*1024*1024,' ');
+ assert.equal((await f.handle(request(body),f.secret)).status,200);
+ assert.equal(f.calls.length,1);
 });
 test('missing server key, disabled master switch always fail closed',async()=>{
  for(const overrides of [{secret:undefined},{secret:'weak'},{enabled:false}]){

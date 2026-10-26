@@ -6,11 +6,11 @@ import test from "node:test";
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), "utf8");
 
-test("web Coach navigation places Training Plans between Reviews and Analytics", () => {
+test("web Coach navigation places Live Coaching directly below Athletes", () => {
   const nav = read("src/features/organizations/components/coach-navigation.tsx");
   const labels = [...nav.matchAll(/label: "([^"]+)"/g)].map((item) => item[1]);
-  assert.ok(labels.includes("Live Coaching"));
-  assert.deepEqual(labels.filter(label => label !== "Live Coaching"), ["Overview", "Athletes", "Reviews", "Training Plans", "Analytics", "Settings"]);
+  assert.deepEqual(labels, ["Overview", "Athletes", "Live Coaching", "Reviews", "Training Plans", "Analytics", "Settings"]);
+  assert.match(nav, /\{ label: "Live Coaching", href: `\$\{base\}\/live-coaching`, icon: "activity" \}/);
 });
 
 test("Coach and athlete Training Plan routes exist without a new main tab", () => {
