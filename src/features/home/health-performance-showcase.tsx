@@ -40,7 +40,7 @@ export function HealthPerformanceShowcase() {
     <div className={styles.sectionTop}><span>THE ATHLETE. BEYOND THE SCORE.</span><span>ARC TRACK / HEALTH &amp; PERFORMANCE</span></div>
     <div className={styles.intro}>
       <div><p className={styles.eyebrow}>06 / THE CONNECTED PICTURE</p><h2 id="health-performance-heading">Your performance.<br /><em>Beyond the target.</em></h2></div>
-      <div><p>Bring your archery journal and available Garmin health insights into one experience. From the night before to the work on the line, give your training a little more context.</p><Link className={styles.inlineLink} href="/health">Explore Health <Icon name="arrow" size={17} /></Link></div>
+      <div><p>Bring your archery journal and available Garmin health insights into one experience. From the night before to the work on the line, give your training a little more context.</p><Link className={styles.inlineLink} href="/analytics/health">Explore Health <Icon name="arrow" size={17} /></Link></div>
     </div>
 
     <div className={styles.showcase}>

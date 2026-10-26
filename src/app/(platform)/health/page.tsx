@@ -1,10 +1,11 @@
-import { requireUser } from "@/lib/auth/session.server";
-import { readHealthDashboard } from "@/features/health/read.server";
-import { HealthDashboard } from "@/features/health/components/health-dashboard";
+import { redirect } from "next/navigation";
 
-export default async function HealthPage({ searchParams }: { searchParams: Promise<{ garmin?: string | string[] }> }) {
-  const user = await requireUser();
-  const params = await searchParams;
-  const data = await readHealthDashboard(user.id);
-  return <HealthDashboard data={data} garminNotice={typeof params.garmin === "string" ? params.garmin : undefined} />;
+export default async function LegacyHealthPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams)) {
+    for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
+  }
+  redirect(`/analytics/health${query.size ? `?${query}` : ""}`);
 }

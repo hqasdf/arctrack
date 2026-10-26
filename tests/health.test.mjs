@@ -79,7 +79,7 @@ test("Sleep Score trend uses the official 0-100 scale and keeps missing days as 
 
 test("Health route verifies the signed-in owner and ignores obsolete preview parameters", async () => {
   const calls = [];
-  const page = await load("src/app/(platform)/health/page.tsx", {
+  const page = await load("src/app/(platform)/analytics/health/page.tsx", {
     "@/lib/auth/session.server": { requireUser: async () => { calls.push("auth"); return { id: "owner-id" }; } },
     "next/headers": { headers: async () => ({ get: () => "localhost:3000" }) },
     "@/features/health/read.server": { readHealthDashboard: async (...args) => { calls.push(args); return data(); } },
@@ -92,7 +92,7 @@ test("Health route verifies the signed-in owner and ignores obsolete preview par
 
 test("signed-out Health requests stop at the existing redirect boundary before status or fixture reads", async () => {
   let reads = 0;
-  const page = await load("src/app/(platform)/health/page.tsx", {
+  const page = await load("src/app/(platform)/analytics/health/page.tsx", {
     "@/lib/auth/session.server": { requireUser: async () => { throw new Error("NEXT_REDIRECT:/sign-in"); } },
     "next/headers": { headers: async () => { throw new Error("must not read"); } },
     "@/features/health/read.server": { readHealthDashboard: async () => { reads++; } },
@@ -106,17 +106,18 @@ test("signed-out Health requests stop at the existing redirect boundary before s
   assert.match(proxy, /"\/health\/:path\*"/);
 });
 
-test("Health navigation is signed-in only on desktop and mobile and marks the active route", async () => {
+test("Analytics is the primary navigation entry on desktop and mobile for Health", async () => {
   const navigation = await load("src/components/layout/navigation.tsx", {
     "react": { ...React, useState: () => [false, () => {}], useEffect: () => {}, useRef: () => ({ current: null }) },
-    "next/navigation": { usePathname: () => "/health" },
+    "next/navigation": { usePathname: () => "/analytics/health" },
     "next/link": { __esModule: true, default: (props) => React.createElement("a", props) },
     "@/components/theme/theme-control": { ThemeSelector: () => null },
     "@/components/ui/icon": icon,
     "@/features/auth/components/sign-out-button": { SignOutButton: () => null },
   });
   const signedIn = render(navigation.Navigation, { authenticated: true });
-  assert.equal((signedIn.match(/href="\/health"/g) ?? []).length, 2);
+  assert.equal((signedIn.match(/href="\/analytics"/g) ?? []).length, 2);
+  assert.doesNotMatch(signedIn, /href="\/health"/);
   assert.equal((signedIn.match(/aria-current="page"/g) ?? []).length, 2);
   assert.doesNotMatch(render(navigation.Navigation, { authenticated: false }), /href="\/health"/);
 });
@@ -329,8 +330,8 @@ test("confirmed deletion hides previous measurements immediately before router r
 });
 
 test("Health loading and safe error views render without health values or error details", async () => {
-  const loading = await load("src/app/(platform)/health/loading.tsx");
-  const error = await load("src/app/(platform)/health/error.tsx");
+  const loading = await load("src/app/(platform)/analytics/health/loading.tsx");
+  const error = await load("src/app/(platform)/analytics/health/error.tsx");
   assert.match(render(loading.default, {}), /aria-busy="true" role="status"/);
   const html = render(error.default, { reset: () => {} });
   assert.match(html, /role="alert"/);

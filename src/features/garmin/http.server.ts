@@ -24,7 +24,7 @@ export async function identity() {
   } catch { return null; }
 }
 function back(config: GarminConfig, code: string) {
-  const url = new URL("/health", config.appOrigin);
+  const url = new URL("/analytics/health", config.appOrigin);
   url.searchParams.set("garmin", code);
   return new Response(null, { status: 303, headers: { ...headers, Location: url.href } });
 }

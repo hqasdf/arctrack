@@ -33,7 +33,7 @@ for (const [index, label] of ['Overview', 'Sleep', 'Daily health', 'Activities',
   assert.equal(h.tabs().filter(t => t.props['aria-selected']).length, 1);
   assert.equal(h.tabs().filter(t => t.props.tabIndex === 0).length, 1);
   assert.match(html, new RegExp('role="tabpanel"[^>]*aria-labelledby="showcase-test-tab-' + index + '"'));
-  assert.match(html, /href="\/health"/); assert.match(html, /href="\/privacy#garmin"/); assert.match(html, /href="\/sign-up"/);
+  assert.match(html, /href="\/analytics\/health"/); assert.match(html, /href="\/privacy#garmin"/); assert.match(html, /href="\/sign-up"/);
 });
 test('Tab keyboard navigation wraps, supports Home/End and moves focus', () => {
   const h = showcase(); assert.equal(h.key(0, 'ArrowLeft'), true); assert.equal(h.tabs()[4].props['aria-selected'], true); assert.deepEqual(h.focus, [4]);

@@ -733,7 +733,7 @@ test("public OAuth Start and Callback accept different authenticated owners with
     f.state.userId = id;
     assert.equal((await f.handlers.garminStart(f.post("start"))).status, 303);
     assert.deepEqual(f.state.calls.at(-1), ["start", id]);
-    assert.equal((await f.handlers.garminCallback(f.callback())).headers.get("Location"), `${config.appOrigin}/health?garmin=connected`);
+    assert.equal((await f.handlers.garminCallback(f.callback())).headers.get("Location"), `${config.appOrigin}/analytics/health?garmin=connected`);
     assert.equal(f.state.calls.at(-1)[1], id);
     f.state.userId = null;
     const calls = f.state.calls.length;
@@ -789,7 +789,7 @@ test("Garmin HTTP callback rejects missing/duplicate parameters and missing sess
   for (const request of [new Request(config.redirectUri), f.callback("&state=duplicate"), f.callback("&error=access_denied"), f.callback("&code=duplicate")]) {
     const response = await f.handlers.garminCallback(request);
     assert.equal(response.status, 303);
-    assert.match(response.headers.get("Location"), /^https:\/\/arc\.example\/health\?garmin=invalid_/);
+    assert.match(response.headers.get("Location"), /^https:\/\/arc\.example\/analytics\/health\?garmin=invalid_/);
   }
   f.state.cookie = null;
   await f.handlers.garminCallback(f.callback());
@@ -802,12 +802,12 @@ test("Garmin HTTP callback rejects missing/duplicate parameters and missing sess
 test("Garmin callback clears browser binding after verified success and cannot redirect to supplied return URL", async () => {
   const f = await httpFixture();
   const response = await f.handlers.garminCallback(f.callback("&returnTo=https://evil.example"));
-  assert.equal(response.headers.get("Location"), `${config.appOrigin}/health?garmin=connected`);
+  assert.equal(response.headers.get("Location"), `${config.appOrigin}/analytics/health?garmin=connected`);
   assert.equal(f.state.calls[0][1], "athlete-a");
   assert.equal(f.state.written.at(-1)[2].maxAge, 0);
   f.service.callback = async () => { throw new Error("private provider internals"); };
   const failed = await f.handlers.garminCallback(f.callback());
-  assert.equal(failed.headers.get("Location"), `${config.appOrigin}/health?garmin=connection_error`);
+  assert.equal(failed.headers.get("Location"), `${config.appOrigin}/analytics/health?garmin=connection_error`);
   assert.doesNotMatch(await failed.text(), /private provider internals/);
 });
 
@@ -1058,7 +1058,7 @@ test("failed or cancelled callbacks return only safe notices to Health after tra
     const f = await httpFixture();
     f.service.callback = async () => { throw new GarminError(code); };
     const response = await f.handlers.garminCallback(f.callback());
-    assert.equal(response.headers.get("Location"), `${config.appOrigin}/health?garmin=${code}`);
+    assert.equal(response.headers.get("Location"), `${config.appOrigin}/analytics/health?garmin=${code}`);
     assert.equal(response.status, 303);
     if (code !== "invalid_transaction") assert.equal(f.state.written.at(-1)[2].maxAge, 0);
   }
