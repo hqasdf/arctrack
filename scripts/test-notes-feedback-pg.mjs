@@ -241,7 +241,9 @@ try {
   const liveHrResults = await (await import('./live-coaching-hr-fixture.mjs')).testLiveHeartRate(owner, pg, configuration);
   const monitorResults = await (await import('./live-coaching-monitor-fixture.mjs')).testLiveMonitor(owner, pg, configuration);
   const hzResults = await (await import('./live-coaching-1hz-fixture.mjs')).testLiveHr1Hz(owner);
+  const recentResults = await (await import('./recent-round-configs-fixture.mjs')).testRecentRoundConfigs(owner, pg, configuration);
   summary = {
+    recentRoundConfigs: recentResults,
     liveHr1Hz: hzResults,
     liveMonitorAssertions: monitorResults,
     liveHeartRateAssertions: liveHrResults,

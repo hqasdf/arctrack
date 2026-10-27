@@ -96,6 +96,7 @@ test("web categories preserve classification, Session actions and an unsubmitted
     "next/navigation": { useRouter: () => ({ refresh() {} }) }, "@arc-track/core/round-order": { newestRoundsFirst },
     "../scoring-model": scoring, "../round-presets": presets,
     "../actions": { createSession: async input => { created.push(input); return { ok: true, data: { ...sessions[0], ...input, id: "new" } }; } },
+    "./recent-round-configs": { RecentRoundConfigs: "RecentRoundConfigs" },
     "./session-category-tabs": { SessionCategoryTabs: "CategoryTabs" }, "./round-presets-panel": { RoundPresetsPanel: "Presets" }, "./scoring-workspace": { ScoringWorkspace: "Scoring" },
     "@/features/weather/components/session-weather": { SessionWeatherHistory: "Weather" },
     "@/features/live-coaching/presence": {LivePresence:()=>null},

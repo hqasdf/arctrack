@@ -69,6 +69,7 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
     if (name.endsWith("/session-weather")) return { ScoringWeather: "Weather" };
     if (name.endsWith("/icons")) return { ArcIcon: "Icon" };
     if (name.endsWith("/round-update-model")) return { canConfigureRound: () => false };
+    if (name.endsWith("/recent-round-configs")) return { RecentRoundConfigs: "RecentRoundConfigs" };
     if (name.endsWith("/writes")) return { roundUpdateEnabled: false };
     if (name.endsWith("/appearance")) return { useAppearance: () => ({ colors: {} }), createThemedStyles: factory => () => factory({}) };
     if (name.endsWith("/theme")) return { colors: {}, PAGE_TOP_SPACING: 0 };

@@ -7,6 +7,8 @@ import { buildRoundRpcArgs, configFromPreset, type RoundConfig } from "../../../
 import { scoreRoundHref } from "../../../src/round-navigation";
 import { PAGE_TOP_SPACING } from "../../../src/theme";
 import { createThemedStyles, useAppearance } from "../../../src/appearance";
+import { RecentRoundConfigs } from "../../../src/recent-round-configs";
+import { useAuth } from "../../../src/auth";
 import { createMobileRound } from "../../../src/writes";
 
 type NumericField = "distanceMetres" | "faceDiameterCm" | "ends" | "arrowsPerEnd";
@@ -20,6 +22,7 @@ function numberTexts(config: RoundConfig) {
 
 export default function ConfigureRoundScreen() {
   const styles = useStyles();
+  const { user } = useAuth();
   const { colors } = useAppearance();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const [config, setConfig] = useState<RoundConfig>(configFromPreset);
@@ -64,6 +67,7 @@ export default function ConfigureRoundScreen() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>
       {ROUND_PRESETS.map((preset) => <Choice key={preset.id} label={preset.name} active={selectedPreset === preset.id} onPress={() => choosePreset(preset)} />)}
     </ScrollView>
+    {user&&<RecentRoundConfigs key={user.id} userId={user.id} disabled={busy} onSelect={(next)=>{setConfig(next);setNumbers(numberTexts(next));setSelectedPreset(null);setError(null);}}/>}
     <Text style={styles.label}>ROUND NAME</Text>
     <TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel="Round name" value={config.name} onChangeText={(name) => { setConfig((current) => ({ ...current, name })); setSelectedPreset(null); }} maxLength={80} style={styles.input} />
     <Text style={styles.label}>DIVISION</Text>

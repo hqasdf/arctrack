@@ -24,6 +24,7 @@ import {
 import { readOwnRound } from "../../../src/sessions";
 import { PAGE_TOP_SPACING } from "../../../src/theme";
 import { createThemedStyles, useAppearance } from "../../../src/appearance";
+import { RecentRoundConfigs } from "../../../src/recent-round-configs";
 import { roundUpdateEnabled, updateMobileRoundSettings } from "../../../src/writes";
 
 type LoadedRound = { session: SessionDraft; round: RoundDraft };
@@ -350,6 +351,7 @@ export default function ScoreRoundScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel="Close Round settings" onPress={() => setShowConfigure(false)} style={styles.closeButton}><Text style={styles.closeText}>Close</Text></Pressable>
         </View>
         {configureDraft ? <>
+          {showConfigure&&userId&&<RecentRoundConfigs key={userId} userId={userId} disabled={savingConfigure} compatible={(c)=>c.faceType===round.faceType&&c.arrowsPerEnd===round.arrowsPerEnd&&c.ends>=round.ends} onSelect={(c)=>{setConfigureDraft({name:c.name,division:c.division,distanceMetres:c.distanceMetres,faceDiameterCm:c.faceDiameterCm,plannedEnds:c.ends});setConfigureError(null);}}/>}
           <Text style={styles.configureLabel}>ROUND NAME</Text>
           <TextInput placeholderTextColor={colors.muted} selectionColor={colors.accent} accessibilityLabel="Round name" value={configureDraft.name} maxLength={80}
             onChangeText={(name) => setConfigureDraft((draft) => draft ? { ...draft, name } : draft)} style={styles.configureInput} />

@@ -70,6 +70,7 @@ async function runtime(faceType = "full_face") {
     "../../../src/sessions": { readOwnRound: async () => { io.roundReads++; return { session: { id: "session", title: "Practice", date: "2026-10-20" }, round }; } },
     "../../../src/arrow-writes": { readRoundEndIds: async () => { io.endReads++; return new Map([[1, "end"]]); }, saveArrowRecord: async entry => { io.saves.push(structuredClone(entry)); return "saved"; }, deleteArrowRecord: async () => { io.deletes++; } },
     "../../../src/icons": { ArcIcon: "Icon" }, "../../../src/grouping-export": { GroupingExportButton: "Export" }, "../../../src/session-weather": { ScoringWeather: "Weather" },
+    "../../../src/recent-round-configs": { RecentRoundConfigs: "RecentRoundConfigs" },
     "../../../src/native-target": { NativeTarget: "Target" }, "../../../src/round-insights": { RoundInsights: "Insights", RoundGroupPosition: "GroupPosition" },
     "../../../src/round-update-model": { canConfigureRound: () => false }, "../../../src/writes": { roundUpdateEnabled: false }, "../../../src/theme": { colors: {}, PAGE_TOP_SPACING: 0 },
   }, () => palette);

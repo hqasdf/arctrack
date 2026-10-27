@@ -21,7 +21,8 @@
     "./grouping-export": "./src/grouping-export.ts",
     "./notes-feedback": "./src/notes-feedback.ts",
     "./weather": "./src/weather-model.ts",
-    "./weather-collector": "./src/weather-collector.ts"
+    "./weather-collector": "./src/weather-collector.ts",
+    "./recent-round-configs": "./src/recent-round-configs.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
