@@ -5,7 +5,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {loadSessionModule,settle} from './helpers/session-layout-runtime.mjs';
 const measurement=loadSessionModule('src/features/live-coaching/heart-rate/measurement.ts');
 const {HeartRateSensorManager}=loadSessionModule('src/features/live-coaching/heart-rate/sensor-manager.ts',{'./measurement':measurement});
-const panel=loadSessionModule('src/features/live-coaching/heart-rate/panel.tsx',{'./measurement':measurement,'./sensor-manager':{HeartRateSensorManager}});
+const panel=loadSessionModule('src/features/live-coaching/heart-rate/panel.tsx',{'./measurement':measurement,'./sensor-manager':{HeartRateSensorManager},'./batch':loadSessionModule('src/features/live-coaching/heart-rate/batch.ts')});
 const view=bytes=>new DataView(Uint8Array.from(bytes).buffer);
 
 test('BLE Heart Rate Measurement parses both standard formats and optional fields',()=>{
@@ -86,6 +86,25 @@ test('A server rate limit drops only that frame; the next real notification can 
  f.advance(2000);f.devices[0].characteristic.emit([0,82]);await settle();assert.equal(calls,2);assert.equal(f.states.at(-1).state,'connected');f.manager.dispose();
 });
 
+test('BLE accepts the first genuine notification in each one-second bucket without timer-generated samples',async()=>{
+ const f=fixture();await f.manager.connect('a');f.devices[0].characteristic.emit([0,70]);await settle();
+ f.advance(400);f.devices[0].characteristic.emit([0,71]);await settle();assert.equal(f.samples.length,1);
+ f.advance(600);f.devices[0].characteristic.emit([0,72]);await settle();assert.equal(f.samples.length,2);assert.equal(f.samples[1][2].bpm,72);
+ f.advance(2000);await settle();assert.equal(f.samples.length,2,'No new notification means no upload');f.manager.dispose();
+});
+test('A delayed failed upload from a replaced sensor cannot disconnect the new sensor',async()=>{
+ let reject;const pending=new Promise((_resolve,rejectPromise)=>{reject=rejectPromise;}),f=fixture({publish:()=>pending});
+ await f.manager.connect('a');f.devices[0].characteristic.emit([0,70]);await settle();await f.manager.connect('a');
+ assert.equal(f.devices[1].gatt.connected,true);reject(Error('Old source revoked'));await settle();assert.equal(f.devices[1].gatt.connected,true);assert.equal(f.states.at(-1).state,'connected');f.manager.dispose();
+});
+
+test('Batch HTTP enforces body bounds, unique athletes and validated per-athlete envelopes',async()=>{
+ const f=httpFixture(),sample={athleteId:id,generation:id,sourceId:id,bpm:80,sequence:1,receivedAt:new Date().toISOString()};
+ assert.equal((await f.request(request({action:'batch',liveId:id,samples:[sample]}))).status,200);assert.equal(f.calls[0].name,'live_hr_batch');
+ for(const samples of [[],[sample,sample],[{...sample,bpm:0}],[{...sample,ownerId:id}],Array.from({length:13},()=>sample)])assert.equal((await f.request(request({action:'batch',liveId:id,samples}))).status,400);
+ assert.equal(f.calls.length,1);assert.equal((await f.request(request({action:'batch',liveId:id,samples:[sample],padding:'x'.repeat(9000)}))).status,413);
+});
+
 const id='b1000000-0000-4000-8000-000000000001';
 function httpFixture({enabled=true,signedIn=true,error=null}={}){
  const calls=[];const client={auth:{getUser:async()=>({error:null,data:{user:signedIn?{id}:null}})},rpc:async(name,args)=>{calls.push({name,args});return {data:[],error};}};
@@ -108,7 +127,7 @@ test('HR HTTP sends bounded measurements through the checked RPC and preserves p
 
 test('Monitor GET validates bounded intervals and uses only the checked authorised read',async()=>{
  const f=httpFixture();assert.equal((await f.request(new Request('https://arc.example/api/live-coaching/heart-rate?id='+id+'&window=900&history=true'))).status,200);
- assert.equal(f.calls[0].name,'read_live_monitor');assert.deepEqual(f.calls[0].args,{p_live:id,p_window:900,p_history:true});
+ assert.equal(f.calls[0].name,'read_live_monitor');assert.deepEqual(f.calls[0].args,{p_live:id,p_window:900,p_history:true,p_before:null});
  assert.equal((await f.request(new Request('https://arc.example/api/live-coaching/heart-rate?id='+id+'&window=999999'))).status,400);assert.equal(f.calls.length,1);
 });
 test('Timeline opt-in checks owner, current generation and revision independently of live consent',async()=>{

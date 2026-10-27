@@ -30,10 +30,10 @@ test('Name, participation and fresh-signal filters distinguish readings from web
 test('Training elapsed time follows lifecycle and freezes at completion; old sessions remain unknown',()=>{
  assert.equal(monitor.elapsedTraining(at(0),null,165000),'00:01:05');assert.equal(monitor.elapsedTraining(at(0),at(60),999999),'00:01:00');assert.equal(monitor.elapsedTraining(null,null,0),'Not recorded');
 });
-test('HR geometry preserves segment gaps, timestamps, finite BPM and the client point bound',()=>{
+test('HR geometry preserves segment gaps, timestamps, finite BPM and the full selected interval',()=>{
  const points=[{at:at(0),bpm:70,segment:1},{at:at(10),bpm:80,segment:1},{at:at(60),bpm:85,segment:2}];
  const g=monitor.hrGeometry(points);assert.equal(g.paths.length,2);assert.equal(g.dots[2].x,580);assert.equal(g.dots[0].point.bpm,70);assert.ok(g.paths[0].includes('L'));
- assert.equal(monitor.hrGeometry(Array.from({length:400},(_,i)=>({at:at(i),bpm:80,segment:1}))).dots.length,240);assert.equal(monitor.hrGeometry([{at:'bad',bpm:0,segment:1}]).dots.length,0);
+ assert.equal(monitor.hrGeometry(Array.from({length:400},(_,i)=>({at:at(i),bpm:80,segment:1}))).dots.length,400);assert.equal(monitor.hrGeometry([{at:'bad',bpm:0,segment:1}]).dots.length,0);
 });
 test('HR chart exposes actual statistics, an accessible sample table and honest missing history',()=>{
  const history={athleteId:'a',count:2,minimum:70,maximum:80,average:75,points:[{at:at(0),bpm:70,segment:1},{at:at(10),bpm:80,segment:1}]};

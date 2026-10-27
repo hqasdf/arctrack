@@ -8,7 +8,7 @@ export interface HrDevice extends EventTarget {
 export interface BluetoothAdapter { requestDevice(options: { filters: { services: number[] }[] }): Promise<HrDevice> }
 export type SensorLease = { generation: string; sourceId: string };
 export type SensorState = { athleteId: string; state: 'connecting' | 'connected' | 'disconnected' | 'error'; message?: string };
-type Entry = { device: HrDevice; characteristic?: HrCharacteristic; lease?: SensorLease; listener: EventListener; disconnected: EventListener; sequence: number; lastSent: number; sending: boolean; stopped: boolean };
+type Entry = { device: HrDevice; characteristic?: HrCharacteristic; lease?: SensorLease; listener: EventListener; disconnected: EventListener; sequence: number; lastSent: number; stopped: boolean };
 
 /** Hardware IDs stay in this browser's memory. Only random per-assignment IDs reach the server. */
 export class HeartRateSensorManager {
@@ -28,7 +28,7 @@ export class HeartRateSensorManager {
 
   async connect(athleteId: string): Promise<void> {
     if (this.disposed || this.choosing || this.pending.has(athleteId)) return;
-    if (!this.entries.has(athleteId) && this.entries.size >= 8) throw Error('Disconnect a sensor before adding another. Device limits vary.');
+    if (!this.entries.has(athleteId) && this.entries.size >= 12) throw Error('Disconnect a sensor before adding another. Device limits vary.');
     this.pending.add(athleteId); this.cancelled.delete(athleteId); this.choosing = true;
     this.options.state({athleteId,state:'connecting'});
     let device: HrDevice | undefined, ownsChooser=true;
@@ -41,7 +41,7 @@ export class HeartRateSensorManager {
       this.disconnect(athleteId,false);
       this.cancelled.delete(athleteId);
       this.options.state({athleteId,state:'connecting'});
-      const entry: Entry = {device,sequence:0,lastSent:-Infinity,sending:false,stopped:false,listener:()=>{},disconnected:()=>{}};
+      const entry: Entry = {device,sequence:0,lastSent:-Infinity,stopped:false,listener:()=>{},disconnected:()=>{}};
       this.entries.set(athleteId,entry);
       entry.disconnected=()=>{this.disconnect(athleteId);};
       device.addEventListener('gattserverdisconnected',entry.disconnected);
@@ -66,13 +66,12 @@ export class HeartRateSensorManager {
   }
   private current(id: string, entry: Entry) {return !this.disposed && !entry.stopped && this.entries.get(id)===entry;}
   private async sample(id: string, entry: Entry) {
-    if (!this.current(id,entry) || entry.sending || !entry.characteristic?.value || !entry.lease) return;
+    if (!this.current(id,entry) || !entry.characteristic?.value || !entry.lease) return;
     const sample=parseHeartRate(entry.characteristic.value), now=(this.options.now??Date.now)();
-    if (!sample || now-entry.lastSent<2000) return;
-    entry.lastSent=now;entry.sending=true;
+    if (!sample || Math.floor(now/1000)<=Math.floor(entry.lastSent/1000)) return;
+    entry.lastSent=now;
     try {await this.options.publish(id,entry.lease,{bpm:sample.bpm,sequence:++entry.sequence,receivedAt:new Date(now).toISOString()});}
-    catch(error) {if(error instanceof Error&&'status' in error&&error.status===429)return;this.disconnect(id);if(!this.disposed)this.options.state({athleteId:id,state:'error',message:'Sharing could not be confirmed. Recheck consent and reconnect.'});}
-    finally {entry.sending=false;}
+    catch(error) {if(!this.current(id,entry))return;if(error instanceof Error&&'status' in error&&error.status===429)return;this.disconnect(id);if(!this.disposed)this.options.state({athleteId:id,state:'error',message:'Sharing could not be confirmed. Recheck consent and reconnect.'});}
   }
   disconnect(id: string, notifyPending=true) {
     if(this.pending.has(id))this.cancelled.add(id);

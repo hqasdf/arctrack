@@ -1,5 +1,11 @@
 # Live Coaching Phase 1 verification - 26 October 2026
 
+**Latest local verification:** the 1 Hz extension is documented in
+`live-coaching-1hz.md`: 614 website tests and 320 disposable SQL assertions passed.
+The earlier 605/277 counts and pending-migration hashes below describe the prior
+ten-second revision. Both pending migrations were subsequently adjusted together
+under the user's explicit 1 Hz authorization; applied historical SQL is unchanged.
+
 Historical local verification. The hosted blocker described here was resolved
 on 27 October 2026; see `live-coaching-production-release.md` for the applied
 migration, actual hosted canary and current production state.

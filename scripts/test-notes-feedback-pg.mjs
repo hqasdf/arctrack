@@ -240,7 +240,9 @@ try {
   const liveResults = await (await import('./live-coaching-fixture.mjs')).testLiveCoaching(owner, pg, configuration);
   const liveHrResults = await (await import('./live-coaching-hr-fixture.mjs')).testLiveHeartRate(owner, pg, configuration);
   const monitorResults = await (await import('./live-coaching-monitor-fixture.mjs')).testLiveMonitor(owner, pg, configuration);
+  const hzResults = await (await import('./live-coaching-1hz-fixture.mjs')).testLiveHr1Hz(owner);
   summary = {
+    liveHr1Hz: hzResults,
     liveMonitorAssertions: monitorResults,
     liveHeartRateAssertions: liveHrResults,
     liveCoachingAssertions: liveResults,

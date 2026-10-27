@@ -22,7 +22,7 @@ The header separates actual local browser sensor connections, fresh received
 signals, recent saved scoring changes and participating athletes. A website
 heartbeat is not proof of attendance, shooting or physical activity. Visible
 authenticated coaching and owned scoring pages send at most one in-flight
-heartbeat every 20 seconds; SQL accepts an update at most every 10 seconds.
+heartbeat every three seconds; SQL accepts an update at most every 10 seconds.
 The label expires after 45 seconds. Backgrounding stops heartbeats; it does not
 falsely claim an athlete is offline when another tab might be open.
 
@@ -44,7 +44,7 @@ parsing, duplicate local assignments, source/generation/sequence checks and
 manual reconnects. It still accepts only Heart Rate Service 0x180D / Heart Rate
 Measurement 0x2A37. No device hardware identifiers reach storage.
 
-The new table retains the **first actual accepted reading in each 10-second
+The new table retains the **first actual accepted reading in each one-second
 bucket**, only with both consents and an active live session. Each sample expires
 24 hours after receipt. Reads enforce expiry even if cleanup is delayed. Live
 values become unavailable after 10 seconds; physical latest-value cleanup uses
@@ -65,7 +65,7 @@ minute. Failures can delay it further; this is not a backup-erasure guarantee.
 
 The checked monitor read permits only 5/15/30-minute or retained 24-hour windows.
 Raw samples are segmented before downsampling: gaps over 20 seconds and assignment
-generation changes start a new segment. It returns at most 240 actual timestamped
+generation changes start a new segment. It returns at most 724 actual timestamped
 points per athlete. SVG paths never bridge segments; min/max/average describe the
 stored coarse samples in the selected interval, not continuous physiology. The
 selected chart has an accessible sample table. No BPM or missing point is invented.
@@ -78,9 +78,10 @@ authorised scoring Session, not an immutable snapshot; later athlete corrections
 can change it. Retained HR disappears on expiry/revocation. Garmin Health, Sleep
 and other unrelated private health records are never exposed.
 
-Current HR/metadata fetches are serialized every five seconds while visible;
-history fetches are limited to once per 15 seconds (completed review uses 15
-seconds). Sampling POSTs do not trigger an additional read per sensor. The existing
+Current HR fetches are serialized once per second while visible. Separate history
+fetches run at most every five seconds for short windows and thirty seconds for
+three-hour/day views; completed review polls at fifteen seconds. At most twelve
+new sensor frames share one bounded POST per second, with no automatic retries. The existing
 55-second EventSource lifetime, 15-second authorization check, coalesced scoring
 reads and 60-second recovery remain unchanged. No client sample array grows
 without bounds. Fullscreen/detail selection reuse the same manager and data feed.
@@ -123,7 +124,7 @@ automatically and are removed after the configured duration.
 Local application, SQL, build and browser results are recorded in
 `live-coaching-verification.md`. Physical BLE, multiple real sensors/adapter limits,
 actual browser background disconnects, reconnection and Apple Watch relay support
-remain unverified. Eight is a software safety bound, not a hardware guarantee.
+remain unverified. Twelve is a software safety bound, not a hardware guarantee.
 Browser QA uses synthetic fixture values only. Production Phase 2 flags remain
 false/unset and no migration or retention job is applied/activated by this work.
 

@@ -47,7 +47,7 @@ begin
   else
    if p_bpm is null or p_bpm not between 1 and 300 or p_sequence is null or p_sequence<=h.sequence or p_sequence>9007199254740991
     or p_observed is null or p_observed<t-interval '15 seconds' or p_observed>t+interval '5 seconds' then raise exception 'Invalid or replayed measurement' using errcode='22023';end if;
-   if h.received_at>t-interval '2 seconds' then raise exception 'Measurement rate exceeded' using errcode='P0001';end if;
+   if floor(extract(epoch from h.received_at))>=floor(extract(epoch from t)) or floor(extract(epoch from p_observed))<=floor(extract(epoch from h.observed_at)) then raise exception 'Measurement rate exceeded' using errcode='P0001';end if;
    update public.live_coaching_hr set bpm=p_bpm,sequence=p_sequence,observed_at=p_observed,received_at=t where live_id=p_live and athlete_id=p_athlete returning * into h;
   end if;
  else raise exception 'Unsupported HR action' using errcode='22023';end if;

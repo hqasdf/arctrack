@@ -22,7 +22,7 @@ export function elapsedTraining(start:string|null|undefined,end:string|null|unde
 }
 /** Use provider/server timestamps and segments, never bridge a missing-data interval. */
 export function hrGeometry(points:HrPoint[]){
- const valid=points.filter(p=>Number.isFinite(Date.parse(p.at))&&p.bpm>=1&&p.bpm<=300).slice(-240).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
+ const valid=points.filter(p=>Number.isFinite(Date.parse(p.at))&&p.bpm>=1&&p.bpm<=300).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
  if(!valid.length)return {paths:[] as string[],dots:[] as {x:number;y:number;point:HrPoint}[],min:0,max:0,start:0,end:0};
  const start=Date.parse(valid[0].at),end=Date.parse(valid.at(-1)!.at),min=Math.max(0,Math.min(...valid.map(p=>p.bpm))-10),max=Math.max(...valid.map(p=>p.bpm))+10;
  const dots=valid.map(point=>({point,x:20+(Date.parse(point.at)-start)/Math.max(1000,end-start)*560,y:105-(point.bpm-min)/(max-min)*85}));

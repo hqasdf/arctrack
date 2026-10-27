@@ -25,7 +25,8 @@ export async function testLiveHeartRate(db,pg,configuration) {
  check((await read(b,live)).every(x=>x.athleteId===b),'Other athlete cannot read first athlete HR');
  await denied(()=>read(outsider,live),'42501','Unrelated identity cannot read HR');
  await denied(()=>rpc(a,'sample',live,a,lease,90,2,now()),'42501','Only the authorized coach can ingest');
- await denied(()=>rpc(coach,'sample',live,a,lease,90,2,now()),'P0001','Database enforces sample rate across processes');
+ const sameSecond=(await admin('select observed_at from public.live_coaching_hr where live_id=$1 and athlete_id=$2',[live,a])).rows[0].observed_at.toISOString();
+ await denied(()=>rpc(coach,'sample',live,a,lease,90,2,sameSecond),'P0001','Database enforces sample rate across processes');
  const bConsent=await rpc(b,'consent',live,b);
  await denied(()=>rpc(coach,'assign',live,b,{...bConsent,sourceId:source}),'23505','Server rejects duplicate live assignment ID');
  await denied(()=>rpc(coach,'sample',live,a,lease,90,1,now()),'22023','Duplicate sequence cannot replay');

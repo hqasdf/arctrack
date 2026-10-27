@@ -4,6 +4,9 @@ The subsequent local monitoring extension is documented in
 `live-coaching-monitoring.md`. Its separate timeline consent, bounded retention
 and completed-review cleanup supersede this original latest-only foundation.
 
+Current 1 Hz changes and pending-migration hashes are in `live-coaching-1hz.md`.
+The earlier latest-only validation below is historical.
+
 Local implementation, 27 October 2026. Native Expo code and Garmin pipelines
 are unchanged. No physical sensor or Apple Watch relay was tested.
 
