@@ -1,0 +1,92 @@
+'use client';
+import Link from 'next/link';
+import {memo,useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {scoringProgress,type LiveData,type Participant} from './model';
+import {EMPTY_MONITOR,elapsedTraining,hrGeometry,monitorAthletes,type AthleteSort,type EndActivity,type HrHistory,type MonitorSnapshot} from './monitor-model';
+import {HeartRatePanel,HeartRateStatus,type SensorControls} from './heart-rate/panel';
+import type {SensorState} from './heart-rate/sensor-manager';
+import type {HeartRateReading} from './heart-rate/measurement';
+import {heartRateFresh} from './heart-rate/measurement';
+import styles from './monitoring-dashboard.module.css';
+
+const ignoreReadings=()=>{};
+const clockFormatter=new Intl.DateTimeFormat('en-SG',{timeZone:'Asia/Singapore',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const time=(value:string)=>clockFormatter.format(new Date(value));
+
+export const HeartRateChart=memo(function HeartRateChart({history,markers=[],compact=false}:{history?:HrHistory;markers?:EndActivity[];compact?:boolean}){
+ const geometry=useMemo(()=>hrGeometry(history?.points??[]),[history]);
+ const [showMarkers,setShowMarkers]=useState(false);
+ if(!geometry.dots.length)return <p className={styles.empty}>No retained HR readings for this interval. Live sharing alone does not retain a timeline.</p>;
+ const label=compact?'Recent recorded HR':'Recorded heart rate over time';
+ return <div className={styles.chart}>
+  {!compact&&<><div className={styles.stats}><span>Minimum <strong>{history!.minimum} BPM</strong></span><span>Average <strong>{history!.average} BPM</strong></span><span>Maximum <strong>{history!.maximum} BPM</strong></span></div><label className={styles.checkbox}><input type='checkbox' checked={showMarkers} onChange={e=>setShowMarkers(e.target.checked)}/>Show recorded end updates</label></>}
+  <svg viewBox='0 0 600 130' role='img' aria-label={label}><title>{label}</title><desc>Actual retained samples. Gaps and sensor changes split the line. No interpolated measurements.</desc>
+   {!compact&&<><text x='2' y='16'>{geometry.max}</text><text x='2' y='122'>{geometry.min}</text><line x1='20' y1='106' x2='580' y2='106' className={styles.axis}/></>}
+   {geometry.paths.map((path,i)=><path key={i} d={path} className={styles.hrLine}/>)}
+   {geometry.dots.map(({x,y,point},i)=><circle key={i} cx={x} cy={y} r={compact?2:3} className={styles.hrDot}><title>{time(point.at)} SGT · {point.bpm} BPM</title></circle>)}
+   {!compact&&showMarkers&&markers.filter(e=>e.confirmedAt&&Date.parse(e.confirmedAt)>=geometry.start&&Date.parse(e.confirmedAt)<=geometry.end).map(e=>{const x=20+(Date.parse(e.confirmedAt!)-geometry.start)/Math.max(1000,geometry.end-geometry.start)*560;return <line key={e.roundId+e.end} x1={x} x2={x} y1='20' y2='106' className={styles.marker}><title>End {e.end} latest confirmed update {time(e.confirmedAt!)} SGT</title></line>;})}
+  </svg>
+  {!compact&&<><div className={styles.chartLabels}><span>{time(new Date(geometry.start).toISOString())}</span><span>{time(new Date(geometry.end).toISOString())} SGT</span></div><p className={styles.muted}>{history!.count} retained samples in this interval; at most one actual reading per 10 seconds. The display is bounded to 240 points. Statistics describe retained samples, not continuous physiology.</p><p className={styles.muted}>End markers are the latest observed confirmed scoring updates, including corrections. They are not shot timestamps; comparisons are exploratory.</p><details><summary>Accessible HR sample table</summary><div className={styles.tableWrap}><table><caption>Displayed actual HR readings</caption><thead><tr><th>Received (SGT)</th><th>BPM</th><th>Signal segment</th></tr></thead><tbody>{geometry.dots.map(({point},i)=><tr key={i}><td>{time(point.at)}</td><td>{point.bpm}</td><td>{point.segment}</td></tr>)}</tbody></table></div></details></>}
+ </div>;
+});
+
+function AthleteIdentity({participant:p}:{participant:Participant}){
+ const progress=scoringProgress(p.scoring),current=progress.rounds.find(r=>r.ends.some(e=>!e.complete))??progress.rounds.at(-1);
+ return <><h3>{p.displayName}</h3><p className={styles.muted}>{current?`${current.round.division} · ${current.round.distanceMetres} m · ${current.round.name}`:'No scoring Session linked'}</p></>;
+}
+function Presence({reading,now}:{reading?:HeartRateReading;now:number}){
+ const age=reading?.lastSeenAt?now-Date.parse(reading.lastSeenAt):Infinity;
+ return <span className={styles.presence}>{Number.isFinite(age)&&age>=-5000&&age<=45000?'Website seen recently':reading?.lastSeenAt?'No recent website heartbeat':'Website presence unknown'}</span>;
+}
+
+export function LiveMonitor({data,connection}:{data:LiveData;connection:string}){
+ const [snapshot,setSnapshot]=useState<MonitorSnapshot>(EMPTY_MONITOR),[sensors,setSensors]=useState<Record<string,SensorState>>({}),[supported,setSupported]=useState(false);
+ const [mode,setMode]=useState<'grid'|'table'>('grid'),[selected,setSelected]=useState<string|null>(null),[search,setSearch]=useState(''),[participation,setParticipation]=useState('all'),[sensorFilter,setSensorFilter]=useState('all'),[sort,setSort]=useState<AthleteSort>('name');
+ const [windowSeconds,setWindow]=useState(900),[now,setNow]=useState(()=>Date.now()),[expanded,setExpanded]=useState(false),[fullscreenMessage,setFullscreenMessage]=useState('');
+ const root=useRef<HTMLElement>(null),controls=useRef<SensorControls>(null);
+ const enabled=process.env.NEXT_PUBLIC_LIVE_COACHING_BLE_ENABLED==='true',active=data.session.state==='active',terminal=['completed','cancelled'].includes(data.session.state);
+ const receive=useCallback((next:MonitorSnapshot)=>setSnapshot(old=>({...next,history:(next.history??old.history??[]).filter(h=>next.readings.some(r=>r.athleteId===h.athleteId&&r.consent&&r.historyConsent))})),[]);
+ useEffect(()=>{const timer=setInterval(()=>{if(document.visibilityState==='visible')setNow(Date.now());},5000);return()=>clearInterval(timer);},[]);
+ useEffect(()=>{const changed=()=>{if(document.fullscreenElement===root.current)setExpanded(true);else setExpanded(false);};const key=(e:KeyboardEvent)=>{if(e.key==='Escape')setExpanded(false);};document.addEventListener('fullscreenchange',changed);document.addEventListener('keydown',key);return()=>{document.removeEventListener('fullscreenchange',changed);document.removeEventListener('keydown',key);};},[]);
+ useEffect(()=>{
+  const container=root.current;if(!expanded||!container)return;
+  const previous=document.activeElement;
+  const focusable=()=>Array.from(container.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),a[href],summary')).filter(el=>el.getClientRects().length>0);
+  focusable()[0]?.focus();
+  const trap=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;const items=focusable(),first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}};
+  container.addEventListener('keydown',trap);
+  return()=>{container.removeEventListener('keydown',trap);if(previous instanceof HTMLElement&&previous.isConnected)previous.focus();};
+ },[expanded]);
+ const fullscreen=async()=>{setFullscreenMessage('');if(expanded){if(document.fullscreenElement===root.current)await document.exitFullscreen();setExpanded(false);return;}setExpanded(true);try{if(root.current?.requestFullscreen)await root.current.requestFullscreen();else setFullscreenMessage('Expanded monitoring view. Browser fullscreen is unavailable; press Escape to close.');}catch{setFullscreenMessage('Expanded monitoring view. Browser fullscreen was not allowed; press Escape to close.');}};
+ const people=monitorAthletes(data.participants,search,participation,sensorFilter,sort,snapshot.readings,now,new Set(Object.values(sensors).filter(s=>s.state==='connected').map(s=>s.athleteId)));
+ const selectedPerson=data.participants.find(p=>p.athleteId===selected),selectedHistory=snapshot.history?.find(h=>h.athleteId===selected);
+ const recentScoring=new Set(snapshot.endActivity.filter(e=>now-Date.parse(e.changedAt)<60000).map(e=>e.athleteId));
+ const connected=Object.values(sensors).filter(s=>s.state==='connected').length;
+ const connectSensor=useCallback((id:string)=>controls.current?.connect(id),[]),disconnectSensor=useCallback((id:string)=>controls.current?.disconnect(id),[]);
+ const sensorActions=(p:Participant)=>data.coach&&enabled&&!terminal?<div className={styles.actions}><button disabled={!supported||!active||!snapshot.readings.find(r=>r.athleteId===p.athleteId)?.consent||sensors[p.athleteId]?.state==='connecting'} onClick={()=>connectSensor(p.athleteId)}>{sensors[p.athleteId]?.state==='connected'?'Change HR sensor':'Connect HR sensor'}</button><button disabled={!['connected','connecting'].includes(sensors[p.athleteId]?.state??'')} onClick={()=>disconnectSensor(p.athleteId)}>Disconnect sensor</button></div>:null;
+ return <section ref={root} className={`${styles.monitor} ${expanded?styles.fullscreen:''}`} aria-label='Team training monitor'>
+  <header className={styles.monitorHeading}><div><p className={styles.eyebrow}>{terminal?'TRAINING REVIEW':'TEAM MONITOR'}</p><h2>{expanded?data.session.title:terminal?'Session review':'Live athlete monitoring'}</h2><p className={styles.muted}>{data.organizationName} · {data.session.training_date} · {data.session.state}</p></div><div className={styles.clock}><span>Team training elapsed</span><strong>{elapsedTraining(data.session.started_at,data.session.ended_at,now)}</strong><small>{connection}</small></div></header>
+  <div className={styles.metrics}>{[['Participants',`${data.participants.filter(p=>p.state==='joined').length} / ${data.participants.length}`],['Scoring updates · last minute',recentScoring.size],['Sensors · this browser',connected],['Fresh HR signals',snapshot.readings.filter(r=>heartRateFresh(r,now)).length]].map(([label,value])=><div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+  <p className={styles.muted}>Website presence, recent saved scoring and HR signals are separate indicators. None proves an athlete is shooting. {terminal?'Review uses current authorised scoring records; it is not an immutable scoring snapshot. HR is shown only while retained and consented.':''}</p>
+  <div className={styles.controls}>
+   <label>Find athlete<input type='search' value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search by name'/></label>
+   <label>Participation<select value={participation} onChange={e=>setParticipation(e.target.value)}><option value='all'>All athletes</option>{['joined','invited','declined','left'].map(s=><option key={s}>{s}</option>)}</select></label>
+   <label>HR signal<select value={sensorFilter} onChange={e=>setSensorFilter(e.target.value)}><option value='all'>All signals</option><option value='receiving'>Fresh reading</option><option value='unavailable'>No fresh reading</option><option value='connected'>Local sensor connected</option><option value='not_connected'>No local sensor connection</option></select></label>
+   <label>Sort by<select value={sort} onChange={e=>setSort(e.target.value as AthleteSort)}><option value='name'>Athlete name</option><option value='score'>Confirmed score</option><option value='progress'>Scoring progress</option><option value='ends'>Completed ends</option></select></label>
+  </div>
+  <div className={styles.actions}><div role='group' aria-label='Monitoring layout'><button aria-pressed={mode==='grid'} onClick={()=>setMode('grid')}>Grid</button><button aria-pressed={mode==='table'} onClick={()=>setMode('table')}>Table</button></div><button aria-pressed={expanded} onClick={()=>void fullscreen()}>{expanded?'Exit full screen':'Full-screen monitoring'}</button><label>HR interval<select value={windowSeconds} onChange={e=>setWindow(Number(e.target.value))}><option value={300}>5 minutes</option><option value={900}>15 minutes</option><option value={1800}>30 minutes</option><option value={86400}>Retained session · up to 24 hours</option></select></label></div>
+  {fullscreenMessage&&<p role='status'>{fullscreenMessage}</p>}
+  {enabled&&<details className={styles.sensorPanel}><summary>Bluetooth sensors and athlete consent</summary><HeartRatePanel data={data} onReadings={ignoreReadings} onSnapshot={receive} onSensors={setSensors} onSupport={setSupported} controlsRef={controls} windowSeconds={windowSeconds}/></details>}
+  {!enabled&&<p className={styles.empty}>Live Bluetooth HR is not enabled. Authorised scoring remains available.</p>}
+  {selectedPerson?<AthleteDetail participant={selectedPerson} data={data} reading={snapshot.readings.find(r=>r.athleteId===selected)} history={selectedHistory} events={snapshot.endActivity.filter(e=>e.athleteId===selected)} onClose={()=>setSelected(null)} sensorActions={sensorActions(selectedPerson)} now={now}/>:mode==='grid'?<div className={styles.grid}>{people.map(({participant:p,progress:s})=>{
+   const reading=snapshot.readings.find(r=>r.athleteId===p.athleteId),history=snapshot.history?.find(h=>h.athleteId===p.athleteId),lastSaved=s.rounds.flatMap(r=>r.ends).filter(e=>e.arrows.length).at(-1);
+   return <article key={p.athleteId} className={styles.athleteCard}><div className={styles.cardHeading}><span className={styles.badge}>{p.state}</span><Presence reading={reading} now={now}/></div><AthleteIdentity participant={p}/><div className={styles.scoreRow}><div><strong>{s.confirmedTotal}</strong><span>confirmed score</span></div><div><strong>{s.completedEnds}<small> / {s.plannedEnds}</small></strong><span>completed ends</span></div></div><progress max={Math.max(1,s.plannedEnds)} value={s.completedEnds} aria-label={p.displayName+' completed ends'}/><p>{s.finished?'Scoring complete':s.savedArrows?'Saved scoring available':'Awaiting scoring'} · Latest completed end: {s.latest?.total??'—'}</p><p className={styles.muted}>{lastSaved?'Last saved arrows: '+lastSaved.arrows.map(a=>a.score).join(' · '):'No saved arrows yet'}</p>{s.provisionalArrows>0&&<p className={styles.provisional}>{s.provisionalArrows} saved arrows in incomplete ends · {s.savedArrowTotal} total including provisional arrows</p>}<HeartRateStatus reading={reading}/>{sensors[p.athleteId]&&<p className={styles.muted}>Local sensor: {sensors[p.athleteId].state}</p>}<HeartRateChart compact history={history}/><button className={styles.detailButton} onClick={()=>setSelected(p.athleteId)}>Monitor {p.displayName}</button>{sensorActions(p)}</article>;
+  })}</div>:<div className={styles.tableWrap}><table className={styles.teamTable}><caption>Athlete monitoring · {people.length} athletes</caption><thead><tr><th>Athlete</th><th>Participation</th><th>Confirmed score</th><th>Ends</th><th>HR</th><th>Website</th><th>Detail</th></tr></thead><tbody>{people.map(({participant:p,progress:s})=>{const r=snapshot.readings.find(r=>r.athleteId===p.athleteId);return <tr key={p.athleteId}><th scope='row'>{p.displayName}</th><td>{p.state}</td><td>{s.confirmedTotal}{s.provisionalArrows>0&&<small> + incomplete arrows</small>}</td><td>{s.completedEnds} / {s.plannedEnds}</td><td>{heartRateFresh(r,now)?r!.bpm+' BPM':'Unavailable'}</td><td><Presence reading={r} now={now}/></td><td><button onClick={()=>setSelected(p.athleteId)}>Monitor {p.displayName}</button></td></tr>;})}</tbody></table></div>}
+  {!selectedPerson&&!people.length&&<p className={styles.empty}>No athletes match these filters.</p>}
+ </section>;
+}
+
+function AthleteDetail({participant:p,data,reading,history,events,onClose,sensorActions,now}:{participant:Participant;data:LiveData;reading?:HeartRateReading;history?:HrHistory;events:EndActivity[];onClose:()=>void;sensorActions:React.ReactNode;now:number}){
+ const s=scoringProgress(p.scoring);
+ return <section className={styles.detail} aria-label={'Monitoring '+p.displayName}><button onClick={onClose}>← Back to team</button><AthleteIdentity participant={p}/><p>{p.scoring?.title??'No linked scoring Session'} · {p.state}</p><Presence reading={reading} now={now}/><div className={styles.metrics}><div><span>Confirmed score</span><strong>{s.confirmedTotal}</strong></div><div><span>Completed ends</span><strong>{s.completedEnds} / {s.plannedEnds}</strong></div><div><span>Latest completed end</span><strong>{s.latest?.total??'—'}</strong></div><div><span>Saved arrows</span><strong>{s.savedArrows}</strong></div></div><HeartRateStatus reading={reading}/>{sensorActions}<h3>Heart-rate timeline</h3><HeartRateChart history={history} markers={events}/><h3>Recorded scoring progression</h3><p className={styles.muted}>End sequence uses authoritative saved arrows. Historical ends without observed timestamps remain untimed.</p><div className={styles.endBars} aria-label='Completed end scores'>{s.rounds.flatMap(({round,ends})=>ends.filter(e=>e.complete).map(e=><div key={round.id+e.number}><span>{round.name} · E{e.number}</span><meter min={0} max={Math.max(1,round.arrowsPerEnd*10)} value={e.total}>{e.total}</meter><strong>{e.total}</strong></div>))}</div><h3>End-by-end scoring</h3>{s.rounds.map(({round,ends})=><section key={round.id}><h4>{round.name} · {round.distanceMetres} m</h4><ol className={styles.endHistory}>{ends.filter(e=>e.arrows.length).map(e=>{const activity=events.find(a=>a.roundId===round.id&&a.end===e.number);return <li key={e.number}><strong>End {e.number} · {e.total} {e.complete?'confirmed':'provisional'}</strong><span>{e.arrows.map(a=>a.score).join(' · ')}</span><small>{activity?'Latest scoring update '+time(activity.changedAt)+' SGT':'Submission time not recorded'}</small></li>;})}</ol></section>)}{!s.savedArrows&&<p className={styles.empty}>No saved arrows available.</p>}{data.coach&&p.scoringSessionId&&<Link href={`/organization/${data.session.organization_id}/athletes/${p.athleteId}/sessions/${p.scoringSessionId}`}>Open authorised Session notes and coach feedback</Link>}</section>;
+}

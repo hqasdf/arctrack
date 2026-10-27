@@ -98,6 +98,7 @@ test("web categories preserve classification, Session actions and an unsubmitted
     "../actions": { createSession: async input => { created.push(input); return { ok: true, data: { ...sessions[0], ...input, id: "new" } }; } },
     "./session-category-tabs": { SessionCategoryTabs: "CategoryTabs" }, "./round-presets-panel": { RoundPresetsPanel: "Presets" }, "./scoring-workspace": { ScoringWorkspace: "Scoring" },
     "@/features/weather/components/session-weather": { SessionWeatherHistory: "Weather" },
+    "@/features/live-coaching/presence": {LivePresence:()=>null},
     "@/features/session-health/garmin-session-health": { GarminSessionHealth: "SessionHealth" },
   });
   const plan = React.createElement("Plan", { id: "plan" });

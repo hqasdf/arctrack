@@ -23,7 +23,10 @@ new Function("require", "exports", compiled)(name => {
 test("Privacy Policy renders as public HTML without auth, cookies, user data or network reads", () => {
   const html = renderToStaticMarkup(React.createElement(pageExports.default));
   assert.match(html, /<h1>Privacy Policy<\/h1>/);
-  assert.match(html, /dateTime="2026-10-25"/);
+  assert.match(html, /dateTime="2026-10-27"/);
+  assert.match(html, /separate, optional session-specific consent/);
+  assert.match(html, /twenty-four hours after that reading/);
+  assert.match(html, /historical shot times are not inferred/);
   assert.match(html, /Optional Garmin account connection/);
   assert.match(html, /encrypted access\/refresh credentials/);
   assert.match(html, /does not send Garmin-derived information to AI training or evaluation services/);

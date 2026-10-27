@@ -10,7 +10,7 @@ test("Training Plan content belongs to non-scoring Sessions views, not the scori
   assert.match(page, /SessionsWorkspace initialSessions={sessions} trainingPlanContent=/);
   assert.match(page, /AthletePlanCard plans={plans} today={today}/);
   const scoringBranch = workspace.slice(workspace.indexOf('if (view==="scoring"'), workspace.indexOf('  return <>', workspace.indexOf('if (view==="scoring"')));
-  assert.match(scoringBranch, /return <ScoringWorkspace/);
+  assert.match(scoringBranch, /return <>\{viewerId&&<LivePresence scoringSessionId=\{session.id\}\/>\}<ScoringWorkspace/);
   assert.doesNotMatch(scoringBranch, /trainingPlanContent|AthletePlanCard/);
   assert.doesNotMatch(scoring, /AthletePlanCard|readOwnTrainingPlanProgress/);
   assert.match(scoring, /const settled=await queue.flush\(\)/);

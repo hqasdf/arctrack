@@ -19,6 +19,7 @@ function fixture(state='active') {
  const value={session:{id:'fixture',title:'Training',state,version:1,training_date:'2026-10-26'},coach:true,viewerId:'coach',organizationName:'Team',participants:[],eligibleSessions:[]};
  const {LiveCoaching}=loadSessionModule('src/features/live-coaching/live-coaching.tsx',{
   'next/navigation':{useRouter:()=>({push(){}})},'./model':{scoringProgress:()=>({})},'./reconcile':{createReconciler},
+  './monitoring-dashboard':{LiveMonitor:()=>null},'./presence':{LivePresence:()=>null},
  },hooks,{document,window,EventSource:Source,setInterval:fn=>{timers.add(fn);return fn;},clearInterval:fn=>timers.delete(fn),fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>value};}});
  const render=()=>{cursor=0;tree=LiveCoaching({sessionId:'fixture'});while(effects.length)effects.shift()();return tree;};
  return {render,calls,sources,timers,listeners,document,text:()=>treeText(tree),async click(label){const button=treeNodes(tree).find(n=>n.type==='button'&&treeText(n)===label);assert.ok(button,'Missing '+label);await button.props.onClick();},dispose(){for(const s of slots)s?.cleanup?.();}};

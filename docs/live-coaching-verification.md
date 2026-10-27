@@ -1,5 +1,65 @@
 # Live Coaching Phase 1 verification - 26 October 2026
 
+Historical local verification. The hosted blocker described here was resolved
+on 27 October 2026; see `live-coaching-production-release.md` for the applied
+migration, actual hosted canary and current production state.
+
+## Current local Phase 2 monitoring verification — 27 October 2026
+
+This section supersedes the historical local counts below. See
+`live-coaching-monitoring.md` for the implementation and complete extension file
+manifest. No Phase 2 production operation, commit, push or deployment occurred.
+
+| Check | Fresh result |
+| --- | --- |
+| Full website suite | 605 passed, 0 failed, 0 skipped |
+| Live Coaching subset (included above) | 46 passed, 0 failed |
+| Owned disposable PostgreSQL 17.6 | 277 assertions passed, 0 failed |
+| SQL breakdown | 37 monitoring, 31 BLE, 36 Phase 1, 143 existing SQL, 30 concurrency/harness |
+| TypeScript | Passed |
+| Repository ESLint | Passed, 0 errors/warnings |
+| Next.js 16.4.1 production build | Passed |
+| Migration consistency | 30 canonical migrations valid; 7 historical aliases preserved |
+| Tracked diff whitespace | Passed |
+
+The SQL assertions include current-actor access, explicit additional timeline
+consent, stale consent revision rejection, anonymous/direct-client/service-role
+grants, RLS, cross-athlete denial, coalesced actual samples, statistics/segments,
+real lifecycle timestamps, guarded scoring-event metadata, presence ownership
+and rate bounds, concurrent revocation/sample admission, completed review,
+post-completion erasure, read-time expiry, physical pruning and membership cleanup.
+Every disposable cluster is stopped and removed by the runner. No production
+database, Auth account or health record is used.
+
+Actual Opera browser QA used the real dashboard/scoring components, a labelled
+eight-athlete synthetic roster, real disposable SQL and a fixture-only HTTP/SSE
+bridge. It verified grid/table, filters/sorting, athlete selection/return, native
+fullscreen, completed review, history erasure, SVG gaps, accessible chart data and
+light/dark styling. The unchanged scoring interface saved an arrow to complete a
+27-point end, then corrected a saved arrow to 29; the coach view reconciled both
+without a manual refresh. The preview has no real Supabase Auth, hosted private
+Broadcast or BLE hardware; those must not be inferred from this browser result.
+
+Responsive QA covered 320px, 390px, 768px and a desktop viewport. Measured document
+scroll width matched client width; narrow tables use their own bounded scroll
+container. Charts and retained review showed synthetic fixture measurements only.
+No console errors were observed in the inspected monitor tab. This is not a
+physical-device, exhaustive assistive-technology, medical or scale certification.
+Screenshots and logs are ignored local artifacts under `.verification/`.
+
+The existing pending BLE migration remains byte-identical:
+`4B1A93C01D4F39FD2C5872ED6C0D94A27F9E8C8B26806899C0303C2FC1E46BAF`.
+New, CLI-created monitoring migration:
+`20261027012339_live_coaching_monitoring_history.sql`, SHA-256
+`D1E55204244A3EB63C9977D8994C5DC10FAF105B44DBC2E6A6AD08CB100626E8`.
+Both are local/pending. Production Phase 2 flags and retention job are unchanged.
+
+Remaining release gates: separately review/install both pending migrations,
+verify hosted authorization/grants and consent races, activate/monitor retention
+before accepting history, verify physical compatible sensors and browser/device
+limits, then separately authorize application/feature activation. No new staging
+infrastructure was created.
+
 ## Result
 
 Local functionality verified. Production release remains conditional on an

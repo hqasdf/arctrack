@@ -12,6 +12,7 @@ import { SessionNotesPanel } from "@/features/notes-feedback/session-notes-panel
 import { CoachFeedbackPanel } from "@/features/notes-feedback/coach-feedback-panel";
 import { confirmDraftNavigation } from "@/features/notes-feedback/draft-guard";
 import styles from "./sessions.module.css";
+import {LivePresence} from '@/features/live-coaching/presence';
 import { GarminSessionHealth } from '@/features/session-health/garmin-session-health';
 import { SessionWeatherHistory } from "@/features/weather/components/session-weather";
 
@@ -124,7 +125,7 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,
   const trainingSessions=sessions.filter((item)=>item.sessionType==="training");
   const competitionSessions=sessions.filter((item)=>item.sessionType==="competition");
 
-  if (view==="scoring"&&session&&activeRound) return <ScoringWorkspace key={activeRound.id} sessionId={session.id} sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>{setView("session");router.refresh();}} onConfigure={()=>configureRound(activeRound)}/>;
+  if (view==="scoring"&&session&&activeRound) return <>{viewerId&&<LivePresence scoringSessionId={session.id}/>}<ScoringWorkspace key={activeRound.id} sessionId={session.id} sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>{setView("session");router.refresh();}} onConfigure={()=>configureRound(activeRound)}/></>;
   const sessionDetails = session ? <>
       <div className={styles.sessionArrowCount}><label htmlFor={`session-arrow-count-${session.id}`}><span>Arrow count</span><input id={`session-arrow-count-${session.id}`} required type="text" inputMode="numeric" pattern="[0-9]*" value={arrowCountDrafts[session.id]??String(session.arrowCount)} onChange={(event)=>{if (/^\d*$/.test(event.target.value)) setArrowCountDrafts((current)=>({...current,[session.id]:event.target.value}));}}/></label><button type="button" disabled={arrowCountSaving} onClick={saveSessionArrowCount}>{arrowCountSaving?"Saving…":"Save"}</button></div>
       <SessionWeatherHistory sessionId={session.id}/>

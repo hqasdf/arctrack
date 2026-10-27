@@ -1,5 +1,9 @@
 # Live Coaching Phase 1 (local implementation)
 
+Current local Phase 2 monitoring implementation: see `live-coaching-monitoring.md`
+for the dashboard, separate timeline consent, bounded history, presence and review.
+Phase 1 production status remains documented separately; Phase 2 is not deployed.
+
 ## Architecture and boundaries
 
 Two new tables hold team lifecycle and invitations/explicit athlete Session links.
@@ -18,7 +22,9 @@ Completion/cancellation closes the browser update stream and stops automatic
 scoring broadcasts and fallback polling. An explicit refresh can still review
 current individual history; completion does not lock an athlete's own scoring.
 
-`20261026142604_live_coaching.sql` is LOCAL ONLY. It adds the two tables,
+`20261026142604_live_coaching.sql` was applied to production on 27 October 2026
+(Asia/Singapore). See `live-coaching-production-release.md` for the hosted canary,
+data-preservation evidence and existing READY website deployment. It adds two tables,
 restricted authenticated RPC wrappers around private checked functions, private
 Broadcast authorization, and scoring/lifecycle observation triggers. No existing
 scoring grants, formulas, organisation policies, Garmin objects or Health data
@@ -93,7 +99,9 @@ and Supabase private Broadcast, not this fixture transport.
 
 ## Release gates and remaining validation
 
-Do not apply the new migration or deploy in this task. Before a separate release:
+The original release gate below was subsequently completed for Phase 1; see
+`live-coaching-production-release.md`. Phase 2 remains local and separately gated.
+The pre-release verification checklist was:
 verify actual Realtime schema/send/topic APIs and enabled Broadcast service;
 audit other realtime.messages policies (permissive policies combine with OR);
 verify authenticated cookies through server streams, broker delivery/reconnect,
@@ -103,7 +111,7 @@ or production configuration was changed here. Stage and validate the migration
 against hosted non-production Auth/Realtime before production approval.
 The repository's unrelated baseline failures are recorded in verification output.
 
-Future HR needs a separate revocable athlete consent boundary and measurement
-identity {athleteId, liveSessionId, timestamp, source, connectivity}. A browser
-Bluetooth or verified receiver can publish through that boundary later. Existing
-Garmin Health/Activity delivery is not continuous live HR and remains private.
+The local Phase 2 BLE foundation now implements a separate revocable consent
+boundary and random sensor assignments. The monitoring extension adds separately
+consented timelines. Existing Garmin Health/Activity delivery is not continuous
+live HR and remains private; neither pending BLE migration is applied here.
