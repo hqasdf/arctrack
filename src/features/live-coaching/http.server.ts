@@ -31,6 +31,15 @@ export async function liveCoachingRequest(request:Request){
   const result=invitations?await client.rpc('read_live_coaching_invitations',{p_org:membershipOrg}):await client.rpc('read_live_coaching',{p_id:id,p_org:org});
   if(result.error)return reply({error:result.error.code==='42501'?'Live access unavailable.':'Live Coaching could not be loaded. Its local migration must be installed before use.'},result.error.code==='42501'?403:503);
   const data=result.data;
+  // Recover nullable profile names through the existing coach-authorized roster.
+  // The Live Coaching reader substitutes Archer for null; no Auth/contact lookup.
+  if(org&&(Array.isArray(data?.roster)||data?.coach===true&&Array.isArray(data.participants))){
+   const profiles=await client.rpc('read_coach_athlete_roster',{p_organization_id:org});
+   if(profiles.error||!Array.isArray(profiles.data))return reply({error:'Athlete profile names could not be verified. Retry shortly.'},profiles.error?.code==='42501'?403:503);
+   const names=new Map<string,string>(profiles.data.map((p:{user_id:string;display_name:string|null})=>[p.user_id,p.display_name??'']));
+   if(Array.isArray(data.roster))data.roster=data.roster.map((a:{userId:string})=>({...a,displayName:names.get(a.userId)??''}));
+   if(Array.isArray(data.participants))data.participants=data.participants.map((p:{athleteId:string})=>({...p,displayName:names.get(p.athleteId)??''}));
+  }
   if(id&&data?.participants)data.participants=data.participants.map((p:{scoring:DbSession|null})=>({...p,scoring:p.scoring?mapSession(p.scoring):null}));
   return reply(data);
  }catch{return reply({error:'Live Coaching request could not be completed.'},400);}

@@ -1,6 +1,6 @@
 import { roundTotal, type SessionDraft } from '@/features/sessions/scoring-model';
 export type LiveSession={id:string;organization_id:string;created_by:string;title:string;training_date:string;state:'created'|'waiting'|'active'|'completed'|'cancelled';version:number;organization_name?:string;started_at?:string|null;ended_at?:string|null};
-export type Participant={athleteId:string;displayName:string;state:'invited'|'joined'|'declined'|'left';scoringSessionId:string|null;scoring:SessionDraft|null};
+export type Participant={athleteId:string;displayName:string;identityLabel?:string|null;state:'invited'|'joined'|'declined'|'left';scoringSessionId:string|null;scoring:SessionDraft|null};
 export type LiveData={session:LiveSession;coach:boolean;viewerId:string;organizationName:string;participants:Participant[];eligibleSessions:{id:string;title:string;session_date:string}[]};
 export type LiveIndex={sessions:LiveSession[];roster:{userId:string;displayName:string}[]};
 export function scoringProgress(session:SessionDraft|null){

@@ -3,7 +3,7 @@ import test from 'node:test';
 import React from 'react';
 import {loadSessionModule,settle,treeNodes,treeText} from './helpers/session-layout-runtime.mjs';
 
-function fixture(state='active',coachContext=true,indexView=false) {
+function fixture(state='active',coachContext=true,indexView=false,roster=[]) {
  const slots=[],effects=[],listeners=new Map(),timers=new Set(),calls=[],sources=[];
  let cursor=0,tree,deniedRead=false;
  const document={visibilityState:'visible',addEventListener:(n,f)=>listeners.set('document:'+n,f),removeEventListener:n=>listeners.delete('document:'+n)};
@@ -20,7 +20,7 @@ function fixture(state='active',coachContext=true,indexView=false) {
  const {LiveCoaching}=loadSessionModule('src/features/live-coaching/live-coaching.tsx',{
   'next/navigation':{useRouter:()=>({push(){}})},'./model':{scoringProgress:()=>({})},'./athlete-identity':loadSessionModule('src/features/live-coaching/athlete-identity.ts'),'./reconcile':{createReconciler},
   './monitoring-dashboard':{LiveMonitor:()=>null},'./presence':{LivePresence:()=>null},'./athlete-training':{AthleteTraining:()=>null},'./heart-rate/sensor-test':{SensorTest:()=>null},'./training-list':{TrainingList:()=>null},
- },hooks,{document,window,EventSource:Source,setInterval:fn=>{timers.add(fn);return fn;},clearInterval:fn=>timers.delete(fn),fetch:async(url,options)=>{calls.push({url,options});return {ok:!deniedRead,status:deniedRead?403:200,json:async()=>options?.method==='POST'?{id:'fixture'}:indexView?{sessions:[value.session],roster:[]}:value};}});
+ },hooks,{document,window,EventSource:Source,setInterval:fn=>{timers.add(fn);return fn;},clearInterval:fn=>timers.delete(fn),fetch:async(url,options)=>{calls.push({url,options});return {ok:!deniedRead,status:deniedRead?403:200,json:async()=>options?.method==='POST'?{id:'fixture'}:indexView?{sessions:[value.session],roster}:value};}});
  const render=()=>{cursor=0;tree=LiveCoaching({sessionId:indexView?undefined:'fixture',organizationId:coachContext?'org':undefined});while(effects.length)effects.shift()();return tree;};
  return {render,calls,sources,timers,listeners,document,denyRead(){deniedRead=true;},nodes:()=>treeNodes(tree),text:()=>treeText(tree),async click(label){const button=treeNodes(tree).find(n=>n.type==='button'&&treeText(n)===label);assert.ok(button,'Missing '+label);await button.props.onClick();},dispose(){for(const s of slots)s?.cleanup?.();}};
 }
@@ -58,3 +58,5 @@ test('A deleted or revoked training clears cached data and closes the stale even
 });
 
 test('Stable Live Coaching rerenders do not refetch or recreate event streams',async()=>{const ui=fixture();ui.render();await settle();ui.render();const reads=ui.calls.length,streams=ui.sources.length;for(let i=0;i<20;i++)ui.render();await settle();assert.equal(ui.calls.length,reads);assert.equal(ui.sources.length,streams);for(const tick of ui.timers)tick();await settle();assert.equal(ui.calls.length,reads+1);ui.dispose();});
+
+test('Create Training displays saved profile names and enforces 32 selections without truncating the roster',async()=>{const roster=Array.from({length:33},(_,i)=>({userId:'athlete-'+i,displayName:i===0?'Archer':i===1?'Li Wei':'Saved Profile '+i}));const ui=fixture('active',true,true,roster);ui.render();await settle();ui.render();await ui.click('Create Training');ui.render();assert.match(ui.text(),/Archer|Li Wei/);for(let i=0;i<32;i++){ui.nodes().filter(n=>n.type==='input'&&n.props.type==='checkbox')[i].props.onChange({target:{checked:true}});ui.render();}const boxes=ui.nodes().filter(n=>n.type==='input'&&n.props.type==='checkbox');assert.equal(boxes.length,33);assert.equal(boxes[32].props.disabled,true);assert.equal(boxes[0].props.disabled,false);boxes[0].props.onChange({target:{checked:false}});ui.render();assert.equal(ui.nodes().filter(n=>n.type==='input'&&n.props.type==='checkbox')[32].props.disabled,false);ui.dispose();});

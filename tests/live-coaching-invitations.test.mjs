@@ -4,9 +4,9 @@ import React from 'react';
 import {readFileSync} from 'node:fs';
 import {loadSessionModule,settle,treeNodes,treeText} from './helpers/session-layout-runtime.mjs';
 const {athleteIdentities}=loadSessionModule('src/features/live-coaching/athlete-identity.ts');
-test('Names prefer supplied full profile fields, preserve Unicode and distinguish duplicates without contact data',()=>{
- const entries=athleteIdentities([{userId:'aaaaaaaa-1',firstName:' Li ',lastName:' Wei ',displayName:'Archer'},{userId:'aaaaaaaa-2',displayName:'Li Wei'},{userId:'bbbbbbbb',displayName:null},{userId:'cccccccc',displayName:'Archer'},{userId:'dddddddd',displayName:'Nur   Aisyah Abdullah'}]);
- assert.equal(entries[0].name,'Li Wei');assert.notEqual(entries[0].identifier,entries[1].identifier);assert.equal(entries[2].name,'Name not provided');assert.equal(entries[3].name,'Name not provided');assert.equal(entries[4].name,'Nur Aisyah Abdullah');assert.equal(entries[4].identifier,null);
+test('Saved profile names take precedence, preserve Unicode and distinguish duplicates without contact data',()=>{
+ const entries=athleteIdentities([{userId:'aaaaaaaa-1',firstName:'Account',lastName:'Name',displayName:' Li Wei '},{userId:'aaaaaaaa-2',displayName:'Li Wei'},{userId:'bbbbbbbb',displayName:null},{userId:'cccccccc',displayName:'Archer'},{userId:'dddddddd',displayName:'Nur   Aisyah Abdullah'}]);
+ assert.equal(entries[0].name,'Li Wei');assert.notEqual(entries[0].identifier,entries[1].identifier);assert.equal(entries[2].name,'Name not provided');assert.equal(entries[3].name,'Archer');assert.equal(entries[4].name,'Nur Aisyah Abdullah');assert.equal(entries[4].identifier,null);
  assert.equal(athleteIdentities(Array.from({length:32},(_,i)=>({userId:String(i).padStart(8,'0'),displayName:'A'.repeat(80)}))).length,32);
 });
 function invitations({fail=false,hold=false}={}){

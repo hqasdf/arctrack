@@ -16,6 +16,26 @@ export async function testLiveManagement(db,pg,configuration){
  await admin('insert into public.session_ends(id,session_round_id,end_number) values($1,$2,1)',[end,round]);
  await admin("insert into public.session_notes(session_id,body) values($1,'Preserved athlete note')",[scoring]);
  await admin("insert into public.coach_feedback(organization_id,athlete_user_id,author_user_id,kind,session_id,body) values($1,$2,$3,'session',$4,'Preserved Session Feedback')",[org,a,coach,scoring]);
+ // Names are profile data, not Auth/account metadata; verify scoped RPC and RLS.
+ await user(a,"update public.profiles set display_name='Saved Archer Profile' where id=$1",[a]);
+ check((await read(coach)).roster.find(p=>p.userId===a).displayName==='Saved Archer Profile','Live roster uses saved Archer Profile name');
+ check((await user(coach,'select * from public.read_coach_athlete_roster($1)',[org])).rows.find(p=>p.user_id===a).display_name==='Saved Archer Profile','Authorized nullable profile roster is authoritative');
+ await user(a,"update public.profiles set display_name='Updated Archer Profile' where id=$1",[a]);
+ check((await read(coach)).roster.find(p=>p.userId===a).displayName==='Updated Archer Profile','Next authoritative read reflects profile update');
+ check((await user(coach,'select display_name from public.profiles where id=$1',[a])).rows.length===0,'Coach has no direct profile-table read bypass');
+ await deny(()=>user(a,'select * from public.read_coach_athlete_roster($1)',[org]),'Athlete cannot read coach roster names');
+ await user(a,"update public.profiles set display_name='Archer' where id=$1",[a]);
+ check((await user(coach,'select * from public.read_coach_athlete_roster($1)',[org])).rows.find(p=>p.user_id===a).display_name==='Archer','A genuine saved Archer name is not missing');
+ await user(a,'update public.profiles set display_name=null where id=$1',[a]);
+ check((await user(coach,'select * from public.read_coach_athlete_roster($1)',[org])).rows.find(p=>p.user_id===a).display_name===null,'Scoped roster distinguishes missing name from generic fallback');
+ const capacityAthletes=Array.from({length:33},(_,i)=>id(300+i));
+ for(const athlete of capacityAthletes){await admin('insert into auth.users(id) values($1)',[athlete]);await admin("insert into public.organization_members(organization_id,user_id,role,status) values($1,$2,'archer','active')",[org,athlete]);}
+ const createCapacity=athletes=>user(coach,"select public.live_coaching_command('create',null,$1,'Capacity boundary','2026-10-29',$2::uuid[]) v",[org,athletes]);
+ const capacityLive=(await createCapacity(capacityAthletes.slice(0,32))).rows[0].v;
+ check((await read(coach,capacityLive)).participants.length===32,'32 invited athletes accepted by database');
+ await assert.rejects(()=>createCapacity(capacityAthletes));passed++;
+ await assert.rejects(()=>createCapacity([a,a]));passed++;
+ await remove(coach,capacityLive,1);
  for(const state of ['created','waiting','active','completed','cancelled']){
   const live=await cmd(coach,'create');let lease;
   if(state!=='created')await cmd(coach,'waiting',live);
