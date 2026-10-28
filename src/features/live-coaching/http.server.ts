@@ -25,7 +25,10 @@ export async function liveCoachingRequest(request:Request){
   }
   const url=new URL(request.url);id=url.searchParams.get('id');org=url.searchParams.get('organizationId');
   if(id&&!uuid(id)||org&&!uuid(org))return reply({error:'Invalid session.'},400);
-  const result=await client.rpc('read_live_coaching',{p_id:id,p_org:org});
+  const invitations=url.searchParams.get('invitations')==='1';
+  const membershipOrg=url.searchParams.get('membershipOrganizationId');
+  if(membershipOrg&&!uuid(membershipOrg)||invitations&&(id||org))return reply({error:'Invalid invitation context.'},400);
+  const result=invitations?await client.rpc('read_live_coaching_invitations',{p_org:membershipOrg}):await client.rpc('read_live_coaching',{p_id:id,p_org:org});
   if(result.error)return reply({error:result.error.code==='42501'?'Live access unavailable.':'Live Coaching could not be loaded. Its local migration must be installed before use.'},result.error.code==='42501'?403:503);
   const data=result.data;
   if(id&&data?.participants)data.participants=data.participants.map((p:{scoring:DbSession|null})=>({...p,scoring:p.scoring?mapSession(p.scoring):null}));

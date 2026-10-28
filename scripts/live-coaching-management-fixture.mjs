@@ -29,6 +29,17 @@ export async function testLiveManagement(db,pg,configuration){
    if(state==='completed')await cmd(coach,'complete',live);
    if(state==='cancelled')await cmd(coach,'cancel',live);
   }
+  if(state==='created'){
+   await admin("update public.profiles set display_name='Coach Full Name' where id=$1",[coach]);
+   const invitations=(await user(a,'select public.read_live_coaching_invitations($1) v',[org])).rows[0].v.sessions;
+   check(invitations.some(s=>s.id===live&&s.coach_name==='Coach Full Name'&&s.participation_state==='invited'),'Own pending invitations include real coach name and invitation status');
+   check(!('scoring' in invitations[0])&&!('email' in invitations[0])&&!('hr' in invitations[0]),'Invitation summaries expose no scoring, HR or contact fields');
+   check((await user(other,'select public.read_live_coaching_invitations(null) v')).rows[0].v.sessions.length===0,'Uninvited coach cannot read another athlete invitations');
+   check((await user(a,'select public.read_live_coaching_invitations($1) v',[otherOrg])).rows[0].v.sessions.length===0,'Organisation filter cannot reveal another organisation');
+   await db.query('set role anon');await deny(()=>db.query('select public.read_live_coaching_invitations(null)'),'Anonymous invitation access denied');
+   check((await admin("select not has_function_privilege('service_role','public.read_live_coaching_invitations(uuid)','EXECUTE') ok")).rows[0].ok,'No service role invitation bypass');
+  }
+  if(state==='active')check((await user(a,'select public.read_live_coaching_invitations($1) v',[org])).rows[0].v.sessions.some(s=>s.id===live&&s.participation_state==='joined'),'Joined status updates through authoritative summary');
   const version=(await read(coach,live)).session.version;
   await deny(()=>remove(a,live,version),'Athlete cannot delete training');
   await deny(()=>remove(other,live,version),'Another coach cannot delete creator-owned training');
@@ -66,5 +77,7 @@ export async function testLiveManagement(db,pg,configuration){
  const revoked=await cmd(coach,'create');await admin("update public.organization_members set status='left',left_at=clock_timestamp() where organization_id=$1 and user_id=$2",[org,coach]);await deny(()=>remove(coach,revoked,1),'Revoked coach cannot delete');
  await db.query('set role anon');await deny(()=>db.query('select public.delete_live_coaching($1,$2,1)',[revoked,org]),'Anonymous deletion denied');
  check((await admin("select not has_function_privilege('service_role','public.delete_live_coaching(uuid,uuid,bigint)','EXECUTE') ok")).rows[0].ok,'No service-role deletion bypass');
+ await admin("update public.organization_members set status='left',left_at=clock_timestamp() where organization_id=$1 and user_id=$2",[org,a]);
+ check((await user(a,'select public.read_live_coaching_invitations($1) v',[org])).rows[0].v.sessions.length===0,'Membership revocation removes invitation access');
  await admin('select 1');return passed;
 }

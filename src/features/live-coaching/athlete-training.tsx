@@ -12,6 +12,7 @@ type Change=(action:string,extra?:Record<string,unknown>)=>Promise<boolean>;
 /** Athlete-only controls. The authoritative reader supplies only this athlete's participation. */
 export function AthleteTraining({data,busy,onChange}:{data:LiveData;busy:boolean;onChange:Change}) {
  const me=data.participants.find(p=>p.athleteId===data.viewerId);
+ const [leaving,setLeaving]=useState(false);
  const [choosing,setChoosing]=useState(false),[selection,setSelection]=useState(''),[creating,setCreating]=useState(false),[hasCreated,setHasCreated]=useState(false),[error,setError]=useState('');
  const submitting=useRef(false),created=useRef<string|null>(null);
  const open=['waiting','active'].includes(data.session.state);
@@ -32,7 +33,8 @@ export function AthleteTraining({data,busy,onChange}:{data:LiveData;busy:boolean
   {open&&me.state==='invited'&&<><p>Join first. You choose which scoring Session to share afterward. Garmin Health is not shared.</p><div className={styles.toolbar}><button disabled={busy} onClick={()=>void onChange('join')}>Join Training</button><button disabled={busy} onClick={()=>void onChange('decline')}>Decline</button></div></>}
   {me.state==='joined'&&<>
    {me.scoringSessionId?<><p>Scoring connected: <strong>{me.scoring?.title??'Your scoring Session'}</strong></p><Link className={styles.primaryLink} href={'/sessions?session='+me.scoringSessionId}>Continue Scoring</Link></>:<p>Awaiting scoring connection. Your scores remain private until you connect a Session.</p>}
-   {open&&<><div className={styles.toolbar}><button disabled={busy||creating} aria-expanded={choosing} onClick={()=>setChoosing(!choosing)}>{me.scoringSessionId?'Change scoring connection':'Connect Scoring Session'}</button><button disabled={busy||creating} onClick={()=>void onChange('leave')}>Leave Training</button></div>
+   {open&&<><div className={styles.toolbar}><button disabled={busy||creating} aria-expanded={choosing} onClick={()=>setChoosing(!choosing)}>{me.scoringSessionId?'Change scoring connection':'Connect Scoring Session'}</button><button disabled={busy||creating} onClick={()=>setLeaving(true)}>Leave Training</button></div>
+    {leaving&&<section className={styles.deleteConfirmation} aria-label='Confirm leaving training'><h3>Leave this training?</h3><p>This ends your live scoring and heart-rate sharing for this training. Your scoring Sessions, arrows, notes and feedback remain saved. You will remain in your organisation.</p><div className={styles.toolbar}><button disabled={busy||creating} onClick={async()=>{if(await onChange('leave'))setLeaving(false);}}>Confirm leave training</button><button disabled={busy||creating} onClick={()=>setLeaving(false)}>Stay in training</button></div></section>}
     {choosing&&<div className={styles.connectionOptions}>
      <p>Connecting shares this training Session&apos;s saved scores with your coach.</p>
      <label>Your training Sessions on {data.session.training_date}<select value={selection} onChange={e=>setSelection(e.target.value)} disabled={busy||creating}><option value=''>Choose a Session</option>{data.eligibleSessions.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></label>

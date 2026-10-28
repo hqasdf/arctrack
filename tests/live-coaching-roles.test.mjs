@@ -71,3 +71,5 @@ test('Athlete HR consent reads use a separate owner RPC; team-monitor failures r
  assert.equal((await liveHeartRateRequest(new Request(url+'&view=athlete'))).status,200);assert.equal(calls[0].name,'read_live_athlete_hr');
  assert.equal((await liveHeartRateRequest(new Request(url))).status,403);assert.equal(calls[1].name,'read_live_monitor');
 });
+
+test('Leaving training requires confirmation and preserves the scoring association until confirmed',async()=>{const f=athlete('joined',{scoring:{id:'own',title:'Own scoring'}});f.render();await f.click('Leave Training');f.render();assert.equal(f.calls.length,0);assert.match(f.text(),/remain saved/);await f.click('Stay in training');f.render();assert.equal(f.calls.length,0);await f.click('Leave Training');f.render();await f.click('Confirm leave training');assert.deepEqual(f.calls,[{action:'leave'}]);});

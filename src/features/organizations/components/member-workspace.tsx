@@ -11,7 +11,7 @@ export function MemberWorkspace({ organization }: { organization: OwnOrganizatio
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function leave() {
-    if (!window.confirm(`Leave ${organization.name}?`)) return;
+    if (!window.confirm(`Leave ${organization.name}? This ends your organisation and live training access. Your own scoring history stays saved.`)) return;
     setPending(true); setError(null);
     const result = await leaveOrganization(organization.id);
     setPending(false);
@@ -20,7 +20,7 @@ export function MemberWorkspace({ organization }: { organization: OwnOrganizatio
   }
   return <section className={styles.panel}>
     <h2>Your membership</h2>
-    <p>You are an active Archer in {organization.name}.</p>
+    <p>You are an active Archer in {organization.name}.</p><p>Leaving this organisation ends team access. To leave only one training, use Leave Training on its card below. Your own scoring history stays saved.</p>
     {error ? <p role="alert">{error}</p> : null}
     <button className={styles.secondary} type="button" disabled={pending} onClick={leave}>Leave organisation</button>
   </section>;

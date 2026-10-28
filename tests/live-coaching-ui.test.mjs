@@ -18,7 +18,7 @@ function fixture(state='active',coachContext=true,indexView=false) {
  const {createReconciler}=loadSessionModule('src/features/live-coaching/reconcile.ts');
  const value={session:{organization_id:'org',id:'fixture',title:'Training',state,version:1,training_date:'2026-10-26'},coach:coachContext,viewerId:coachContext?'coach':'athlete',organizationName:'Team',participants:[],eligibleSessions:[]};
  const {LiveCoaching}=loadSessionModule('src/features/live-coaching/live-coaching.tsx',{
-  'next/navigation':{useRouter:()=>({push(){}})},'./model':{scoringProgress:()=>({})},'./reconcile':{createReconciler},
+  'next/navigation':{useRouter:()=>({push(){}})},'./model':{scoringProgress:()=>({})},'./athlete-identity':loadSessionModule('src/features/live-coaching/athlete-identity.ts'),'./reconcile':{createReconciler},
   './monitoring-dashboard':{LiveMonitor:()=>null},'./presence':{LivePresence:()=>null},'./athlete-training':{AthleteTraining:()=>null},'./heart-rate/sensor-test':{SensorTest:()=>null},'./training-list':{TrainingList:()=>null},
  },hooks,{document,window,EventSource:Source,setInterval:fn=>{timers.add(fn);return fn;},clearInterval:fn=>timers.delete(fn),fetch:async(url,options)=>{calls.push({url,options});return {ok:!deniedRead,status:deniedRead?403:200,json:async()=>options?.method==='POST'?{id:'fixture'}:indexView?{sessions:[value.session],roster:[]}:value};}});
  const render=()=>{cursor=0;tree=LiveCoaching({sessionId:indexView?undefined:'fixture',organizationId:coachContext?'org':undefined});while(effects.length)effects.shift()();return tree;};
