@@ -237,6 +237,7 @@ try {
   assert(!revokedReplay[0].ok && revokedReplay[0].code === '42501', 'Replay after committed relationship revocation is denied');
   assert(await scalar(`select hour_count=100 from private.coach_feedback_creation_budgets where user_id=${quote(coachA)}`), 'Revoked replay does not charge budget');
 
+  const managementResults = await (await import('./live-coaching-management-fixture.mjs')).testLiveManagement(owner, pg, configuration);
   const roleResults = await (await import('./live-coaching-role-fixture.mjs')).testLiveRoles(owner);
   const liveResults = await (await import('./live-coaching-fixture.mjs')).testLiveCoaching(owner, pg, configuration);
   const liveHrResults = await (await import('./live-coaching-hr-fixture.mjs')).testLiveHeartRate(owner, pg, configuration);
@@ -249,6 +250,7 @@ try {
     liveMonitorAssertions: monitorResults,
     liveHeartRateAssertions: liveHrResults,
     liveCoachingRoleAssertions: roleResults,
+    liveCoachingManagementAssertions: managementResults,
     liveCoachingAssertions: liveResults,
     runtime: await scalar('select version()'), migrations: migrations.length,
     sqlFixtureAssertions: fixtureCount, concurrencyAndHarnessAssertions: assertions, failed: 0,

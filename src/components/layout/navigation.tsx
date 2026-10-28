@@ -60,7 +60,6 @@ export function Navigation({ authenticated = false, coachAccess = false }: { aut
             </Link>
           );
         })}
-        {authenticated && <Link href="/live-coaching" className={styles.navLink}>Live Training</Link>}
         {authenticated && <ThemeSelector />}
       </div>
       <button
@@ -84,7 +83,6 @@ export function Navigation({ authenticated = false, coachAccess = false }: { aut
             <Icon name={icon} size={18} />{label}
           </Link>;
         })}
-        {authenticated && <Link href="/live-coaching" className={styles.mobileMenuLink} onClick={() => setOpen(false)}>Live Training</Link>}
         {authenticated && <ThemeSelector expanded />}
         <div className={styles.mobileMenuSignOut}>
           {authenticated ? <SignOutButton /> : <Link href="/sign-in" className={styles.mobileMenuLink} onClick={() => setOpen(false)}>Sign in</Link>}

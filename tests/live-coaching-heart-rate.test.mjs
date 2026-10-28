@@ -5,7 +5,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {loadSessionModule,settle} from './helpers/session-layout-runtime.mjs';
 const measurement=loadSessionModule('src/features/live-coaching/heart-rate/measurement.ts');
 const {HeartRateSensorManager}=loadSessionModule('src/features/live-coaching/heart-rate/sensor-manager.ts',{'./measurement':measurement});
-const panel=loadSessionModule('src/features/live-coaching/heart-rate/panel.tsx',{'./measurement':measurement,'./sensor-manager':{HeartRateSensorManager},'./batch':loadSessionModule('src/features/live-coaching/heart-rate/batch.ts')});
+const panel=loadSessionModule('src/features/live-coaching/heart-rate/panel.tsx',{'./measurement':measurement,'./sensor-manager':{HeartRateSensorManager},'./tested-device':{testedDevice:()=>undefined},'./batch':loadSessionModule('src/features/live-coaching/heart-rate/batch.ts')});
 const view=bytes=>new DataView(Uint8Array.from(bytes).buffer);
 
 test('BLE Heart Rate Measurement parses both standard formats and optional fields',()=>{
@@ -31,9 +31,9 @@ test('HR card uses actual fresh values and labels absent or revoked readings as 
 test('Coach and athlete controls remain separate and consent is unconfirmed until the server answers',()=>{
  const data={session:{id:'live',state:'active'},coach:true,viewerId:'coach',participants:[{athleteId:'a',displayName:'Athlete A',state:'joined'}]};
  const coachHtml=renderToStaticMarkup(React.createElement(panel.HeartRatePanel,{data,onReadings(){}}));
- assert.match(coachHtml,/Athlete for sensor/);assert.match(coachHtml,/Connect sensor/);assert.match(coachHtml,/Apple Watch support requires a relay/);
+ assert.match(coachHtml,/Athlete for sensor/);assert.match(coachHtml,/Connect Heart Rate/);assert.match(coachHtml,/Apple Watch support requires a relay/);
  const athleteHtml=renderToStaticMarkup(React.createElement(panel.HeartRatePanel,{data:{...data,coach:false,viewerId:'a'},onReadings(){}}));
- assert.match(athleteHtml,/Checking HR consent/);assert.match(athleteHtml,/disabled=""[^>]*>Share HR/);assert.doesNotMatch(athleteHtml,/Connect sensor/);
+ assert.match(athleteHtml,/Checking HR consent/);assert.match(athleteHtml,/disabled=""[^>]*>Share HR/);assert.doesNotMatch(athleteHtml,/Connect Heart Rate/);
 });
 class Characteristic extends EventTarget {
  starts=0;stops=0;
@@ -63,6 +63,31 @@ test('Hardware disconnect, revocation and disposal remove notifications and rele
 });
 test('Interrupted authorization releases the late lease without starting sensor notifications',async()=>{
  let resolve;const pending=new Promise(r=>{resolve=r;});const f=fixture({authorize:()=>pending});const connecting=f.manager.connect('a');await settle();assert.equal(f.states.at(-1).state,'connecting');f.manager.dispose();resolve({generation:'old',sourceId:'old'});await connecting;await settle();assert.equal(f.devices[0].characteristic.starts,0);assert.equal(f.released.length,1);
+});
+
+test('Post-selection authorization timeout is bounded and releases a late lease without recording HR',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ let resolve;const pending=new Promise(r=>{resolve=r;});const f=fixture({authorize:()=>pending});
+ const connecting=f.manager.connect('a');await settle();t.mock.timers.tick(30000);await connecting;
+ assert.equal(f.states.at(-1).state,'error');assert.match(f.states.at(-1).message,/timed out/);
+ resolve({generation:'late',sourceId:'late'});await settle();assert.equal(f.devices[0].characteristic.starts,0);assert.equal(f.samples.length,0);assert.equal(f.released.length,1);f.manager.dispose();
+});
+
+test('Late GATT completion after timeout cannot disconnect a new connection to the same sensor',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const d=device('reused'),connect=d.gatt.connect.bind(d.gatt);let finish,calls=0;
+ const pending=new Promise(resolve=>{finish=resolve;});d.gatt.connect=()=>++calls===1?pending:connect();
+ const f=fixture({requestDevice:async()=>d});const old=f.manager.connect('a');await settle();t.mock.timers.tick(30000);await old;
+ await f.manager.connect('a');assert.equal(f.states.at(-1).state,'connected');
+ finish(await connect());await settle();assert.equal(d.gatt.connected,true);assert.equal(d.characteristic.starts,1);
+ d.characteristic.emit([0,81]);await settle();assert.equal(f.samples.length,1);f.manager.dispose();
+});
+
+test('Chooser cancellation and blocked Bluetooth permissions have safe actionable messages',async()=>{
+ for(const [name,pattern] of [['NotFoundError',/No sensor was selected/],['NotAllowedError',/Bluetooth access was blocked/]]){
+  const f=fixture({requestDevice:async()=>{throw Object.assign(Error('provider detail must not appear'),{name});}});await f.manager.connect('a');
+  assert.match(f.states.at(-1).message,pattern);assert.doesNotMatch(f.states.at(-1).message,/provider detail/);f.manager.dispose();
+ }
 });
 test('Cancelling a pending chooser prevents a late device from connecting and permits a later retry',async()=>{
  let resolve,picks=0;const choice=new Promise(r=>{resolve=r;}),d=device('cancelled');

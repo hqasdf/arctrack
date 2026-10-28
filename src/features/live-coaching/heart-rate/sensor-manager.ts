@@ -23,18 +23,20 @@ export class HeartRateSensorManager {
     publish(athleteId: string, lease: SensorLease, sample: { bpm: number; sequence: number; receivedAt: string }): Promise<void>;
     release(athleteId: string, lease: SensorLease): Promise<void>;
     state(value: SensorState): void;
+    connectedDevice?(device: HrDevice): void;
     now?: () => number;
   }) {}
 
-  async connect(athleteId: string): Promise<void> {
+  async connect(athleteId: string, permittedDevice?: HrDevice): Promise<void> {
     if (this.disposed || this.choosing || this.pending.has(athleteId)) return;
     if (!this.entries.has(athleteId) && this.entries.size >= 12) throw Error('Disconnect a sensor before adding another. Device limits vary.');
     this.pending.add(athleteId); this.cancelled.delete(athleteId); this.choosing = true;
     this.options.state({athleteId,state:'connecting'});
     let device: HrDevice | undefined, ownsChooser=true;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
       // Must be called directly from an explicit click; no automatic discovery or prompts.
-      device = await this.options.bluetooth.requestDevice({filters:[{services:[0x180d]}]});
+      device = permittedDevice ?? await this.options.bluetooth.requestDevice({filters:[{services:[0x180d]}]});
       this.choosing = false;ownsChooser=false;
       if (this.disposed || this.cancelled.has(athleteId)) return;
       if ([...this.entries].some(([other,e])=>other!==athleteId && e.device.id===device!.id)) throw Error('This sensor is already assigned to another athlete.');
@@ -45,26 +47,42 @@ export class HeartRateSensorManager {
       this.entries.set(athleteId,entry);
       entry.disconnected=()=>{this.disconnect(athleteId);};
       device.addEventListener('gattserverdisconnected',entry.disconnected);
+      const establish=async()=>{
       const sourceId=crypto.randomUUID();
       entry.lease=await this.options.authorize(athleteId,sourceId);
       if (!this.current(athleteId,entry)) {void this.options.release(athleteId,entry.lease).catch(()=>{});return;}
-      if (!device.gatt) throw Error('This device does not expose a compatible GATT server.');
-      const server=await device.gatt.connect();
-      if (!this.current(athleteId,entry)) {device.gatt.disconnect();return;}
+      const gatt=entry.device.gatt;
+      if (!gatt) throw Error('This device does not expose a compatible GATT server.');
+      const server=await gatt.connect();
+      if (!this.current(athleteId,entry)) {if(!this.reassigned(entry))gatt.disconnect();return;}
       const service=await server.getPrimaryService(0x180d);
       entry.characteristic=await service.getCharacteristic(0x2a37);
       if (!this.current(athleteId,entry)) return;
       entry.listener=()=>{void this.sample(athleteId,entry);};
       entry.characteristic.addEventListener('characteristicvaluechanged',entry.listener);
       await entry.characteristic.startNotifications();
-      if (!this.current(athleteId,entry)) {void entry.characteristic.stopNotifications().catch(()=>{});return;}
+      if (!this.current(athleteId,entry)) {if(!this.reassigned(entry))void entry.characteristic.stopNotifications().catch(()=>{});return;}
+      this.options.connectedDevice?.(entry.device);
       this.options.state({athleteId,state:'connected'});
-    } catch {
+      };
+      // The user controls the native chooser. Once selected, every remaining step
+      // is bounded; late results still pass the existing current-entry fences.
+      await Promise.race([establish(),new Promise<never>((_,reject)=>{
+        deadline=setTimeout(()=>reject(Object.assign(Error('Connection timed out'),{name:'TimeoutError'})),30000);
+      })]);
+    } catch(error) {
       this.disconnect(athleteId);
-      if (!this.disposed) this.options.state({athleteId,state:'error',message:'Sensor connection did not complete. Check consent, browser support and sensor broadcasting, then retry.'});
-    } finally {this.pending.delete(athleteId);this.cancelled.delete(athleteId);if(ownsChooser)this.choosing=false;}
+      const reason=error instanceof Error?error.name:'';
+      const message=reason==='TimeoutError'?'Sensor connection timed out. Check broadcasting and consent, then reconnect.':
+        reason==='NotFoundError'?'No sensor was selected or available. Enable standard Bluetooth heart-rate broadcasting and try again.':
+        reason==='SecurityError'||reason==='NotAllowedError'?'Bluetooth access was blocked. Use HTTPS in supported Chrome or Edge and check site permissions.':
+        reason==='NetworkError'?'The Bluetooth connection failed. Keep the sensor nearby and reconnect.':
+        'Sensor connection did not complete. Check consent, browser support and sensor broadcasting, then retry.';
+      if (!this.disposed) this.options.state({athleteId,state:'error',message});
+    } finally {clearTimeout(deadline);this.pending.delete(athleteId);this.cancelled.delete(athleteId);if(ownsChooser)this.choosing=false;}
   }
   private current(id: string, entry: Entry) {return !this.disposed && !entry.stopped && this.entries.get(id)===entry;}
+  private reassigned(entry: Entry) {return [...this.entries.values()].some(other=>other!==entry&&other.device.id===entry.device.id);}
   private async sample(id: string, entry: Entry) {
     if (!this.current(id,entry) || !entry.characteristic?.value || !entry.lease) return;
     const sample=parseHeartRate(entry.characteristic.value), now=(this.options.now??Date.now)();

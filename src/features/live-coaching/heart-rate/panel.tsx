@@ -5,29 +5,34 @@ import type {LiveData} from '../model';
 import {historyAuthorityMatches,heartRateFresh,type HeartRateReading,type ReadingStore} from './measurement';
 import {HeartRateBatcher} from './batch';
 import {HeartRateSensorManager,type BluetoothAdapter,type SensorState} from './sensor-manager';
+import {testedDevice} from './tested-device';
 import type {MonitorSnapshot} from '../monitor-model';
 import styles from '../live-coaching.module.css';
 export type SensorControls={connect:(id:string)=>void;disconnect:(id:string)=>void};
 const subscribeSupport=()=>()=>{};
 const browserSupport=()=>typeof navigator!=='undefined'&&'bluetooth' in navigator&&window.isSecureContext;
 
-export function HeartRatePanel({data,onReadings,onSnapshot,onSensors,onSupport,controlsRef,windowSeconds=900,historyBefore}:{data:LiveData;onReadings:(rows:HeartRateReading[])=>void;onSnapshot?:(value:MonitorSnapshot)=>void;onSensors?:(value:Record<string,SensorState>)=>void;onSupport?:(supported:boolean)=>void;controlsRef?:Ref<SensorControls>;windowSeconds?:number;historyBefore?:string|null}) {
+export function HeartRatePanel({data,onReadings,onSnapshot,onSensors,onSupport,controlsRef,windowSeconds=900,historyBefore,historyEnabled=true}:{data:LiveData;onReadings:(rows:HeartRateReading[])=>void;onSnapshot?:(value:MonitorSnapshot)=>void;onSensors?:(value:Record<string,SensorState>)=>void;onSupport?:(supported:boolean)=>void;controlsRef?:Ref<SensorControls>;windowSeconds?:number;historyBefore?:string|null;historyEnabled?:boolean}) {
   const [rows,setRows]=useState<HeartRateReading[]>([]),[states,setStates]=useState<Record<string,SensorState>>({});
   const [selected,setSelected]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const [loaded,setLoaded]=useState(false);
   const supported=useSyncExternalStore(subscribeSupport,browserSupport,()=>false);
   const manager=useRef<HeartRateSensorManager|null>(null),current=useRef<HeartRateReading[]>([]),refresh=useRef<()=>Promise<void>>(async()=>{});
   const liveId=data.session.id,coach=data.coach,viewerId=data.viewerId,active=data.session.state==='active',terminal=['completed','cancelled'].includes(data.session.state);
-  useImperativeHandle(controlsRef,()=>({connect:id=>{void manager.current?.connect(id).catch(()=>setError('Disconnect a sensor before adding another. Hardware connection limits vary.'));},disconnect:id=>manager.current?.disconnect(id)}),[]);
+  const scope=data.viewerId+':'+data.session.organization_id;
+  useImperativeHandle(controlsRef,()=>({connect:id=>{void manager.current?.connect(id,testedDevice(scope)).catch(()=>setError('Disconnect a sensor before adding another. Hardware connection limits vary.'));},disconnect:id=>manager.current?.disconnect(id)}),[scope]);
   useEffect(()=>{onSensors?.(active?states:{});},[states,onSensors,active]);
   useEffect(()=>{onSupport?.(supported);},[supported,onSupport]);
-  const settings=useRef({windowSeconds,historyBefore});
-  useEffect(()=>{settings.current={windowSeconds,historyBefore};void refresh.current();},[windowSeconds,historyBefore]);
+  const settings=useRef({windowSeconds,historyBefore,historyEnabled});
+  useEffect(()=>{settings.current={windowSeconds,historyBefore,historyEnabled};void refresh.current();},[windowSeconds,historyBefore,historyEnabled]);
   useEffect(()=>{
     let alive=true,reading=false,historyReading=false,lastHistory=0,lastMetadata=0,historyKey='';const pending=new Set<AbortController>();
     const post=async(action:string,athleteId:string,extra:Record<string,unknown>={})=>{
-      const response=await fetch('/api/live-coaching/heart-rate',{method:'POST',keepalive:action==='disconnect',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,liveId,athleteId,...extra})});
-      const result=await response.json();if(!response.ok)throw Object.assign(Error(result.error??'Live HR unavailable.'),{status:response.status});return result;
+      const abort=new AbortController();pending.add(abort);const deadline=setTimeout(()=>abort.abort(),5000);
+      try{
+        const response=await fetch('/api/live-coaching/heart-rate',{method:'POST',keepalive:action==='disconnect',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,liveId,athleteId,...extra}),signal:abort.signal});
+        const result=await response.json();if(!response.ok)throw Object.assign(Error(result.error??'Live HR unavailable.'),{status:response.status});return result;
+      }finally{clearTimeout(deadline);pending.delete(abort);}
     };
     const batcher=new HeartRateBatcher(async(samples,signal)=>{
       const response=await fetch('/api/live-coaching/heart-rate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'batch',liveId,samples}),signal});
@@ -67,7 +72,7 @@ export function HeartRatePanel({data,onReadings,onSnapshot,onSensors,onSupport,c
           current.current=readings;setLoaded(true);onReadings(readings);
           if(changed||Date.now()-lastMetadata>=5000){setRows(readings);onSnapshot?.(value);lastMetadata=Date.now();}
           setError('');instance?.retain(new Set(readings.filter(r=>r.consent).map(r=>r.athleteId)));
-          const view=settings.current,key=JSON.stringify(view);if(key!==historyKey||Date.now()-lastHistory>=(view.windowSeconds>=10800?30000:5000))void readHistory(view,key);
+          const view=settings.current,key=JSON.stringify(view);if(view.historyEnabled&&(key!==historyKey||Date.now()-lastHistory>=(view.windowSeconds>=10800?30000:5000)))void readHistory(view,key);
         }
       }catch(e){if(alive&&document.visibilityState==='visible'){clear();setError(e instanceof Error?e.message:'HR sharing unavailable.');}}
       finally{clearTimeout(deadline);reading=false;pending.delete(abort);}
@@ -93,7 +98,8 @@ export function HeartRatePanel({data,onReadings,onSnapshot,onSensors,onSupport,c
     {coach?terminal?<p>Training has ended. Live sensor connections are closed; separately consented history remains available only until expiry or revocation.</p>:<>
       {!supported&&<p role='status'>This browser cannot connect to Bluetooth HR sensors. Use an HTTPS page in a browser with Web Bluetooth support, such as supported Chrome or Edge installations.</p>}
       <label>Athlete for sensor<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=''>Select an athlete</option>{data.participants.filter(p=>p.state==='joined').map(p=><option key={p.athleteId} value={p.athleteId}>{p.displayName}{rows.find(r=>r.athleteId===p.athleteId)?.consent?' — consent granted':' — awaiting consent'}</option>)}</select></label>
-      <div className={styles.toolbar}><button disabled={!supported||!candidate?.consent||data.session.state!=='active'||sensor?.state==='connecting'} onClick={()=>{void manager.current?.connect(selected).catch(()=>setError('Disconnect a sensor before adding another. Hardware connection limits vary.'));}}>{sensor?.state==='connected'?'Replace sensor':'Connect sensor'}</button><button disabled={!selected||sensor?.state!=='connected'} onClick={()=>manager.current?.disconnect(selected)}>Disconnect sensor</button></div>
+      <div className={styles.toolbar}><button disabled={!supported||!candidate?.consent||data.session.state!=='active'||sensor?.state==='connecting'} onClick={()=>{void manager.current?.connect(selected,testedDevice(scope)).catch(()=>setError('Disconnect a sensor before adding another. Hardware connection limits vary.'));}}>{sensor?.state==='connected'?'Reconnect Heart Rate':'Connect Heart Rate'}</button>{testedDevice(scope)&&<button disabled={!supported||!candidate?.consent||data.session.state!=='active'||sensor?.state==='connecting'} onClick={()=>{void manager.current?.connect(selected);}}>Choose another sensor</button>}<button disabled={!selected||sensor?.state!=='connected'} onClick={()=>manager.current?.disconnect(selected)}>Disconnect sensor</button></div>
+      {!selected?<p role='status'>Choose a joined athlete before connecting a sensor.</p>:!loaded?<p role='status'>Checking current HR consent...</p>:!candidate?.consent?<p role='status'>This athlete must allow HR sharing in their Live Training view first.</p>:!active?<p role='status'>Start live training before connecting heart rate.</p>:null}
       {sensor&&<p role='status'>{sensor.state}{sensor.message?' — '+sensor.message:''}</p>}
       <ul>{Object.values(states).filter(s=>s.state==='connected').map(s=><li key={s.athleteId}>{data.participants.find(p=>p.athleteId===s.athleteId)?.displayName}: sensor connected <button onClick={()=>manager.current?.disconnect(s.athleteId)}>Disconnect</button></li>)}</ul>
       <p className={styles.muted}>Enable standard Bluetooth HR broadcasting on the sensor. Connections are initiated manually. Multiple sensors depend on the browser, adapter and device limits; twelve simultaneous connections are not guaranteed.</p>
@@ -118,6 +124,6 @@ export function HeartRateStatus({reading:fallback,store,athleteId='',compact=fal
     return()=>clearTimeout(timer);
   },[reading?.receivedAt]);
   const fresh=heartRateFresh(reading,Math.max(time,Date.parse(reading?.receivedAt??'')||0));
-  if(compact)return <span>{fresh?reading!.bpm+' BPM':'Unavailable'}</span>;
+  if(compact)return <span><strong>{fresh?reading!.bpm+' BPM':'—'}</strong><small>{!reading?'HR unavailable':!reading.consent?'Not shared':fresh?'Live':reading.sourceId?'Waiting for fresh HR':'Sensor disconnected'}</small></span>;
   return <div className={styles.hrStatus}><strong>{fresh?`${reading!.bpm} BPM`:!reading?'HR unavailable':!reading.consent?'Not shared':!reading.sourceId?'No sensor':'HR unavailable'}</strong><span>{!reading?'HR status not verified':!reading.consent?'HR sharing off':fresh?'Live sensor reading':reading.sourceId?'Waiting for a fresh reading':'Sensor disconnected'}</span>{reading?.receivedAt&&<small>Last received {new Intl.DateTimeFormat('en-SG',{timeZone:'Asia/Singapore',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(reading.receivedAt))} SGT</small>}</div>;
 }

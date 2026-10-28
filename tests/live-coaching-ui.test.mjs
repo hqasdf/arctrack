@@ -3,9 +3,9 @@ import test from 'node:test';
 import React from 'react';
 import {loadSessionModule,settle,treeNodes,treeText} from './helpers/session-layout-runtime.mjs';
 
-function fixture(state='active',coachContext=true) {
+function fixture(state='active',coachContext=true,indexView=false) {
  const slots=[],effects=[],listeners=new Map(),timers=new Set(),calls=[],sources=[];
- let cursor=0,tree;
+ let cursor=0,tree,deniedRead=false;
  const document={visibilityState:'visible',addEventListener:(n,f)=>listeners.set('document:'+n,f),removeEventListener:n=>listeners.delete('document:'+n)};
  const window={addEventListener:(n,f)=>listeners.set('window:'+n,f),removeEventListener:n=>listeners.delete('window:'+n)};
  const hooks={...React,
@@ -19,10 +19,10 @@ function fixture(state='active',coachContext=true) {
  const value={session:{organization_id:'org',id:'fixture',title:'Training',state,version:1,training_date:'2026-10-26'},coach:coachContext,viewerId:coachContext?'coach':'athlete',organizationName:'Team',participants:[],eligibleSessions:[]};
  const {LiveCoaching}=loadSessionModule('src/features/live-coaching/live-coaching.tsx',{
   'next/navigation':{useRouter:()=>({push(){}})},'./model':{scoringProgress:()=>({})},'./reconcile':{createReconciler},
-  './monitoring-dashboard':{LiveMonitor:()=>null},'./presence':{LivePresence:()=>null},'./athlete-training':{AthleteTraining:()=>null},
- },hooks,{document,window,EventSource:Source,setInterval:fn=>{timers.add(fn);return fn;},clearInterval:fn=>timers.delete(fn),fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>value};}});
- const render=()=>{cursor=0;tree=LiveCoaching({sessionId:'fixture',organizationId:coachContext?'org':undefined});while(effects.length)effects.shift()();return tree;};
- return {render,calls,sources,timers,listeners,document,text:()=>treeText(tree),async click(label){const button=treeNodes(tree).find(n=>n.type==='button'&&treeText(n)===label);assert.ok(button,'Missing '+label);await button.props.onClick();},dispose(){for(const s of slots)s?.cleanup?.();}};
+  './monitoring-dashboard':{LiveMonitor:()=>null},'./presence':{LivePresence:()=>null},'./athlete-training':{AthleteTraining:()=>null},'./heart-rate/sensor-test':{SensorTest:()=>null},'./training-list':{TrainingList:()=>null},
+ },hooks,{document,window,EventSource:Source,setInterval:fn=>{timers.add(fn);return fn;},clearInterval:fn=>timers.delete(fn),fetch:async(url,options)=>{calls.push({url,options});return {ok:!deniedRead,status:deniedRead?403:200,json:async()=>options?.method==='POST'?{id:'fixture'}:indexView?{sessions:[value.session],roster:[]}:value};}});
+ const render=()=>{cursor=0;tree=LiveCoaching({sessionId:indexView?undefined:'fixture',organizationId:coachContext?'org':undefined});while(effects.length)effects.shift()();return tree;};
+ return {render,calls,sources,timers,listeners,document,denyRead(){deniedRead=true;},nodes:()=>treeNodes(tree),text:()=>treeText(tree),async click(label){const button=treeNodes(tree).find(n=>n.type==='button'&&treeText(n)===label);assert.ok(button,'Missing '+label);await button.props.onClick();},dispose(){for(const s of slots)s?.cleanup?.();}};
 }
 
 test('Inline lifecycle confirmation does not mutate until explicitly confirmed',async()=>{
@@ -45,3 +45,14 @@ test('Backgrounding clears private data; returning reconciles and unmount remove
 });
 
 test('Athlete view never mounts team monitoring or coach lifecycle controls',async()=>{const ui=fixture('active',false);ui.render();await settle();const tree=ui.render();assert.doesNotMatch(ui.text(),/Coach.s Workspace|Complete live training|Cancel training/);assert.ok(!treeNodes(tree).some(n=>n.type?.name==='LiveMonitor'));assert.ok(treeNodes(tree).some(n=>n.type?.name==='AthleteTraining'));assert.ok(ui.calls[0].url.includes('id=fixture'));assert.ok(!ui.calls[0].url.includes('organizationId='));ui.dispose();});
+
+
+test('Create Training opens and closes the existing creation form without a request',async()=>{
+ const ui=fixture('active',true,true);ui.render();await settle();ui.render();assert.match(ui.text(),/Create Training/);assert.ok(!ui.nodes().some(n=>n.type==='form'));await ui.click('Create Training');ui.render();assert.ok(ui.nodes().some(n=>n.type==='form'));await ui.click('Close creation');ui.render();assert.ok(!ui.nodes().some(n=>n.type==='form'));assert.equal(ui.calls.filter(c=>c.options?.method==='POST').length,0);ui.dispose();
+});
+test('Successful deletion immediately removes list entry and a stale index cannot restore it',async()=>{
+ const ui=fixture('active',true,true);ui.render();await settle();ui.render();const list=ui.nodes().find(n=>n.props.sessions);assert.equal(list.props.sessions.length,1);await list.props.onDelete(list.props.sessions[0]);await settle();ui.render();assert.equal(ui.nodes().find(n=>n.props.sessions).props.sessions.length,0);assert.match(ui.text(),/Training deleted/);const request=JSON.parse(ui.calls.find(c=>c.options?.method==='POST').options.body);assert.equal(request.action,'delete');assert.equal(request.organizationId,'org');assert.equal(request.expected,1);ui.dispose();
+});
+test('A deleted or revoked training clears cached data and closes the stale event stream',async()=>{
+ const ui=fixture();ui.render();await settle();ui.render();ui.denyRead();await ui.click('Refresh');await settle();ui.render();assert.ok(ui.sources.every(s=>s.closed));assert.doesNotMatch(ui.text(),/Team/);ui.dispose();
+});

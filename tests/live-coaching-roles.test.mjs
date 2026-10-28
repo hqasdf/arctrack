@@ -61,8 +61,8 @@ test('Main navigation exposes coach wording only for server-verified coach membe
   '@/components/ui/icon':{Icon:()=>null},'@/features/auth/components/sign-out-button':{SignOutButton:()=>null},
  });
  const athlete=renderToStaticMarkup(React.createElement(Navigation,{authenticated:true,coachAccess:false}));
- assert.doesNotMatch(athlete,/Coach&#x27;s Workspace/);assert.match(athlete,/Organisations/);assert.match(athlete,/Live Training/);
- const coach=renderToStaticMarkup(React.createElement(Navigation,{authenticated:true,coachAccess:true}));assert.match(coach,/Coach&#x27;s Workspace/);
+ assert.doesNotMatch(athlete,/Coach&#x27;s Workspace/);assert.match(athlete,/Organisations/);assert.doesNotMatch(athlete,/Live Training|href="\/live-coaching"/);
+ const coach=renderToStaticMarkup(React.createElement(Navigation,{authenticated:true,coachAccess:true}));assert.match(coach,/Coach&#x27;s Workspace/);assert.doesNotMatch(coach,/Live Training|href="\/live-coaching"/);
 });
 
 test('Athlete HR consent reads use a separate owner RPC; team-monitor failures remain denied',async()=>{

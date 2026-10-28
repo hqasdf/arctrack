@@ -22,6 +22,9 @@ export async function seedMonitorDemo(owner,withActor,{id,coach,org,actors,sessi
  for(let i=0;i<(process.env.LIVE_COACHING_DEMO_1HZ==='true'?roster.length:roster.length-1);i++){
   const athlete=roster[i];
   for(let slot=1;slot<=Math.min(8,2+i);slot++)await withActor(athlete,c=>c.query('select * from public.save_owned_arrow($1,$2,$3,false,null,null,null)',[id(400+i*10+Math.ceil(slot/3)),(slot-1)%3+1,7+(slot+i)%4]));
+  // Physical acceptance may use synthetic identities/scores, never invented HR.
+  // The consenting tester must grant sharing through the athlete UI.
+  if(process.env.LIVE_COACHING_DEMO_PHYSICAL==='true')continue;
   if(i===6&&process.env.LIVE_COACHING_DEMO_1HZ!=='true')continue;
   await withActor(athlete,c=>c.query("select public.live_hr_command('consent',$1,$2) v",[live,athlete]));
   const reading=await withActor(athlete,async c=>(await c.query('select public.read_live_athlete_hr($1) v',[live])).rows[0].v.readings[0]);
@@ -39,6 +42,7 @@ export async function seedMonitorDemo(owner,withActor,{id,coach,org,actors,sessi
 
 /** Explicitly synthetic pulses; never imported by application code. */
 export function startMonitorDemoPulse(owner,withActor,live,coach){
+ if(process.env.LIVE_COACHING_DEMO_PHYSICAL==='true')return async()=>{};
  let stopped=false,running=false,tick=0;
  const timer=setInterval(async()=>{
   if(stopped||running)return;running=true;
