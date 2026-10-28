@@ -7,10 +7,10 @@ import { fileURLToPath } from "node:url";
 // Arc Track-owned patch. Review the native contract again before changing either
 // version or checksum. A dependency upgrade must not silently omit this fix.
 export const secureStorePatch = Object.freeze({
-  version: "57.0.4",
+  version: "58.0.2",
   source: "android/src/main/java/expo/modules/securestore/SecureStoreModule.kt",
-  originalSha256: "72c670b538732977ef132759ce810c5719943ce6082195a58ad5a432d4ac1075",
-  patchedSha256: "338aca227f471d88a5303db18dc68d899a0c40140b70bb64ec42d718d19d45fb",
+  originalSha256: "2c1f4172b3779de3e65052ecd0ce61ffef311565052a3fb5d0956c11f26f0deb",
+  patchedSha256: "5d542a69148b728680235f97bd614ce1c20b62d3ad7db6b16aa16c25d62c7d8a",
 });
 
 const before = "      saveEncryptedItem(encryptedItem, prefs, keychainAwareKey, options.requireAuthentication, options.keychainService)";

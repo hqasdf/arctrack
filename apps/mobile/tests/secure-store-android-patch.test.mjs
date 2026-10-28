@@ -20,7 +20,7 @@ const original = patched.replace(replacement,
   "      saveEncryptedItem(encryptedItem, prefs, keychainAwareKey, options.requireAuthentication, options.keychainService)");
 const hash = value => createHash("sha256").update(value).digest("hex");
 
-function fixture(t, { version = "57.0.4", source = original } = {}) {
+function fixture(t, { version = secureStorePatch.version, source = original } = {}) {
   const directory = mkdtempSync(join(tmpdir(), "arc-securestore-patch-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const target = join(directory, secureStorePatch.source);
@@ -48,8 +48,8 @@ test("fresh dependency source is patched reproducibly and repeated application i
 });
 
 test("unsupported dependency version fails without changing source", t => {
-  const f = fixture(t, { version: "57.0.5" });
-  assert.throws(() => patchSecureStoreAndroid(f.directory), /requires expo-secure-store@57\.0\.4/);
+  const f = fixture(t, { version: "58.0.3" });
+  assert.throws(() => patchSecureStoreAndroid(f.directory), /requires expo-secure-store@58\.0\.2/);
   assert.equal(f.read(), original);
 });
 

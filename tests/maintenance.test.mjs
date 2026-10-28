@@ -53,6 +53,6 @@ test("the lint consumer uses patched Zod 4 and rejects oversized invalid collect
   assert.equal(alternative.success, false); assert.equal(alternative.error.issues.length, 1);
   assert.equal(schema.safeParse([1, 2]).success, true);
   assert.equal(typeof lintRequire("zod-validation-error/v4").fromError(invalid.error).message, "string");
-  const expoRequire = createRequire(require.resolve("@expo/cli"));
+  const expoRequire = createRequire(createRequire(require.resolve("expo/package.json")).resolve("@expo/cli"));
   assert.equal(expoRequire("zod/package.json").version, "3.25.76", "do not force Expo onto an incompatible Zod major");
 });

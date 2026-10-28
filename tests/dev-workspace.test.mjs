@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const json=p=>JSON.parse(readFileSync(new URL('../'+p,import.meta.url),'utf8'));
+test('Next TypeScript configuration stays independent of the Expo application',()=>{const web=json('tsconfig.json'),mobile=json('apps/mobile/tsconfig.json');assert.equal(web.extends,undefined);assert.ok(web.include.includes('src/**/*.tsx'));assert.ok(!web.include.includes('**/*.tsx'));assert.equal(mobile.extends,'expo/tsconfig.base');});
+test('SDK 58 native dependencies have one canonical installation in the lockfile',()=>{const lock=json('package-lock.json');for(const name of ['expo','expo-constants','expo-modules-core','@expo/dom-webview','@expo/log-box','react-native','expo-secure-store']){const copies=Object.entries(lock.packages).filter(([path])=>path.endsWith('/node_modules/'+name)||path==='node_modules/'+name);assert.equal(copies.length,1,name);}});
+test('Shared React stays unchanged and SecureStore remains pinned with lifecycle guard',()=>{const root=json('package.json'),mobile=json('apps/mobile/package.json');assert.equal(root.dependencies.react,'19.3.0');assert.equal(root.dependencies['react-dom'],'19.3.0');assert.equal(mobile.dependencies.react,'19.3.0');assert.equal(mobile.dependencies['expo-secure-store'],'58.0.2');assert.match(root.scripts.postinstall,/patch-secure-store-android/);assert.equal(root.overrides['eslint-plugin-react-hooks'].zod,'4.6.6');});

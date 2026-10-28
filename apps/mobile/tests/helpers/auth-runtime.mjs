@@ -12,16 +12,17 @@ const mobileRoot = new URL("../../", import.meta.url);
 const { getRoutes } = require("expo-router/build/getRoutesCore");
 const { StackRouter } = require("expo-router/build/react-navigation/routers/StackRouter");
 const { sortRoutesWithInitial } = require("expo-router/build/sortRoutes");
+const routeNode = require("expo-router/build/routeNode");
 
 function evaluate(source, dependencies) {
-  const module = { exports: {} };
+  const evaluatedModule = { exports: {} };
   const localRequire = (name) => {
     if (name in dependencies) return dependencies[name];
     if (name === "react/jsx-runtime") return require(name);
     throw new Error(`Unmocked native dependency: ${name}`);
   };
-  new Function("require", "module", "exports", "__DEV__", source)(localRequire, module, module.exports, false);
-  return module.exports;
+  new Function("require", "module", "exports", "__DEV__", source)(localRequire, evaluatedModule, evaluatedModule.exports, false);
+  return evaluatedModule.exports;
 }
 
 function loadTs(relative, dependencies) {
@@ -147,8 +148,8 @@ export function providerRuntime({ storedRecovery = null, restoredUser = null, re
 export function routingRuntime(authState) {
   let stack;
   function Stack(props) { stack = props; return null; }
-  Stack.Screen = () => null;
-  Stack.Protected = () => null;
+  Stack.Screen = function Screen() { return null; };
+  Stack.Protected = function Protected() { return null; };
   const auth = { useAuth: () => authState, AuthProvider: ({ children }) => children };
   const router = { Stack, usePathname: () => "/sign-in", Redirect: () => null,
     ThemeProvider: ({ children }) => children, DarkTheme: { colors: {} }, DefaultTheme: { colors: {} } };
@@ -171,25 +172,28 @@ export function routingRuntime(authState) {
   const node = getRoutes(context, { platform: "ios", ignoreEntryPoints: true, skipGenerated: true });
   const memoReact = { ...React, useMemo: (callback) => callback() };
   const filterModule = readFileSync(require.resolve("expo-router/build/layouts/withLayoutContext"), "utf8");
-  const { useFilterScreenChildren } = evaluate(filterModule, {
-    react: memoReact, "../Route": {}, "../useScreens": {}, "./IsWithinLayoutContext": {},
+  const guardApi = evaluate(readFileSync(require.resolve("expo-router/build/layouts/GuardContext"), "utf8"), { react: memoReact, "../Route": {}, "../matchers": require("expo-router/build/matchers"), "../routeNode": routeNode });
+  const { useFilterScreenChildren: filterScreenChildren } = evaluate(filterModule, {
+    react: memoReact, "../Route": {}, "../useScreens": {}, "./IsWithinLayoutContext": {}, "./GuardContext": guardApi,
     "../native-tabs/NativeTabTrigger": { isNativeTabTrigger: () => false },
     "../views/Protected": { isProtectedReactElement: (child) => React.isValidElement(child) && child.type === Stack.Protected },
     "../views/Screen": { isScreen: (child) => React.isValidElement(child) && child.type === Stack.Screen },
   });
-  const { screens, protectedScreens } = useFilterScreenChildren(stack.children);
+  const { screens, guardedRedirects } = filterScreenChildren(stack.children);
   const sortModule = readFileSync(require.resolve("expo-router/build/useScreens"), "utf8");
   const dependencies = Object.fromEntries([...sortModule.matchAll(/require\("([^"]+)"\)/g)].map((match) => [match[1], {}]));
   Object.assign(dependencies, {
     react: memoReact, "react/jsx-runtime": require("react/jsx-runtime"),
     "./Route": { useRouteNode: () => node, sortRoutesWithInitial },
-    "./primitives": { Screen: Stack.Screen },
+    "./primitives": { Screen: Stack.Screen }, "./routeNode": routeNode, "./layouts/GuardContext": guardApi,
   });
-  const { useSortedScreens } = evaluate(sortModule, dependencies);
-  const routeNames = useSortedScreens(screens, protectedScreens).map((screen) => screen.props.name);
+  const { useSortedScreens: sortScreens } = evaluate(sortModule, dependencies);
+  // SDK 58 keeps registered screens and guards them through redirect metadata.
+  // Project the permitted routes using the installed guard predicate, not an app mock.
+  const routeNames = sortScreens(screens, guardedRedirects).map((screen) => screen.props.name).filter(name => !guardApi.isRouteGuarded(name, guardedRedirects));
   return {
-    routeNames, declaredNames: [...screens.map((s) => s.name), ...protectedScreens], node,
-    router: StackRouter({ initialRouteName: stack.initialRouteName }),
+    routeNames, declaredNames: [...screens.map((s) => s.name), ...guardedRedirects.keys()], node,
+    router: StackRouter({ initialRouteName: "index" }),
     indexDestination() {
       const { default: Index } = loadTs("app/index.tsx", {
         "expo-router": router, "../src/auth": auth, "../src/auth-flow": flow,
@@ -200,7 +204,12 @@ export function routingRuntime(authState) {
 }
 
 export function transitionFrom(currentRoute, before, after) {
-  const initial = before.router.getInitialState({ routeNames: before.routeNames, routeParamList: {} });
-  const current = { ...initial, routes: [{ name: currentRoute, key: "current" }], index: 0 };
-  return after.router.getStateForRouteNamesChange(current, { routeNames: after.routeNames, routeParamList: {}, routeKeyChanges: [] });
+  // SDK 58 exposes declared-route filtering rather than getInitialState /
+  // getStateForRouteNamesChange. Exercise those installed router primitives.
+  const current = {key:'test-stack',routeKeySeq:1,type:'stack',stale:false,routeNames:before.routeNames,routes:[{name:currentRoute,key:'current'}],index:0};
+  const filtered = {...after.router.getStateForDeclaredRoutes(current, after.routeNames), routeNames:after.routeNames};
+  if (filtered.routes.length) return filtered;
+  const result = after.router.getStateForAction(filtered,{type:'RESET',payload:{...filtered,routeNames:after.routeNames,index:0,routes:[{name:'index'}],stale:false}},{routeNames:after.routeNames,routeParamList:{}});
+  if (!result?.state) throw Error('Installed router did not resolve its declared index fallback');
+  return result.state;
 }

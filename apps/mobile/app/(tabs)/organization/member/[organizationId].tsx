@@ -7,6 +7,8 @@ import { leaveOrganization, readOwnOrganizations, type OwnOrganization } from "@
 import { useCoachStyles } from "@/src/coach-ui";
 import { organizationAppearance } from "@/src/organization-appearance";
 
+import {MobileTrainingInvitations} from '@/src/live-coaching-ui';
+
 export default function ArcherMemberScreen() {
   const coachStyles = useCoachStyles();
   const { colors } = useAppearance();
@@ -39,9 +41,9 @@ export default function ArcherMemberScreen() {
   }
   if (loading) return <View style={coachStyles.state}><ActivityIndicator color={colors.accent}/></View>;
   if (!membership) return <View style={coachStyles.state}><Text style={coachStyles.muted}>{error ?? "This membership is no longer active."}</Text>
-    <Pressable onPress={() => router.replace("/(tabs)/organization")}><Text style={coachStyles.link}>Coach&apos;s Workspace</Text></Pressable></View>;
+    <Pressable onPress={() => router.replace("/(tabs)/organization")}><Text style={coachStyles.link}>Organisations</Text></Pressable></View>;
   return <ScrollView style={{ flex: 1, backgroundColor: palette.background }} contentContainerStyle={coachStyles.content}>
-    <Text style={[coachStyles.eyebrow, { color: palette.muted }]}>COACH&apos;S WORKSPACE</Text>
+    <Text style={[coachStyles.eyebrow, { color: palette.muted }]}>ORGANISATIONS</Text>
     <Text style={[coachStyles.title, { color: palette.text }]}>{membership.name}</Text>
     <Pressable accessibilityRole="button" onPress={() => router.push("/organization/manage")} style={[coachStyles.chip, { borderColor: palette.border, backgroundColor: palette.surface }]}><Text style={{ color: palette.primary, fontWeight: "700" }}>Manage memberships</Text></Pressable>
     <View style={{ padding: 19, borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, gap: 14 }}>
@@ -53,5 +55,6 @@ export default function ArcherMemberScreen() {
         <Text style={{ color: palette.primary, fontWeight: "700" }}>Leave organisation</Text>
       </Pressable>
     </View>
+    {user&&<MobileTrainingInvitations key={user.id+':'+organizationId} userId={user.id} organizationId={organizationId}/>}
   </ScrollView>;
 }

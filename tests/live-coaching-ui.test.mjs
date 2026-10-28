@@ -56,3 +56,5 @@ test('Successful deletion immediately removes list entry and a stale index canno
 test('A deleted or revoked training clears cached data and closes the stale event stream',async()=>{
  const ui=fixture();ui.render();await settle();ui.render();ui.denyRead();await ui.click('Refresh');await settle();ui.render();assert.ok(ui.sources.every(s=>s.closed));assert.doesNotMatch(ui.text(),/Team/);ui.dispose();
 });
+
+test('Stable Live Coaching rerenders do not refetch or recreate event streams',async()=>{const ui=fixture();ui.render();await settle();ui.render();const reads=ui.calls.length,streams=ui.sources.length;for(let i=0;i<20;i++)ui.render();await settle();assert.equal(ui.calls.length,reads);assert.equal(ui.sources.length,streams);for(const tick of ui.timers)tick();await settle();assert.equal(ui.calls.length,reads+1);ui.dispose();});

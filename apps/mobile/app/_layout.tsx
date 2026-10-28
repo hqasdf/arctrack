@@ -5,6 +5,8 @@ import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth";
 import { AppearanceProvider, useAppearance } from "../src/appearance";
 
+export const unstable_settings = { initialRouteName: "index" };
+
 function Routes() {
   const { colors } = useAppearance();
   const { loading, user, recoveryRequired, authError, retry } = useAuth();
@@ -22,7 +24,7 @@ function Routes() {
   </View>;
   // A different accepted account must not inherit mounted screens/data from the
   // previous account. Refresh and ordinary navigation keep this identity stable.
-  return <Stack key={user?.id ?? "signed-out"} initialRouteName="index" screenOptions={{ headerShown: false }}>
+  return <Stack key={user?.id ?? "signed-out"} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="index" />
     <Stack.Protected guard={!!user && !recoveryRequired}>
       <Stack.Screen name="(tabs)" />

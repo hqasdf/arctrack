@@ -6,7 +6,7 @@ import {
 } from "@arc-track/core/scoring";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { deleteArrowRecord, readRoundEndIds, saveArrowRecord } from "../../../src/arrow-writes";
 import { enqueueArrowWrite, waitForRoundWrites } from "../../../src/arrow-save-queue";
@@ -72,7 +72,7 @@ export default function ScoreRoundScreen() {
   const [configureDraft, setConfigureDraft] = useState<RoundSettingsInput | null>(null);
   const [configureError, setConfigureError] = useState<string | null>(null);
   const [savingConfigure, setSavingConfigure] = useState(false);
-  const pageScroll = useRef<ScrollView>(null);
+  const pageScroll = useRef<ScrollViewInstance>(null);
   const pageOffset = useRef({ x: 0, y: 0 });
   const setTargetMultiTouch = useCallback((active: boolean) => {
     // Update the native scroller in the touch callback, not after a React render.

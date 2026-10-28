@@ -10,7 +10,7 @@ const forks = {};
 new Function("require", "exports", readFileSync(forksPath, "utf8"))(name => {
   if (name === "../utils/url") return require("expo-router/build/utils/url.js");
   if (name === "../matchers") return require("expo-router/build/matchers.js");
-  return require(name);
+  return createRequire(forksPath)(name);
 }, forks);
 
 test("installed Expo query parser preserves valid route queries and repeated parameters", () => {

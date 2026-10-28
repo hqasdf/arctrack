@@ -29,7 +29,7 @@ type Props = {
 };
 
 type Tap = { startX: number; startY: number; moved: boolean; hadMultiTouch: boolean } | null;
-type Gesture = { viewport: TargetViewport; centre: { x: number; y: number }; distance: number; ids: string[] } | null;
+type Gesture = { viewport: TargetViewport; centre: { x: number; y: number }; distance: number; ids: number[] } | null;
 
 function touchPair(event: GestureResponderEvent, width: number, height: number) {
   const [a, b] = event.nativeEvent.touches;
