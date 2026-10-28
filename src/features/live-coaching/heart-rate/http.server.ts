@@ -12,7 +12,7 @@ export async function liveHeartRateRequest(request: Request) {
     if(request.method==='GET') {
       const query=new URL(request.url).searchParams,id=query.get('id'),window=Number(query.get('window')??900);if(!uuid(id)||![60,300,900,1800,10800,86400].includes(window))return reply({error:'Invalid live session or interval.'},400);
       if(query.get('before')&&(query.get('before')!.length>32||!Number.isFinite(Date.parse(query.get('before')!))))return reply({error:'Invalid history boundary.'},400);
-      const result=await client.rpc('read_live_monitor',{p_live:id,p_window:window,p_history:query.get('history')==='true',p_before:query.get('before')??null});
+      const result=await client.rpc(query.get('view')==='athlete'?'read_live_athlete_hr':'read_live_monitor',{p_live:id,p_window:window,p_history:query.get('history')==='true',p_before:query.get('before')??null});
       return result.error?reply({error:'Live HR access unavailable.'},403):reply(result.data);
     }
     if(request.method!=='POST')return reply({error:'Method unavailable.'},405);

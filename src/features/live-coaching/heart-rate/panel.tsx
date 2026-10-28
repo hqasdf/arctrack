@@ -50,7 +50,7 @@ export function HeartRatePanel({data,onReadings,onSnapshot,onSensors,onSupport,c
       if(historyReading)return;historyReading=true;lastHistory=Date.now();historyKey=key;
       const abort=new AbortController();pending.add(abort);const deadline=setTimeout(()=>abort.abort(),10000);
       try{
-        const response=await fetch('/api/live-coaching/heart-rate?id='+liveId+'&window='+view.windowSeconds+'&history=true'+(view.historyBefore?'&before='+encodeURIComponent(view.historyBefore):''),{cache:'no-store',signal:abort.signal});
+        const response=await fetch('/api/live-coaching/heart-rate?id='+liveId+(coach?'':'&view=athlete')+'&window='+view.windowSeconds+'&history=true'+(view.historyBefore?'&before='+encodeURIComponent(view.historyBefore):''),{cache:'no-store',signal:abort.signal});
         const value=await response.json();if(!response.ok||!Array.isArray(value.history)||!Array.isArray(value.readings)||!Array.isArray(value.endActivity))throw Error('Timeline access unavailable.');
         if(alive&&!abort.signal.aborted&&document.visibilityState==='visible'&&key===JSON.stringify(settings.current))onSnapshot?.({...value,readings:current.current,history:value.history.filter((h:{athleteId:string})=>{const checked:HeartRateReading|undefined=value.readings.find((r:HeartRateReading)=>r.athleteId===h.athleteId),latest=current.current.find(r=>r.athleteId===h.athleteId);return historyAuthorityMatches(checked,latest);})});
       }catch{if(alive&&document.visibilityState==='visible')onSnapshot?.({readings:current.current,history:[],endActivity:[]});}
@@ -60,7 +60,7 @@ export function HeartRatePanel({data,onReadings,onSnapshot,onSensors,onSupport,c
       if(!alive||reading||document.visibilityState!=='visible')return;
       reading=true;const abort=new AbortController();pending.add(abort);const deadline=setTimeout(()=>abort.abort(),5000);
       try{
-        const response=await fetch('/api/live-coaching/heart-rate?id='+liveId+'&window=60&history=false',{cache:'no-store',signal:abort.signal});
+        const response=await fetch('/api/live-coaching/heart-rate?id='+liveId+(coach?'':'&view=athlete')+'&window=60&history=false',{cache:'no-store',signal:abort.signal});
         const value=await response.json();if(!response.ok||!Array.isArray(value.readings)||!Array.isArray(value.endActivity))throw Error('HR sharing could not be verified. Scoring is still available.');
         if(alive&&!abort.signal.aborted&&document.visibilityState==='visible'){
           const readings:HeartRateReading[]=value.readings,changed=JSON.stringify(current.current.map(r=>[r.athleteId,r.consent,r.historyConsent]))!==JSON.stringify(readings.map(r=>[r.athleteId,r.consent,r.historyConsent]));
@@ -119,5 +119,5 @@ export function HeartRateStatus({reading:fallback,store,athleteId='',compact=fal
   },[reading?.receivedAt]);
   const fresh=heartRateFresh(reading,Math.max(time,Date.parse(reading?.receivedAt??'')||0));
   if(compact)return <span>{fresh?reading!.bpm+' BPM':'Unavailable'}</span>;
-  return <div className={styles.hrStatus}><strong>{fresh?`${reading!.bpm} BPM`:'HR unavailable'}</strong><span>{!reading?'HR status not verified':!reading.consent?'HR sharing off':fresh?'Live sensor reading':reading.sourceId?'Waiting for a fresh reading':'Sensor disconnected'}</span>{reading?.receivedAt&&<small>Last received {new Intl.DateTimeFormat('en-SG',{timeZone:'Asia/Singapore',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(reading.receivedAt))} SGT</small>}</div>;
+  return <div className={styles.hrStatus}><strong>{fresh?`${reading!.bpm} BPM`:!reading?'HR unavailable':!reading.consent?'Not shared':!reading.sourceId?'No sensor':'HR unavailable'}</strong><span>{!reading?'HR status not verified':!reading.consent?'HR sharing off':fresh?'Live sensor reading':reading.sourceId?'Waiting for a fresh reading':'Sensor disconnected'}</span>{reading?.receivedAt&&<small>Last received {new Intl.DateTimeFormat('en-SG',{timeZone:'Asia/Singapore',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(reading.receivedAt))} SGT</small>}</div>;
 }

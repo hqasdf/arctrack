@@ -121,6 +121,7 @@ test("public homepage overrides only its metadata while private defaults and gua
   const platform = await load("src/app/(platform)/layout.tsx", {
     "@/lib/auth/session.server": { requireUser: async () => redirect("/sign-in") },
     "@/components/layout/app-shell": { AppShell: () => { shellRendered = true; return null; } },
+    "@/features/organizations/read.server": { readOwnOrganizations: async () => [] },
   });
   await assert.rejects(platform.default({ children: "private content" }), /redirect:\/sign-in/);
   assert.equal(shellRendered, false);

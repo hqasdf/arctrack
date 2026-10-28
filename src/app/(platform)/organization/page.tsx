@@ -19,7 +19,7 @@ export default async function OrganizationPage({ searchParams }: { searchParams:
   return <>
     <div className={styles.intro}>
       <p className={styles.eyebrow}>Your team</p>
-      <h1>Coach&apos;s Workspace</h1>
+      <h1>{coachOrganizations.length ? "Coach's Workspace" : "Organisations"}</h1>
       <p>{coachOrganizations.length > 1 ? "Choose a workspace." : organizations.length ? "Your organisation memberships." : "Join a team with a code or create a workspace."}</p>
     </div>
     <OrganizationWorkspace organizations={organizations}/>

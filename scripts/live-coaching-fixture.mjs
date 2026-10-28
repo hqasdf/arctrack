@@ -6,7 +6,7 @@ export async function testLiveCoaching(db,pg,configuration){
  const admin=async(sql,args=[])=>{await db.query('reset role');return db.query(sql,args);};
  const user=async(actor,sql,args=[])=>{await db.query('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[actor]);return db.query(sql,args);};
  const command=async(actor,action,id=null,expected=null,scoring=null,athletes=[])=> (await user(actor,'select public.live_coaching_command($1,$2,$3,$4,$5,$6,$7,$8) value',[action,id,org,'Live synthetic training','2026-10-26',athletes,scoring,expected])).rows[0].value;
- const read=async(actor,id)=>(await user(actor,'select public.read_live_coaching($1,null) value',[id])).rows[0].value;
+ const read=async(actor,id)=>(await user(actor,'select public.read_live_coaching($1,$2) value',[id,actor===coach?org:null])).rows[0].value;
  const reject=async(work,code,label)=>{let error;try{await work();}catch(e){error=e;}check(error?.code===code,label);};
  await admin("insert into auth.users(id,email) values($1,'live-coach@example.invalid'),($2,'live-a@example.invalid'),($3,'live-b@example.invalid'),($4,'live-outside@example.invalid')",[coach,a,b,outsider]);
  await admin("insert into public.organizations(id,name,created_by) values($1,'Live fixture team',$2),($3,'Other fixture team',$4)",[org,coach,otherOrg,outsider]);

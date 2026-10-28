@@ -7,7 +7,7 @@ export async function testLiveHr1Hz(db){
  const roster=Array.from({length:12},(_,i)=>id(i+1)),leases=[],sequence=new Map();
  const admin=async(sql,args=[])=>{await db.query('reset role');return db.query(sql,args);};
  const user=async(actor,sql,args=[])=>{await db.query('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[actor]);return db.query(sql,args);};
- const command=async(actor,action,live=null,scoring=null)=>{const version=live?(await user(actor,'select public.read_live_coaching($1,null) v',[live])).rows[0].v.session.version:null;return (await user(actor,'select public.live_coaching_command($1,$2,$3,$4,$5,$6,$7,$8) v',[action,live,org,'1 Hz disposable load','2026-10-27',roster,scoring,version])).rows[0].v;};
+ const command=async(actor,action,live=null,scoring=null)=>{const version=live?(await user(actor,'select public.read_live_coaching($1,$2) v',[live,actor===coach?org:null])).rows[0].v.session.version:null;return (await user(actor,'select public.live_coaching_command($1,$2,$3,$4,$5,$6,$7,$8) v',[action,live,org,'1 Hz disposable load','2026-10-27',roster,scoring,version])).rows[0].v;};
  for(let i=0;i<12;i++){await admin('insert into auth.users(id,email) values($1,$2)',[roster[i],`hz-${i}@example.invalid`]);await admin("insert into public.organization_members(organization_id,user_id,role,status) values($1,$2,'archer','active')",[org,roster[i]]);await admin("insert into public.sessions(id,user_id,title,session_date,session_type) values($1,$2,'Synthetic Hz scoring','2026-10-27','training')",[id(100+i),roster[i]]);}
  const live=await command(coach,'create');await command(coach,'waiting',live);for(let i=0;i<12;i++)await command(roster[i],'join',live,id(100+i));await command(coach,'start',live);
  for(let i=0;i<12;i++){
@@ -48,9 +48,9 @@ export async function testLiveHr1Hz(db){
   if(window===10800){check(snapshot.history.every(h=>h.count>=10780),'Three-hour statistics cover the complete interval');check(snapshot.history.every(h=>Date.parse(h.points.at(-1).at)-Date.parse(h.points[0].at)>10700*1000),'Overview includes beginning and end, not only latest 240 samples');}
   if(window===60)check(snapshot.history.every(h=>h.points.length===h.count),'One-minute zoom returns every recorded one-second point');
  }
- const before=new Date(Date.now()-3600000).toISOString(),older=(await user(roster[0],'select public.read_live_monitor($1,60,true,$2) v',[live,before])).rows[0].v;
+ const before=new Date(Date.now()-3600000).toISOString(),older=(await user(roster[0],'select public.read_live_athlete_hr($1,60,true,$2) v',[live,before])).rows[0].v;
  check(older.history.length===1&&older.history[0].points.every(p=>Date.parse(p.at)<=Date.parse(before)),'Higher-resolution historical navigation remains owner-only');
- const consent=(await user(roster[0],'select public.read_live_monitor($1) v',[live])).rows[0].v.readings[0];await user(roster[0],'select public.set_live_hr_history($1,false,$2,$3)',[live,consent.generation,consent.historyVersion]);
+ const consent=(await user(roster[0],'select public.read_live_athlete_hr($1) v',[live])).rows[0].v.readings[0];await user(roster[0],'select public.set_live_hr_history($1,false,$2,$3)',[live,consent.generation,consent.historyVersion]);
  check((await admin('select count(*)::int n from public.live_coaching_hr_samples where live_id=$1 and athlete_id=$2',[live,roster[0]])).rows[0].n===0,'Erasure removes the full high-resolution history');
  await command(coach,'complete',live);check((await batch(samples(2))).every(r=>r.status==='revoked'),'Completion rejects queued multi-athlete uploads');
  return {assertions,workloads,historyRecords:129600,historyLoadMs:Math.round(loadMs*100)/100,queries};

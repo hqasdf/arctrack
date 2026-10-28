@@ -16,7 +16,7 @@ const links = [
   { href: "/profile", label: "Profile", icon: "profile" },
 ] as const;
 
-export function Navigation({ authenticated = false }: { authenticated?: boolean }) {
+export function Navigation({ authenticated = false, coachAccess = false }: { authenticated?: boolean; coachAccess?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const navigationRef = useRef<HTMLElement>(null);
@@ -50,7 +50,8 @@ export function Navigation({ authenticated = false }: { authenticated?: boolean 
   return (
     <nav ref={navigationRef} aria-label="Main navigation" className={styles.navigation}>
       <div className={styles.navLinks}>
-        {links.map(({ href, label, icon }) => {
+        {links.map(({ href, label: defaultLabel, icon }) => {
+          const label = href === "/organization" && !coachAccess ? "Organisations" : defaultLabel;
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link key={href} href={href} className={styles.navLink} aria-current={active ? "page" : undefined}>
@@ -59,6 +60,7 @@ export function Navigation({ authenticated = false }: { authenticated?: boolean 
             </Link>
           );
         })}
+        {authenticated && <Link href="/live-coaching" className={styles.navLink}>Live Training</Link>}
         {authenticated && <ThemeSelector />}
       </div>
       <button
@@ -75,12 +77,14 @@ export function Navigation({ authenticated = false }: { authenticated?: boolean 
         </svg>
       </button>
       <div id="arc-track-mobile-menu" className={`${styles.mobileMenu} ${open ? styles.mobileMenuOpen : ""}`} aria-hidden={!open}>
-        {links.map(({ href, label, icon }) => {
+        {links.map(({ href, label: defaultLabel, icon }) => {
+          const label = href === "/organization" && !coachAccess ? "Organisations" : defaultLabel;
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return <Link key={href} href={href} className={styles.mobileMenuLink} aria-current={active ? "page" : undefined} onClick={() => setOpen(false)}>
             <Icon name={icon} size={18} />{label}
           </Link>;
         })}
+        {authenticated && <Link href="/live-coaching" className={styles.mobileMenuLink} onClick={() => setOpen(false)}>Live Training</Link>}
         {authenticated && <ThemeSelector expanded />}
         <div className={styles.mobileMenuSignOut}>
           {authenticated ? <SignOutButton /> : <Link href="/sign-in" className={styles.mobileMenuLink} onClick={() => setOpen(false)}>Sign in</Link>}

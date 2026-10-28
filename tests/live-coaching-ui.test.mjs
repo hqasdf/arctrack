@@ -3,7 +3,7 @@ import test from 'node:test';
 import React from 'react';
 import {loadSessionModule,settle,treeNodes,treeText} from './helpers/session-layout-runtime.mjs';
 
-function fixture(state='active') {
+function fixture(state='active',coachContext=true) {
  const slots=[],effects=[],listeners=new Map(),timers=new Set(),calls=[],sources=[];
  let cursor=0,tree;
  const document={visibilityState:'visible',addEventListener:(n,f)=>listeners.set('document:'+n,f),removeEventListener:n=>listeners.delete('document:'+n)};
@@ -16,12 +16,12 @@ function fixture(state='active') {
  };
  class Source {constructor(){this.closed=false;sources.push(this);}addEventListener(){}close(){this.closed=true;}}
  const {createReconciler}=loadSessionModule('src/features/live-coaching/reconcile.ts');
- const value={session:{id:'fixture',title:'Training',state,version:1,training_date:'2026-10-26'},coach:true,viewerId:'coach',organizationName:'Team',participants:[],eligibleSessions:[]};
+ const value={session:{organization_id:'org',id:'fixture',title:'Training',state,version:1,training_date:'2026-10-26'},coach:coachContext,viewerId:coachContext?'coach':'athlete',organizationName:'Team',participants:[],eligibleSessions:[]};
  const {LiveCoaching}=loadSessionModule('src/features/live-coaching/live-coaching.tsx',{
   'next/navigation':{useRouter:()=>({push(){}})},'./model':{scoringProgress:()=>({})},'./reconcile':{createReconciler},
-  './monitoring-dashboard':{LiveMonitor:()=>null},'./presence':{LivePresence:()=>null},
+  './monitoring-dashboard':{LiveMonitor:()=>null},'./presence':{LivePresence:()=>null},'./athlete-training':{AthleteTraining:()=>null},
  },hooks,{document,window,EventSource:Source,setInterval:fn=>{timers.add(fn);return fn;},clearInterval:fn=>timers.delete(fn),fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>value};}});
- const render=()=>{cursor=0;tree=LiveCoaching({sessionId:'fixture'});while(effects.length)effects.shift()();return tree;};
+ const render=()=>{cursor=0;tree=LiveCoaching({sessionId:'fixture',organizationId:coachContext?'org':undefined});while(effects.length)effects.shift()();return tree;};
  return {render,calls,sources,timers,listeners,document,text:()=>treeText(tree),async click(label){const button=treeNodes(tree).find(n=>n.type==='button'&&treeText(n)===label);assert.ok(button,'Missing '+label);await button.props.onClick();},dispose(){for(const s of slots)s?.cleanup?.();}};
 }
 
@@ -43,3 +43,5 @@ test('Backgrounding clears private data; returning reconciles and unmount remove
  ui.document.visibilityState='visible';ui.listeners.get('document:visibilitychange')();await settle();ui.render();assert.match(ui.text(),/Team/);
  ui.dispose();assert.equal(ui.listeners.size,0);assert.equal(ui.timers.size,0);assert.ok(ui.sources.every(s=>s.closed));
 });
+
+test('Athlete view never mounts team monitoring or coach lifecycle controls',async()=>{const ui=fixture('active',false);ui.render();await settle();const tree=ui.render();assert.doesNotMatch(ui.text(),/Coach.s Workspace|Complete live training|Cancel training/);assert.ok(!treeNodes(tree).some(n=>n.type?.name==='LiveMonitor'));assert.ok(treeNodes(tree).some(n=>n.type?.name==='AthleteTraining'));assert.ok(ui.calls[0].url.includes('id=fixture'));assert.ok(!ui.calls[0].url.includes('organizationId='));ui.dispose();});

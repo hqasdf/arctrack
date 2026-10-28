@@ -25,7 +25,7 @@ test('Freshness requires current consent, assignment, BPM and a recent reception
 test('HR card uses actual fresh values and labels absent or revoked readings as unavailable',()=>{
  const reading={athleteId:'a',consent:true,generation:'g',sourceId:'s',bpm:88,receivedAt:new Date().toISOString()};
  assert.match(renderToStaticMarkup(React.createElement(panel.HeartRateStatus,{reading})),/88 BPM/);
- assert.match(renderToStaticMarkup(React.createElement(panel.HeartRateStatus,{reading:{...reading,consent:false}})),/HR unavailable/);
+ assert.match(renderToStaticMarkup(React.createElement(panel.HeartRateStatus,{reading:{...reading,consent:false}})),/Not shared/);
  assert.doesNotMatch(renderToStaticMarkup(React.createElement(panel.HeartRateStatus,{})),/\d+ BPM/);
 });
 test('Coach and athlete controls remain separate and consent is unconfirmed until the server answers',()=>{

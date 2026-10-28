@@ -9,9 +9,11 @@ import { SignOutButton } from "@/features/auth/components/sign-out-button";
 export function AppShell({
   children,
   authenticated = false,
+  coachAccess = false,
 }: {
   children: ReactNode;
   authenticated?: boolean;
+  coachAccess?: boolean;
 }) {
   return (
     <div className={styles.shell} data-authenticated-theme={authenticated || undefined}>
@@ -34,7 +36,7 @@ export function AppShell({
               <span className={styles.brandCaption}>Archery Performance Tracker</span>
             </span>
           </Link>
-          <Navigation authenticated={authenticated} />
+          <Navigation authenticated={authenticated} coachAccess={coachAccess} />
           {authenticated ? (
             <div className={styles.desktopSignOut}><SignOutButton /></div>
           ) : (

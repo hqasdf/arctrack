@@ -49,22 +49,14 @@ function ui(state='active'){
  const render=()=>{cursor=0;tree=compiled.LiveMonitor({data:{...data,session:{...data.session,state}},connection:'Connected to updates'});while(effects.length)effects.shift()();return tree;};
  return {render,listeners,timers,document,Element,nodes:()=>treeNodes(tree),text:()=>treeText(tree),async click(label){const b=treeNodes(tree).find(n=>n.type==='button'&&treeText(n)===label);assert.ok(b,label);await b.props.onClick();},dispose(){for(const s of slots)s?.cleanup?.();}};
 }
-test('Dashboard supports card/table selection, name filters and immediate return from athlete detail',async()=>{
- const f=ui();f.render();assert.match(f.text(),/Monitor Alex/);await f.click('Table');f.render();assert.ok(f.nodes().some(n=>n.type==='table'));
- const search=f.nodes().find(n=>n.type==='input'&&n.props.type==='search');search.props.onChange({target:{value:'Beth'}});f.render();assert.doesNotMatch(f.text(),/Monitor Alex/);assert.match(f.text(),/Monitor Beth/);
- await f.click('Monitor Beth');f.render();const detail=f.nodes().find(n=>typeof n.type==='function'&&n.props.participant);assert.equal(detail.props.participant.athleteId,'b');detail.props.onClose();f.render();assert.match(f.text(),/Monitor Beth/);f.dispose();assert.equal(f.listeners.size,0);assert.equal(f.timers.size,0);
+test('Coach overview is a simple list; detailed history controls appear only inside athlete detail',async()=>{
+ const f=ui();f.render();assert.match(f.text(),/Monitor Alex/);assert.match(f.text(),/Monitor Beth/);
+ assert.ok(!f.nodes().some(n=>n.type==='input'&&n.props.type==='search'));
+ assert.doesNotMatch(f.text(),/Find athlete|Sort by|Full-screen monitoring|Earlier HR interval|Grid|Table/);
+ await f.click('Monitor Beth');f.render();const detail=f.nodes().find(n=>typeof n.type==='function'&&n.props.participant);assert.equal(detail.props.participant.athleteId,'b');assert.match(treeText(detail.props.historyControls),/Earlier HR interval/);
+ detail.props.onClose();f.render();assert.match(f.text(),/Monitor Beth/);f.dispose();assert.equal(f.listeners.size,0);assert.equal(f.timers.size,0);
 });
-test('Expanded fullscreen fallback is user-initiated and Escape closes it',async()=>{
- const f=ui();f.render();await f.click('Full-screen monitoring');f.render();assert.match(f.text(),/Browser fullscreen is unavailable/);assert.match(f.text(),/Exit full screen/);f.listeners.get('keydown')({key:'Escape'});f.render();assert.doesNotMatch(f.text(),/Exit full screen/);f.dispose();
-});
-test('Expanded monitoring keeps keyboard focus inside and restores it on Escape',async()=>{
- const f=ui();f.render();const first=new f.Element(),last=new f.Element(),previous=new f.Element(),events=new Map();f.document.activeElement=previous;
- f.nodes()[0].props.ref.current={querySelectorAll:()=>[first,last],addEventListener:(n,fn)=>events.set(n,fn),removeEventListener:n=>events.delete(n)};
- await f.click('Full-screen monitoring');f.render();assert.equal(f.document.activeElement,first);
- let prevented=false;f.document.activeElement=last;events.get('keydown')({key:'Tab',shiftKey:false,preventDefault(){prevented=true;}});assert.ok(prevented);assert.equal(f.document.activeElement,first);
- events.get('keydown')({key:'Tab',shiftKey:true,preventDefault(){}});assert.equal(f.document.activeElement,last);
- f.listeners.get('keydown')({key:'Escape'});f.render();assert.equal(f.document.activeElement,previous);assert.equal(events.size,0);f.dispose();
-});
+
 test('Cached review history is removed immediately when authoritative timeline consent disappears',()=>{
  const f=ui('completed');f.render();const panel=()=>f.nodes().find(n=>n.props.onSnapshot);const h={athleteId:'a',points:[{at:at(0),bpm:70,segment:1}],count:1,minimum:70,maximum:70,average:70};
  panel().props.onSnapshot({readings:[{athleteId:'a',consent:true,historyConsent:true}],history:[h],endActivity:[]});f.render();assert.match(f.text(),/TRAINING REVIEW/);

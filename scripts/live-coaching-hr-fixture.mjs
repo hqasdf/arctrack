@@ -9,7 +9,7 @@ export async function testLiveHeartRate(db,pg,configuration) {
  const rpc=async(actor,action,live,athlete,lease={},bpm=null,sequence=null,observed=null)=>(await user(actor,'select public.live_hr_command($1,$2,$3,$4,$5,$6,$7,$8) v',[action,live,athlete,lease.generation??null,lease.sourceId??null,bpm,sequence,observed])).rows[0].v;
  const read=async(actor,live)=>(await user(actor,'select public.read_live_hr($1) v',[live])).rows[0].v;
  const liveCommand=async(actor,action,live,scoring=null)=>{
-  const version=live?(await user(actor,'select public.read_live_coaching($1,null) v',[live])).rows[0].v.session.version:null;
+  const version=live?(await user(actor,'select public.read_live_coaching($1,$2) v',[live,actor===coach?org:null])).rows[0].v.session.version:null;
   return (await user(actor,'select public.live_coaching_command($1,$2,$3,$4,$5,$6,$7,$8) v',[action,live,org,'BLE fixture','2026-10-26',[a,b],scoring,version])).rows[0].v;
  };
  await admin("update public.organization_members set status='active',left_at=null where organization_id=$1 and user_id=$2",[org,b]);
