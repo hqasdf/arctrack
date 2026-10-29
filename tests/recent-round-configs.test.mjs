@@ -83,7 +83,7 @@ test('actual web Configure Round recalls 9 × 4 into normal fields and submits t
   const round = { ...config, id: roundId, roundNumber: 1, arrows: [] };
   const ui = recentRuntime('src/features/sessions/components/sessions-workspace.tsx', {
     'next/navigation': { useRouter: () => ({ refresh() {} }) }, '@arc-track/core/round-order': { newestRoundsFirst }, '../scoring-model': scoring, '../round-presets': presets,
-    '../actions': { deleteRound: async () => ({ ok: true, data: null }), createRoundWithEnds: async value => { calls.push(value); return { ok: true, data: { ...value, id: randomUUID(), roundNumber: 2, arrows: [] } }; } },
+    '../actions': { deleteRound: async () => {throw Error('Configure must not delete the Round');}, configureEmptyRound: async(id,expected,value) => { assert.equal(id,roundId);assert.equal(expected.ends,config.ends);calls.push(value); return { ok: true, data: { ...value, id:roundId, roundNumber:1, arrows:[] } }; } },
     './recent-round-configs': { RecentRoundConfigs: 'Recent' }, './round-presets-panel': { RoundPresetsPanel: 'Presets' }, './session-category-tabs': { SessionCategoryTabs: 'Tabs' }, './scoring-workspace': { ScoringWorkspace: 'Scoring' },
     '@/features/notes-feedback/session-notes-panel': { SessionNotesPanel: 'Notes' }, '@/features/notes-feedback/coach-feedback-panel': { CoachFeedbackPanel: 'Feedback' }, '@/features/notes-feedback/draft-guard': { confirmDraftNavigation: () => true },
     '@/features/live-coaching/presence': { LivePresence: 'Presence' }, '@/features/session-health/garmin-session-health': { GarminSessionHealth: 'Health' }, '@/features/weather/components/session-weather': { SessionWeatherHistory: 'Weather' },

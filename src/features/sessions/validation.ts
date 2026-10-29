@@ -32,6 +32,7 @@ export function validateRoundInput(input:RoundInput) {
   if (!DIVISIONS.includes(input.division as (typeof DIVISIONS)[number])) return {ok:false as const,message:"Choose a valid division."};
   if (!FACE_TYPES.includes(input.faceType as TargetFaceType)) return {ok:false as const,message:"Choose a valid target-face layout."};
   const numbers=[input.distanceMetres,input.faceDiameterCm,input.ends,input.arrowsPerEnd];
+  if(input.ends>120||input.arrowsPerEnd>60)return {ok:false as const,message:"Rounds support up to 120 Ends and 60 Arrows per End."};
   if (numbers.some((value)=>!Number.isInteger(value)||value<1||value>32767)) return {ok:false as const,message:""};
   return {ok:true as const,value:{...input,name,division:input.division as (typeof DIVISIONS)[number],faceType:input.faceType as TargetFaceType}};
 }

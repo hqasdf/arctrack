@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { newestRoundsFirst } from "@arc-track/core/round-order";
-import { createRoundWithEnds, createSession, deleteRound, deleteSession, updateSessionArrowCount } from "../actions";
+import { configureEmptyRound, createRoundWithEnds, createSession, deleteRound, deleteSession, updateSessionArrowCount } from "../actions";
 import { DIVISIONS, ROUND_PRESETS, TARGET_FACE_OPTIONS, type Division, type RoundPreset } from "../round-presets";
 import { formatArrowAverage, roundTotal, type RoundDraft, type SessionDraft, type SessionType, type TargetFaceType } from "../scoring-model";
 import { RecentRoundConfigs } from "./recent-round-configs";
@@ -77,16 +77,13 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,
     if (replaceRoundId&&!oldRound) { setMessage("This Round is no longer available."); setView("session"); return; }
     if (oldRound&&oldRound.arrows.length>0) { setMessage("Round settings cannot be changed after arrows are recorded."); return; }
     setPending(true);
-    if (oldRound) {
-      const removed=await deleteRound(oldRound.id);
-      if (!removed.ok) { setPending(false); setMessage(removed.message); return; }
-    }
-    const result=await createRoundWithEnds({sessionId:session.id,...roundForm,distanceMetres:Number(distanceText)}); setPending(false);
+    const input={sessionId:session.id,...roundForm,distanceMetres:Number(distanceText)};
+    const result=oldRound?await configureEmptyRound(oldRound.id,{name:oldRound.name,division:oldRound.division,distanceMetres:oldRound.distanceMetres,
+      faceDiameterCm:oldRound.faceDiameterCm,faceType:oldRound.faceType,ends:oldRound.ends,arrowsPerEnd:oldRound.arrowsPerEnd},input):await createRoundWithEnds(input);
+    setPending(false);
     if (!result.ok) {
       if (oldRound) {
-        setSessions((current)=>current.map((item)=>item.id===session.id?{...item,rounds:item.rounds.filter((round)=>round.id!==oldRound.id)}:item));
-        setActiveRoundId(null); setConfiguringRoundId(null); setView("session");
-        setMessage(`${result.message} The previous empty Round was removed; start a new Round to continue.`);
+        setMessage(result.message);
         return;
       }
       setMessage(result.message); return;

@@ -9,10 +9,11 @@ export function ciScope(paths) {
     if (/^(?:package(?:-lock)?\.json|[^/]+\.(?:mjs|ts|json)|\.github\/|scripts\/)/.test(path)) {
       for (const key of Object.keys(result)) result[key] = true;
     } else if (path.startsWith("packages/core/")) {
-      result.core = result.web = result.mobile = true;
-    } else if (path.startsWith("apps/mobile/")) result.mobile = true;
+      result.core = result.web = result.mobile = result.maintenance = true;
+    } else if (path.startsWith("apps/mobile/")) result.mobile = result.maintenance = true;
     else if (/^tests\/(?:maintenance|counter-parity)\.test\.mjs$/.test(path)) result.maintenance = true;
-    else if (path.startsWith("src/") || path.startsWith("tests/") || path.startsWith("public/")) result.web = true;
+    else if (path.startsWith("infra/")) result.web = result.maintenance = true;
+    else if (path.startsWith("src/") || path.startsWith("tests/") || path.startsWith("public/")) result.web = result.maintenance = true;
     else if (path.startsWith("supabase/")) result.maintenance = result.web = true;
   }
   return result;

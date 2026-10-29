@@ -8,7 +8,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { deleteArrowRecord, readRoundEndIds, saveArrowRecord } from "../../../src/arrow-writes";
+import { createMobileArrowPersistence, readRoundEndIds } from "../../../src/arrow-writes";
 import { enqueueArrowWrite, waitForRoundWrites } from "../../../src/arrow-save-queue";
 import { useAuth } from "../../../src/auth";
 import { ArcIcon } from "../../../src/icons";
@@ -60,8 +60,7 @@ export default function ScoreRoundScreen() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const editingKeyRef = useRef<string | null>(null);
   const [latestPlotKey, setLatestPlotKey] = useState<string | null>(null);
-  const endIds = useRef(new Map<number, string>());
-  const persistedIds = useRef(new Map<string, string>());
+  const persistence = useRef<ReturnType<typeof createMobileArrowPersistence> | null>(null);
   const versions = useRef(new Map<string, number>());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -97,8 +96,7 @@ export default function ScoreRoundScreen() {
       const plannedEnds = await readRoundEndIds(roundId);
       if (!current()) return;
       if (plannedEnds.size !== result.round.ends) throw new Error("The planned Ends could not be loaded.");
-      endIds.current = plannedEnds;
-      persistedIds.current = new Map(result.round.arrows.map((arrow) => [arrowKey(arrow.end, arrow.arrow), arrow.id]));
+      persistence.current = createMobileArrowPersistence(result.round.arrows,plannedEnds,userId);
       versions.current = new Map();
       arrowsRef.current = result.round.arrows;
       setArrows(result.round.arrows);
@@ -136,13 +134,11 @@ export default function ScoreRoundScreen() {
   function persist(entry: ArrowEntry) {
     const key = arrowKey(entry.end, entry.arrow);
     const version = nextVersion(key);
-    const generation = lifecycle.current, savedIds = persistedIds.current, plannedIds = endIds.current, slotVersions = versions.current;
+    const generation = lifecycle.current, writer = persistence.current, slotVersions = versions.current;
     enqueue(key, async () => {
       try {
-        const endId = plannedIds.get(entry.end);
-        if (!endId) throw new Error("The planned End could not be found.");
-        const id = await saveArrowRecord(entry, endId, savedIds.get(key), userId);
-        savedIds.set(key, id);
+        if (!writer) throw new Error("The scoring writer is unavailable.");
+        const {id} = await writer.save(entry);
         if (mounted.current && generation === lifecycle.current) commitArrows(applyArrowSaveResult(arrowsRef.current, key, version, slotVersions.get(key) ?? 0, { id }));
       } catch {
         if (mounted.current && generation === lifecycle.current) commitArrows(applyArrowSaveResult(arrowsRef.current, key, version, slotVersions.get(key) ?? 0, { failed: true }));
@@ -193,21 +189,17 @@ export default function ScoreRoundScreen() {
     if (!removed) return;
     const key = arrowKey(removed.end, removed.arrow);
     const version = nextVersion(key);
-    const generation = lifecycle.current, savedIds = persistedIds.current, plannedIds = endIds.current, slotVersions = versions.current;
+    const generation = lifecycle.current, writer = persistence.current, slotVersions = versions.current;
     commitArrows(arrowsRef.current.filter((item) => arrowKey(item.end, item.arrow) !== key));
     selectSlot({ end: removed.end, arrow: removed.arrow });
     setActionError(null);
     enqueue(key, async () => {
-      const id = savedIds.get(key);
-      if (!id) return;
       try {
-        const endId = plannedIds.get(removed.end);
-        if (!endId) throw new Error("The planned End could not be found.");
-        await deleteArrowRecord(id, endId, userId);
-        savedIds.delete(key);
+        if (!writer) throw new Error("The scoring writer is unavailable.");
+        await writer.remove(removed);
       } catch {
         if (mounted.current && generation === lifecycle.current && slotVersions.get(key) === version) {
-          commitArrows(restoreDeletedArrow(arrowsRef.current, removed));
+          commitArrows(restoreDeletedArrow(arrowsRef.current, {...removed,syncState:"failed"}));
           selectSlot({ end: removed.end, arrow: removed.arrow });
           setActionError("The Arrow could not be deleted. Try again.");
         }

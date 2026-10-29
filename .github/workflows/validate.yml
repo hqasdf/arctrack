@@ -3,10 +3,10 @@ name: Validate Arc Track
 on:
   pull_request:
     branches: [main]
-    paths: ['src/**', 'tests/**', 'public/**', 'apps/mobile/**', 'packages/core/**', 'scripts/**', 'supabase/**', '.github/workflows/**', '*.json', '*.mjs', '*.ts']
+    paths: ['src/**', 'tests/**', 'public/**', 'apps/mobile/**', 'packages/core/**', 'scripts/**', 'supabase/**', 'infra/**', '.github/workflows/**', '*.json', '*.mjs', '*.ts']
   push:
     branches: [main]
-    paths: ['src/**', 'tests/**', 'public/**', 'apps/mobile/**', 'packages/core/**', 'scripts/**', 'supabase/**', '.github/workflows/**', '*.json', '*.mjs', '*.ts']
+    paths: ['src/**', 'tests/**', 'public/**', 'apps/mobile/**', 'packages/core/**', 'scripts/**', 'supabase/**', 'infra/**', '.github/workflows/**', '*.json', '*.mjs', '*.ts']
   workflow_dispatch:
     inputs:
       full_regression:

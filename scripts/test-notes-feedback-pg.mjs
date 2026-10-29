@@ -244,7 +244,9 @@ try {
   const monitorResults = await (await import('./live-coaching-monitor-fixture.mjs')).testLiveMonitor(owner, pg, configuration);
   const hzResults = await (await import('./live-coaching-1hz-fixture.mjs')).testLiveHr1Hz(owner);
   const recentResults = await (await import('./recent-round-configs-fixture.mjs')).testRecentRoundConfigs(owner, pg, configuration);
+  const integrityResults = await (await import('./scoring-integrity-fixture.mjs')).testScoringIntegrity(owner,pg,configuration);
   summary = {
+    scoringIntegrityAssertions: integrityResults,
     recentRoundConfigs: recentResults,
     liveHr1Hz: hzResults,
     liveMonitorAssertions: monitorResults,

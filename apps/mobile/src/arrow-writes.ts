@@ -1,6 +1,7 @@
 import type { ArrowEntry } from "@arc-track/core/scoring";
 import { arrowWriteFields } from "./arrow-write-model";
 import { supabase } from "./supabase";
+import { createArrowPersistence, type ArrowSnapshot } from "@arc-track/core/arrow-persistence";
 
 function client() {
   if (!supabase) throw new Error("Arc Track could not connect to Supabase.");
@@ -20,6 +21,29 @@ async function requireCurrentOwner(expectedUserId?: string) {
   if (!expectedUserId) return;
   const { data, error } = await client().auth.getSession();
   if (error || data.session?.user.id !== expectedUserId) throw new Error("The scoring account changed. Sign in again before saving.");
+}
+
+/** Loaded-Round writer with authoritative reconciliation and durable CAS fences. */
+export function createMobileArrowPersistence(initial:ArrowEntry[],endIds:Map<number,string>,owner:string) {
+  function snapshot(raw:unknown,end:number):ArrowSnapshot {
+    const row=raw as {revision:string;arrow:null|{id:string;arrow_number:number;score_points:number;is_x:boolean;plot_x:number|null;plot_y:number|null;face_index:number|null}};
+    if(!row||typeof row.revision!=="string"||!("arrow" in row))throw Error("Arrow confirmation unavailable.");
+    const a=row.arrow;
+    return {revision:row.revision,arrow:a?{id:a.id,end,arrow:a.arrow_number,score:a.is_x?"X":a.score_points===0?"M":String(a.score_points) as ArrowEntry["score"],
+      plot:a.plot_x===null||a.plot_y===null?null:{x:a.plot_x,y:a.plot_y,...(a.face_index===null?{}:{faceIndex:a.face_index as 0|1|2})},syncState:"saved"}:null};
+  }
+  async function call(end:number,name:string,args:Record<string,unknown>) {
+    await requireCurrentOwner(owner);
+    const endId=endIds.get(end);if(!endId)throw Error("The planned End is unavailable.");
+    const {data,error}=await client().rpc(name,{p_end:endId,...args});
+    await requireCurrentOwner(owner);
+    if(error)throw Error("The Arrow change could not be confirmed. Retry to reconcile, or reload this Round.");
+    return snapshot(data,end);
+  }
+  return createArrowPersistence({initial,
+    requestId:()=>{const id=globalThis.expo?.uuidv4?.();if(!id)throw Error("Secure Arrow request generation unavailable.");return id;},
+    read:slot=>call(slot.end,"read_owned_arrow_slot",{p_number:slot.arrow}),
+    write:(slot,desired,intent)=>call(slot.end,"write_owned_arrow_slot",{p_number:slot.arrow,p_expected:intent.expectedRevision,p_request:intent.requestId,p_arrow:desired?arrowWriteFields(desired):null})});
 }
 
 export async function saveArrowRecord(entry: ArrowEntry, endId: string, savedId?: string, expectedUserId?: string): Promise<string> {

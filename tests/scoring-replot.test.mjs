@@ -8,6 +8,7 @@ import * as scoring from "@arc-track/core/scoring";
 import * as nativeState from "../apps/mobile/src/scoring-state.ts";
 import * as nativeQueue from "../apps/mobile/src/arrow-save-queue.ts";
 import { WebArrowQueue } from "../src/features/sessions/web-arrow-queue.ts";
+import { createArrowPersistence } from "@arc-track/core/arrow-persistence";
 
 const require = createRequire(import.meta.url);
 const scripts = {};
@@ -30,6 +31,14 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
   const hooks = [], effects = [], calls = [];
   let user = { id: "owner" }, unmounted = false, lateUpdates = 0;
   const reads = [];
+  const persisted = new Map(round.arrows.map(a=>[scoring.arrowKey(a.end,a.arrow),{revision:"00000000-0000-0000-0000-000000000000",arrow:a}]));
+  const readSlot=async slot=>structuredClone(persisted.get(scoring.arrowKey(slot.end,slot.arrow))??{revision:"00000000-0000-0000-0000-000000000000",arrow:null});
+  const writeSlot=async(slot,desired,intent)=>{
+    const key=scoring.arrowKey(slot.end,slot.arrow),current=await readSlot(slot);
+    assert.equal(current.revision,intent.expectedRevision);
+    const saved=desired?await write(desired):null;
+    const snapshot={revision:intent.requestId,arrow:saved};persisted.set(key,snapshot);return structuredClone(snapshot);
+  };
   const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
   const react = { ...React,
     useState(initial) {
@@ -56,11 +65,13 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
     if (name === "expo-router") return { useLocalSearchParams: () => ({ roundId: round.id }) };
     if (name === "../scoring-model" || name === "@arc-track/core/scoring") return scoring;
     if (name === "../web-arrow-queue") return { WebArrowQueue };
+    if (name === "@arc-track/core/arrow-persistence") return {createArrowPersistence};
     if (name.endsWith("/scoring-state")) return nativeState;
     if (name.endsWith("/arrow-save-queue")) return nativeQueue;
     if (name.endsWith("/auth")) return { useAuth: () => ({ user }) };
     if (name.endsWith("/sessions")) return { readOwnRound: async (owner, id) => { reads.push([owner, id]); return options.read ? options.read(owner, id) : { session: { id: "session", title: "Practice", date: "2026-10-17" }, round }; } };
-    if (name.endsWith("/arrow-writes")) return { readRoundEndIds: async () => new Map(Array.from({ length: round.ends }, (_, i) => [i + 1, `end-${i + 1}`])), saveArrowRecord: async entry => (await write(entry)).id, deleteArrowRecord: async () => {} };
+    if (name.endsWith("/arrow-writes")) return { readRoundEndIds: async () => new Map(Array.from({ length: round.ends }, (_, i) => [i + 1, `end-${i + 1}`])),
+      createMobileArrowPersistence:initial=>createArrowPersistence({initial,read:readSlot,write:writeSlot,requestId:()=>crypto.randomUUID()}) };
     if (name.endsWith("/actions")) return { removeArrow: async () => ({ ok: true }) };
     if (name.endsWith("/target-face")) return { TargetFace: "Target" };
     if (name.endsWith("/native-target")) return { NativeTarget: "Target" };
@@ -80,7 +91,9 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
   };
   const loaded = { exports: {} };
   const fetch = async (_url, options) => {
+    if(!options?.body){const query=new URL(_url,"https://arc.example").searchParams;return {ok:true,json:async()=>({ok:true,snapshot:await readSlot({end:Number(query.get("end")),arrow:Number(query.get("arrow"))})})};}
     const input = JSON.parse(options.body);
+    if(input.intent){try{return {ok:true,json:async()=>({ok:true,snapshot:await writeSlot({end:input.endNumber,arrow:input.arrowNumber},input.deleted?null:{id:"pending",end:input.endNumber,arrow:input.arrowNumber,score:input.score,plot:input.plot},input.intent)})};}catch{return {ok:false,json:async()=>({ok:false})};}}
     try { return { ok: true, json: async () => ({ ok: true, data: await write({ id: scoring.arrowKey(input.endNumber, input.arrowNumber), end: input.endNumber, arrow: input.arrowNumber, score: input.score, plot: input.plot }) }) }; }
     catch { return { ok: false, json: async () => ({ ok: false, message: "Offline" }) }; }
   };

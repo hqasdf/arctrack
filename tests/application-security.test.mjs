@@ -12,9 +12,13 @@ function arrowRoute(save = async () => ({ ok: true, data: { id: "dummy-arrow" } 
   const modules = {
     "next/cache": { revalidatePath: path => calls.push(["revalidate", path]) },
     "@/features/sessions/arrow-save.server": { saveArrowRecord: async input => { calls.push(["save", input]); return save(input); } },
+    "@/features/sessions/arrow-slot.server": {
+      readArrowSlot:async slot=>{calls.push(["read-slot",slot]);return {revision:"revision",arrow:null};},
+      writeArrowSlot:async(slot,desired,intent)=>{calls.push(["write-slot",slot,desired,intent]);return {revision:"revision",arrow:null};},
+    },
   };
   new Function("require", "exports", compiled)(name => { assert.ok(name in modules, name); return modules[name]; }, exports);
-  return { post: exports.POST, calls };
+  return { post: exports.POST, get:exports.GET, calls };
 }
 function request(body = '{}', headers = {}) {
   return new Request("https://arc.example/api/session-arrows", {
@@ -23,6 +27,19 @@ function request(body = '{}', headers = {}) {
   });
 }
 function privateResponse(response) { assert.match(response.headers.get("cache-control"), /private.*no-store/); }
+
+test("revisioned Arrow writes use the same bounded same-origin mutation boundary",async()=>{
+  const route=arrowRoute(),input={roundId:"round",endNumber:1,arrowNumber:2,deleted:true,intent:{requestId:"request",expectedRevision:"expected"}};
+  const response=await route.post(request(JSON.stringify(input)));
+  assert.equal(response.status,200);privateResponse(response);
+  assert.deepEqual(route.calls,[["write-slot",{roundId:"round",end:1,arrow:2},null,input.intent],["revalidate","/sessions"]]);
+  const denied=arrowRoute();assert.equal((await denied.post(request(JSON.stringify(input),{origin:"https://evil.example"}))).status,403);assert.equal(denied.calls.length,0);
+});
+test("authoritative Arrow reads are private and reject cross-site browser requests",async()=>{
+  const route=arrowRoute();const response=await route.get(new Request("https://arc.example/api/session-arrows?roundId=round&end=1&arrow=2"));
+  assert.equal(response.status,200);privateResponse(response);assert.deepEqual(route.calls,[["read-slot",{roundId:"round",end:1,arrow:2}]]);
+  const denied=arrowRoute();assert.equal((await denied.get(new Request("https://arc.example/api/session-arrows",{headers:{"sec-fetch-site":"cross-site"}}))).status,403);assert.equal(denied.calls.length,0);
+});
 
 test("same-origin Arrow requests retain the existing save and revalidation flow", async () => {
   const route = arrowRoute();

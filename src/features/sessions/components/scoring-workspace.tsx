@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { removeArrow as removeArrowAction } from "../actions";
+import { createArrowPersistence, type ArrowSnapshot } from "@arc-track/core/arrow-persistence";
 import { SCORE_LABELS, arrowKey, endTotal, formatArrowAverage, latestPlottedArrow, nextPlottedArrowSlot, roundTotal, scoreFromPlot, xCount, type ArrowEntry, type Plot, type RoundDraft, type ScoreLabel } from "../scoring-model";
 import { WebArrowQueue, type ArrowSaveResult } from "../web-arrow-queue";
 import { TargetFace } from "./target-face";
@@ -20,20 +20,23 @@ export function ScoringWorkspace({sessionId,sessionTitle,sessionDate,round,onCha
   const [latestPlotKey,setLatestPlotKey]=useState<string|null>(null);
   const [leaving,setLeaving]=useState(false);
   const [queue]=useState(()=>{
+    async function confirmation(response:Response):Promise<ArrowSnapshot> {
+      const result=await response.json() as {ok?:boolean;snapshot?:ArrowSnapshot;message?:string};
+      if(!response.ok||!result.ok||!result.snapshot)throw Error(result.message??"Arrow confirmation unavailable.");
+      return result.snapshot;
+    }
+    const persistence=createArrowPersistence({initial:round.arrows,requestId:()=>crypto.randomUUID(),
+      read:async slot=>confirmation(await fetch(`/api/session-arrows?${new URLSearchParams({roundId:round.id,end:String(slot.end),arrow:String(slot.arrow)})}`,
+        {credentials:"same-origin",cache:"no-store",signal:AbortSignal.timeout(15000)})),
+      write:async(slot,desired,intent)=>confirmation(await fetch("/api/session-arrows",{method:"POST",credentials:"same-origin",cache:"no-store",signal:AbortSignal.timeout(15000),
+        headers:{"Content-Type":"application/json"},body:JSON.stringify({roundId:round.id,endNumber:slot.end,arrowNumber:slot.arrow,score:desired?.score,plot:desired?.plot,deleted:desired===null,intent})}))});
     const queue=new WebArrowQueue(round.arrows,async(entry):Promise<ArrowSaveResult>=>{
       try {
-        const response=await fetch("/api/session-arrows",{
-          method:"POST",credentials:"same-origin",cache:"no-store",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({roundId:round.id,endNumber:entry.end,arrowNumber:entry.arrow,score:entry.score,plot:entry.plot}),
-        });
-        const result=await response.json() as ArrowSaveResult;
-        if (response.ok && result.ok && result.data) return result;
-        return {ok:false,message:!result.ok&&result.message?result.message:"The Arrow could not be saved. Check your connection and retry."};
+        return {ok:true,data:await persistence.save(entry)};
       } catch { return {ok:false,message:"The Arrow could not be saved. Check your connection and retry."}; }
     },async(entry)=>{
-      const result=await removeArrowAction({roundId:round.id,endNumber:entry.end,arrowNumber:entry.arrow});
-      return result.ok?{ok:true as const}:{ok:false as const,message:`${result.message} Use Delete again to retry.`};
+      try {await persistence.remove(entry);return {ok:true as const};}
+      catch {return {ok:false as const,message:"The Arrow deletion could not be confirmed. Use Delete again to reconcile and retry."};}
     },()=>{
       onChange((current)=>({...current,arrows:queue.desiredArrows()}));
       setSaveMessage(queue.firstError());

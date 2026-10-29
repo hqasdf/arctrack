@@ -6,6 +6,7 @@ import * as sessionModel from "../src/session-write-model.ts";
 import * as roundConfig from "../src/round-config.ts";
 import * as roundUpdate from "../src/round-update-model.ts";
 import * as arrowModel from "../src/arrow-write-model.ts";
+import * as arrowPersistence from "@arc-track/core/arrow-persistence";
 
 // Execute the actual persistence adapters with mocked network I/O, rather than
 // asserting source text. Any accidental direct table write fails this client.
@@ -20,6 +21,7 @@ function runtime(file, responses = []) {
     },
   };
   const dependencies = {
+    "@arc-track/core/arrow-persistence": arrowPersistence,
     "./supabase": { supabase: client },
     "./session-write-model": sessionModel,
     "./round-config": roundConfig,

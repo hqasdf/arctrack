@@ -3,6 +3,46 @@ import test from "node:test";
 import { roundTotal } from "@arc-track/core/scoring";
 import { WebArrowQueue } from "../src/features/sessions/web-arrow-queue.ts";
 
+test("a committed first save with a lost response still sends the later delete", async () => {
+  let stored = null, deletes = 0;
+  const queue = new WebArrowQueue([], async entry => {
+    stored = entry;
+    return { ok: false, message: "Response lost after commit" };
+  }, async () => { deletes++; stored = null; return { ok: true }; }, () => {});
+  queue.edit(arrow());
+  assert.equal(await queue.flush(), false);
+  queue.delete("1-1");
+  assert.equal(await queue.flush(), true);
+  assert.equal(deletes, 1);
+  assert.equal(stored, null);
+});
+
+test("reverting after an uncertain correction verifies the latest intention instead of cached equality", async () => {
+  let stored = arrow(), fail = true;
+  const queue = new WebArrowQueue([stored], async entry => {
+    stored = entry;
+    return fail ? { ok: false, message: "Response lost after commit" } : { ok: true, data: entry };
+  }, async () => ({ ok: true }), () => {});
+  queue.edit(arrow("9"));
+  assert.equal(await queue.flush(), false);
+  fail = false;
+  queue.edit(arrow("8"));
+  assert.equal(await queue.flush(), true);
+  assert.equal(stored.score, "8");
+});
+
+test("failed deletion after an uncertain first save retains a visible failed retry target", async () => {
+  let stored=null,failDelete=true;
+  const queue=new WebArrowQueue([],async entry=>{stored=entry;return {ok:false,message:"Lost save response"};},
+    async()=>{if(failDelete)return {ok:false,message:"Offline deletion"};stored=null;return {ok:true};},()=>{});
+  queue.edit(arrow());await queue.flush();queue.delete("1-1");
+  assert.equal(await queue.flush(),false);
+  assert.equal(queue.desiredArrows().length,1);
+  assert.equal(queue.desiredArrows()[0].syncState,"failed");
+  assert.equal(queue.confirmedArrows().length,0);
+  failDelete=false;queue.delete("1-1");assert.equal(await queue.flush(),true);assert.equal(stored,null);
+});
+
 const arrow = (score = "8", arrowNumber = 1, plot = { x: .25, y: 0, faceIndex: 1 }) => ({
   id: `saved-${arrowNumber}`, end: 1, arrow: arrowNumber, score, plot, syncState: "saved",
 });

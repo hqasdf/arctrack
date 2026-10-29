@@ -17,10 +17,11 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:essential": "node --experimental-strip-types --test tests/auth-policy.test.mjs tests/account-deletion.test.mjs tests/garmin.test.mjs tests/garmin-health.test.mjs tests/arrow-counter.test.mjs tests/counter-reliability.test.mjs tests/scoring-replot.test.mjs",
-    "test:maintenance": "node --experimental-strip-types --test tests/maintenance.test.mjs tests/counter-parity.test.mjs",
+    "test:maintenance": "node --experimental-strip-types --test tests/maintenance.test.mjs tests/counter-parity.test.mjs tests/architecture.test.mjs tests/garmin-ingress.test.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
     "check:workflow": "node scripts/check-workflow.mjs",
-    "check:maintenance": "npm run check:workflow && npm run check:migrations && npm run test:maintenance"
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "check:maintenance": "npm run check:workflow && npm run check:architecture && npm run check:migrations && npm run test:maintenance"
   },
   "engines": {
     "node": ">=22.18.0"

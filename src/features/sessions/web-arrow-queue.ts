@@ -4,6 +4,8 @@ export type ArrowSaveResult = { ok: true; data: ArrowEntry } | { ok: false; mess
 type Save = (arrow: ArrowEntry) => Promise<ArrowSaveResult>;
 type Remove = (arrow: ArrowEntry) => Promise<{ ok: true } | { ok: false; message: string }>;
 type Cell = {
+  identity: ArrowEntry;
+  uncertain: boolean;
   confirmed: ArrowEntry | null;
   desired: ArrowEntry | null;
   version: number;
@@ -44,6 +46,7 @@ export class WebArrowQueue {
     this.remove = remove;
     this.changed = changed;
     for (const arrow of initial) this.cells.set(arrowKey(arrow.end, arrow.arrow), {
+      identity: arrow, uncertain: false,
       confirmed: { ...arrow, syncState: "saved" }, desired: { ...arrow, syncState: "saved" },
       version: 0, status: "saved", error: null, job: null,
     });
@@ -63,6 +66,7 @@ export class WebArrowQueue {
   edit(arrow: ArrowEntry) {
     const key = arrowKey(arrow.end, arrow.arrow);
     const cell = this.cells.get(key) ?? {
+      identity: arrow, uncertain: false,
       confirmed: null, desired: null, version: 0, status: "saved" as const,
       error: null, job: null,
     };
@@ -108,13 +112,13 @@ export class WebArrowQueue {
     if (cell.job) return;
     cell.job = this.drain(key, cell).finally(() => {
       cell.job = null;
-      if (cell.status === "saving" && !sameContent(cell.confirmed, cell.desired)) this.start(key, cell);
+      if (cell.status === "saving" && (cell.uncertain || !sameContent(cell.confirmed, cell.desired))) this.start(key, cell);
     });
   }
 
   private async drain(key: string, cell: Cell) {
     for (;;) {
-      if (sameContent(cell.confirmed, cell.desired)) {
+      if (!cell.uncertain && sameContent(cell.confirmed, cell.desired)) {
         if (cell.desired === null) this.cells.delete(key);
         else {
           cell.desired = { ...cell.confirmed!, syncState: "saved" };
@@ -127,11 +131,12 @@ export class WebArrowQueue {
       const intended = cell.desired;
       let result: ArrowSaveResult | { ok: true } | { ok: false; message: string };
       try {
-        result = intended ? await this.save({ ...intended }) : await this.remove(cell.confirmed!);
+        result = intended ? await this.save({ ...intended }) : await this.remove(cell.confirmed ?? cell.identity);
       } catch {
         result = { ok: false, message: "The Arrow could not be saved. Check your connection and retry." };
       }
       if (result.ok) {
+        cell.uncertain = false;
         cell.confirmed = intended ? { ...(result as { ok: true; data: ArrowEntry }).data, syncState: "saved" } : null;
         if (cell.desired && cell.confirmed) cell.desired = { ...cell.desired, id: cell.confirmed.id };
         cell.error = null;
@@ -151,10 +156,16 @@ export class WebArrowQueue {
         this.changed();
         continue;
       }
+      // A failed response is not evidence that the transaction rolled back.
+      // Persistence reconciles the slot before another mutation; cached equality
+      // must never discard a newer delete/revert while that outcome is unknown.
+      cell.uncertain = true;
       if (cell.version !== version) continue;
       if (intended === null) {
-        cell.desired = cell.confirmed;
-        cell.status = "saved";
+        // Even an unacknowledged first save needs a visible retry/delete target.
+        // This is an unconfirmed restoration, never a claim that it is saved.
+        cell.desired = cell.confirmed ?? cell.identity;
+        cell.status = "failed";
       } else cell.status = "failed";
       cell.error = result.message;
       this.changed();

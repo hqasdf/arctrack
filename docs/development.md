@@ -1,5 +1,7 @@
 # Arc Track developer guide
 
+See [the architecture guide](architecture.md) for module ownership, contracts, lifecycle rules and the feature checklist.
+
 ## Setup and architecture
 
 Use Node 24 for parity with CI (the repository minimum remains Node 22.18) and npm. From the repository root, run `npm ci`. The existing postinstall verifies and applies the reviewed Android SecureStore patch; do not bypass it in builds or change its pinned package casually.
@@ -22,6 +24,7 @@ Run only the checks relevant to the change:
 npm run test:essential
 npm run test:essential --workspace @arc-track/mobile
 npm test --workspace @arc-track/core
+npm run check:architecture
 npm run check:maintenance
 npm run typecheck
 npm run typecheck --workspace @arc-track/mobile
@@ -40,7 +43,7 @@ The single pure model is `packages/core/src/counter-model.ts`, exported as `@arc
 
 ## Validation CI versus releases
 
-`.github/workflows/validate.yml` runs on relevant pull requests and pushes to `main`; it uses read-only permissions and immutable official action commits. A path-detection job selects web, mobile, core and maintenance jobs. Shared-core changes validate both consumers; mobile-only changes avoid the web suite, while the mobile job still exercises the cross-platform scoring screen harness. Dependency/configuration changes select all jobs. Documentation-only changes do not trigger the workflow.
+`.github/workflows/validate.yml` runs on relevant pull requests and pushes to `main`; it uses read-only permissions and immutable official action commits. A path-detection job selects web, mobile, core and maintenance jobs. Shared-core changes validate both consumers; mobile-only changes avoid the web suite, while the mobile job still exercises the cross-platform scoring screen harness. Dependency/configuration changes select all jobs. Source changes also run maintenance architecture checks; infrastructure changes select web and maintenance, including the isolated ingress security suite. Documentation-only changes do not trigger the workflow.
 
 Actions → Validate Arc Track → Run workflow offers a `full_regression` checkbox to run the full web/mobile suites instead of essential subsets. Hosted execution has not been tested locally. The workflow has no production secrets, migration execution, publishing or deployment steps. It installs the existing workspace lockfile as a whole; changing that build/install coupling belongs to excluded Phase C.5.
 

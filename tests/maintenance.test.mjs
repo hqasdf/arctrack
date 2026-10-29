@@ -14,6 +14,8 @@ test("CI scopes web, mobile, core and migration work without running every platf
   assert.equal(ciScope(["packages/core/src/counter-model.ts"]).mobile, true);
   assert.equal(ciScope(["package-lock.json"]).core, true);
   assert.equal(ciScope(["supabase/migrations/new.sql"]).maintenance, true);
+  assert.deepEqual(ciScope(["infra/garmin-ingress/worker.mjs"]), { web: true, mobile: false, core: false, maintenance: true });
+  for (const path of ["src/a.ts", "apps/mobile/src/a.ts", "packages/core/src/a.ts"]) assert.equal(ciScope([path]).maintenance, true);
   assert.equal(ciScope(["tests/maintenance.test.mjs"]).maintenance, true);
   assert.equal(ciScope(["tests/counter-parity.test.mjs"]).maintenance, true);
   assert.equal(ciScope(["src/odd\nname.tsx"]).web, true);
@@ -34,6 +36,11 @@ test("workflow parses and keeps actions pinned, tokens read-only and release com
   const source = readFileSync(new URL("../.github/workflows/validate.yml", import.meta.url), "utf8");
   const workflow = validateWorkflow(source);
   assert.ok(workflow.on.workflow_dispatch.inputs.full_regression);
+  for (const event of ["push", "pull_request"]) assert.ok(workflow.on[event].paths.includes("infra/**"));
+  assert.ok(workflow.jobs.maintenance.steps.some(step => step.run === "npm run check:maintenance"));
+  const scripts = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).scripts;
+  assert.ok(scripts["check:maintenance"].includes("npm run check:architecture"));
+  assert.ok(scripts["test:maintenance"].includes("tests/garmin-ingress.test.mjs"));
   assert.ok(workflow.jobs.mobile.steps.some(step => step.run === "npm run test:essential --workspace @arc-track/mobile"));
   assert.throws(() => validateWorkflow(source.replace("contents: read", "contents: write")));
   assert.throws(() => validateWorkflow(source + "\n# npm publish"));

@@ -64,6 +64,23 @@ export async function saveArrow(input:ArrowInput):Promise<Result<ArrowEntry>> {
   return saveArrowRecord(input);
 }
 
+export async function configureEmptyRound(roundId:string,expected:Omit<RoundInput,"sessionId">,input:RoundInput):Promise<Result<RoundDraft>> {
+  await requireUser();
+  const valid=validateRoundInput(input);
+  if(!isUuid(roundId)||!valid.ok)return failure(valid.ok?"The Round could not be identified.":valid.message);
+  try {
+    const supabase=await createAuthClient({writable:true});
+    const v=valid.value;
+    const {data,error}=await supabase.rpc("configure_empty_round",{p_round:roundId,p_expected:expected,p_name:v.name,p_division:v.division,
+      p_distance:v.distanceMetres,p_diameter:v.faceDiameterCm,p_face:v.faceType,p_ends:v.ends,p_arrows:v.arrowsPerEnd}).single();
+    const row=data as {round_id:string;round_number:number}|null;
+    if(error||!row)return failure(error?.code==="40001"?"This Round changed. Reload it before configuring.":"Round settings were not changed. Reload and retry.");
+    revalidatePath("/sessions");
+    return {ok:true,data:{id:row.round_id,roundNumber:row.round_number,name:v.name,division:v.division,distanceMetres:v.distanceMetres,
+      faceDiameterCm:v.faceDiameterCm,faceType:v.faceType,ends:v.ends,arrowsPerEnd:v.arrowsPerEnd,arrows:[]}};
+  }catch{return failure("Round settings could not be confirmed. Reload before retrying; the Round was not deleted.");}
+}
+
 export async function removeArrow(input:{roundId:string;endNumber:number;arrowNumber:number}):Promise<Result<null>> {
   await requireUser();
   if (!isUuid(input.roundId)||![input.endNumber,input.arrowNumber].every((value)=>Number.isInteger(value)&&value>=1&&value<=32767)) return failure("The Arrow could not be identified.");

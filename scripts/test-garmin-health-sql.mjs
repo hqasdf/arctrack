@@ -176,6 +176,8 @@ try {
   } finally { await blocker.end(); }
   await (await import("./garmin-health-controls-fixture.mjs")).testHealthControlConcurrency(db, pg.Client, configuration, check);
   await (await import("./garmin-session-controls-fixture.mjs")).testSessionControlConcurrency(db, pg.Client, configuration, check);
+  await db.query(await readFile(join(root,"supabase/migrations/20261029014932_garmin_queue_fairness.sql"),"utf8"));
+  await (await import("./garmin-queue-fairness-fixture.mjs")).testQueueFairness(db,check,pg,configuration);
   console.log(JSON.stringify({ passed: assertions.length, failed: 0, assertions, version: (await db.query("select version()")).rows[0].version,
     limitation: "Synthetic Auth roles/uid; no real JWT, PostgREST, Garmin deliveries or production database." }, null, 2));
 } catch (error) { failure = error; }
