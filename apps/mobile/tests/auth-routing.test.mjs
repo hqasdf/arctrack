@@ -8,6 +8,18 @@ const session = { user };
 const stale = serializeRecoveryContext({ active: true, stage: "password", email: user.email, userId: user.id });
 const ready = (overrides = {}) => ({ user: null, recovery: null, recoveryRequired: false, loading: false, authError: false, ...overrides });
 
+test("offline device recovery never mounts authenticated routes or unlocks a recovery/signed-out account", () => {
+  const snapshot = { ready: true, retiring: false, error: null, accepted: { accountId: "previous-athlete", mode: "normal" } };
+  for (const state of [ready({ authError: true }), ready({ loading: true })]) {
+    const device = routingRuntime(state, snapshot);
+    assert.equal(device.blocked, true);
+    assert.match(device.html, /Device scoring for previous-athlete/);
+    assert.equal(routingRuntime(state, { ...snapshot, accepted: null }).html.includes("Device scoring for"), false);
+    assert.equal(routingRuntime(state, { ...snapshot, accepted: { accountId: "previous-athlete", mode: "recovery" } }).html.includes("Device scoring for"), false);
+    assert.equal(routingRuntime({ ...state, recoveryRequired: true }, snapshot).html.includes("Device scoring for"), false);
+  }
+});
+
 test("normal restored authority ignores same-account stale recovery metadata", async () => {
   const runtime = providerRuntime({ restoredUser: user, storedRecovery: stale, acceptedMode: "normal" });
   const value = await runtime.settle();

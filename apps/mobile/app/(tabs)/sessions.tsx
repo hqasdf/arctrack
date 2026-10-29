@@ -12,6 +12,7 @@ import { createThemedStyles, useAppearance } from "../../src/appearance";
 import { singaporeToday } from "../../src/mobile-analytics";
 import { readMobileOwnTrainingPlanProgress } from "../../src/training-plans-read";
 import { TrainingGoalRing, visibleTrainingWeek } from "../../src/training-plans-ui";
+import { OfflineRounds } from "../../src/offline-rounds";
 
 type OwnPlan = Awaited<ReturnType<typeof readMobileOwnTrainingPlanProgress>>[number];
 
@@ -62,6 +63,7 @@ export default function SessionsScreen() {
 
   return <View style={styles.page}>
     <Text style={styles.title}>Sessions</Text>
+    <OfflineRounds key={user?.id ?? "signed-out"} />
     {user ? <MobileSessionFeedbackHistory key={user.id} userId={user.id}/> : null}
     <SessionCategoryTabs>{category => <>
     <Pressable accessibilityRole="button" onPress={() => router.push("/sessions/new")} style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}>

@@ -8,6 +8,7 @@ import * as scoring from "@arc-track/core/scoring";
 import * as geometry from "../src/native-target-geometry.ts";
 import * as scoringState from "../src/scoring-state.ts";
 import * as arrowQueue from "../src/arrow-save-queue.ts";
+import { memoryScoring } from "./helpers/offline-scoring.mjs";
 
 function load(path, dependencies, getPalette = () => ({})) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
@@ -61,13 +62,24 @@ async function runtime(faceType = "full_face") {
   const round = { id: "round", name: "Practice", roundNumber: 1, division: "Recurve", distanceMetres: 70, faceDiameterCm: 122, faceType, ends: 1, arrowsPerEnd: 3, arrows: [] };
   const user = { id: "owner" };
   const page = load("../app/rounds/[roundId]/score.tsx", {
-    react: pageHooks.react, "react-native": native,
+    react: pageHooks.react, "react-native": { ...native, AppState: { currentState: "active", addEventListener: () => ({ remove() {} }) } },
     "react-native-safe-area-context": { SafeAreaProvider: "SafeAreaProvider", SafeAreaView: "SafeAreaView" },
-    "expo-router": { useLocalSearchParams: () => ({ roundId: "round" }) },
+    "expo-router": { usePathname: () => `/rounds/${round.id}/score`, useLocalSearchParams: () => ({ roundId: "round" }) },
     "@arc-track/core/analytics": { targetFaceLabel: () => "Target" }, "@arc-track/core/presets": { DIVISIONS: ["Recurve"] }, "@arc-track/core/scoring": scoring,
     "../../../src/auth": { useAuth: () => ({ user }) }, "../../../src/scoring-state": scoringState,
     "../../../src/arrow-save-queue": arrowQueue,
     "../../../src/sessions": { readOwnRound: async () => { io.roundReads++; return { session: { id: "session", title: "Practice", date: "2026-10-20" }, round }; } },
+    "../../../src/offline-scoring": { openOfflineScoring: async () => {
+      io.roundReads++; io.endReads++;
+      const stored = new Map();
+      return memoryScoring({ loaded: { session: { id: "session", title: "Practice", date: "2026-10-20" }, round },
+        read: async slot => stored.get(scoring.arrowKey(slot.end, slot.arrow)) ?? { revision: "00000000-0000-4000-8000-000000000000", arrow: null },
+        write: async (slot, desired, intent) => {
+          if (desired) io.saves.push(structuredClone(desired)); else io.deletes++;
+          const result = { revision: intent.requestId, arrow: desired && { ...desired, id: "saved", syncState: "saved" } };
+          stored.set(scoring.arrowKey(slot.end, slot.arrow), result); return result;
+        } });
+    } },
     "../../../src/arrow-writes": { readRoundEndIds: async () => { io.endReads++; return new Map([[1, "end"]]); },
       createMobileArrowPersistence:()=>({save:async entry=>{io.saves.push(structuredClone(entry));return {...entry,id:"saved"};},remove:async()=>{io.deletes++;}}) },
     "../../../src/icons": { ArcIcon: "Icon" }, "../../../src/grouping-export": { GroupingExportButton: "Export" }, "../../../src/session-weather": { ScoringWeather: "Weather" },

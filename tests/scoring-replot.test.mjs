@@ -10,6 +10,8 @@ import * as nativeQueue from "../apps/mobile/src/arrow-save-queue.ts";
 import { WebArrowQueue } from "../src/features/sessions/web-arrow-queue.ts";
 import { createArrowPersistence } from "@arc-track/core/arrow-persistence";
 
+import { memoryScoring } from "../apps/mobile/tests/helpers/offline-scoring.mjs";
+
 const require = createRequire(import.meta.url);
 const scripts = {};
 for (const [platform, path] of Object.entries({
@@ -60,9 +62,9 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
   async function write(entry) { calls.push(structuredClone(entry)); return save(entry); }
   const modules = name => {
     if (name === "react") return react;
-    if (name === "react-native") return { ActivityIndicator: "Spinner", Modal: "Modal", Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text", TextInput: "TextInput", View: "View", StyleSheet: { create: value => value } };
+    if (name === "react-native") return { AppState: { currentState: "active", addEventListener: () => ({ remove() {} }) }, ActivityIndicator: "Spinner", Modal: "Modal", Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text", TextInput: "TextInput", View: "View", StyleSheet: { create: value => value } };
     if (name === "react-native-safe-area-context") return { SafeAreaProvider: "SafeAreaProvider", SafeAreaView: "SafeAreaView" };
-    if (name === "expo-router") return { useLocalSearchParams: () => ({ roundId: round.id }) };
+    if (name === "expo-router") return { usePathname: () => `/rounds/${round.id}/score`, useLocalSearchParams: () => ({ roundId: round.id }) };
     if (name === "../scoring-model" || name === "@arc-track/core/scoring") return scoring;
     if (name === "../web-arrow-queue") return { WebArrowQueue };
     if (name === "@arc-track/core/arrow-persistence") return {createArrowPersistence};
@@ -70,6 +72,12 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
     if (name.endsWith("/arrow-save-queue")) return nativeQueue;
     if (name.endsWith("/auth")) return { useAuth: () => ({ user }) };
     if (name.endsWith("/sessions")) return { readOwnRound: async (owner, id) => { reads.push([owner, id]); return options.read ? options.read(owner, id) : { session: { id: "session", title: "Practice", date: "2026-10-17" }, round }; } };
+    if (name.endsWith("/offline-scoring")) return { openOfflineScoring: async (owner, id) => {
+      reads.push([owner, id]);
+      const loaded = options.read ? await options.read(owner, id) : { session: { id: "session", title: "Practice", date: "2026-10-17" }, round };
+      if (!loaded) throw Error("Round unavailable");
+      return memoryScoring({ loaded, owner, read: options.read ? async slot => ({ revision: "00000000-0000-0000-0000-000000000000", arrow: loaded.round.arrows.find(a => a.end === slot.end && a.arrow === slot.arrow) ?? null }) : readSlot, write: writeSlot, current: () => user?.id === owner });
+    } };
     if (name.endsWith("/arrow-writes")) return { readRoundEndIds: async () => new Map(Array.from({ length: round.ends }, (_, i) => [i + 1, `end-${i + 1}`])),
       createMobileArrowPersistence:initial=>createArrowPersistence({initial,read:readSlot,write:writeSlot,requestId:()=>crypto.randomUUID()}) };
     if (name.endsWith("/actions")) return { removeArrow: async () => ({ ok: true }) };
@@ -137,10 +145,11 @@ test('Expo same-account token refresh preserves pending per-slot saves and the l
   gate.resolve(); await ui.settle();
   assert.equal(ui.calls.length, 3); assert.equal(ui.target().arrows[0].plot.x, .01); assert.equal(ui.target().arrows[0].syncState, 'saved');
 });
-test('Expo different-slot responses may finish out of order without replacing newer local plots', async () => {
+test('Expo bounded offline upload preserves other local plots while an earlier server response is pending', async () => {
   const gate = deferred(); const ui = await screen('expo', {}, async entry => { if (entry.arrow === 1) await gate.promise; return { ...entry, id: 'saved-' + entry.arrow }; });
   ui.target().onPlot({ x: .1, y: 0 }); ui.target().onPlot({ x: .2, y: 0 }); await ui.settle();
-  assert.equal(ui.target().arrows[1].syncState, 'saved'); gate.resolve(); await ui.settle();
+  assert.equal(ui.target().arrows[1].syncState, 'saving'); assert.equal(ui.calls.length, 1); gate.resolve(); await ui.settle();
+  assert.ok(ui.target().arrows.every(a => a.syncState === 'saved'));
   assert.deepEqual(ui.target().arrows.map(a => a.plot.x), [.1, .2]);
 });
 test('Expo stale Round loads cannot replace the newly selected Round', async () => {
@@ -224,7 +233,7 @@ for (const platform of ["web", "expo"]) {
     ui.target().onPlot({ x: .01, y: 0 });
     await ui.settle();
     assert.equal(ui.target().selectedId, null);
-    assert.equal(ui.target().arrows[0].syncState, "failed");
+    assert.equal(ui.target().arrows[0].syncState, platform === "expo" ? "saving" : "failed");
     assert.deepEqual(ui.target().arrows[0].plot, { x: .01, y: 0 });
     ui.target().onPlot({ x: .8, y: 0 });
     await ui.settle();
@@ -232,7 +241,7 @@ for (const platform of ["web", "expo"]) {
     ui.press("End 1, Arrow 1");
     assert.ok(ui.target().selectedId);
     fail = false;
-    ui.press("Retry save");
+    ui.press(platform === "expo" ? "Retry sync" : "Retry save");
     await ui.settle();
     assert.equal(ui.target().arrows[0].syncState, "saved");
     assert.deepEqual(ui.target().arrows[0].plot, { x: .01, y: 0 });

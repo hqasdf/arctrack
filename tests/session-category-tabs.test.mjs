@@ -137,6 +137,7 @@ test("Expo filters the existing loaded list and keeps Plan content and navigatio
     "../../src/auth": { useAuth: () => ({ user }) }, "../../src/sessions": { readOwnSessions: async () => { reads++; return sessions; } },
     "../../src/appearance": { useAppearance: () => ({ colors: {} }), createThemedStyles: factory => () => factory({}) },
     "../../src/theme": { colors: {}, PAGE_TOP_SPACING: 0 }, "../../src/session-category-tabs": { SessionCategoryTabs: "CategoryTabs" },
+    "../../src/offline-rounds": { OfflineRounds: "OfflineRounds" },
     "../../src/mobile-analytics": { singaporeToday: () => "2026-10-17" },
     "../../src/training-plans-read": { readMobileOwnTrainingPlanProgress: async () => { planReads++; return []; } },
     "../../src/training-plans-ui": { TrainingGoalRing: "Ring", visibleTrainingWeek: () => ({}) },

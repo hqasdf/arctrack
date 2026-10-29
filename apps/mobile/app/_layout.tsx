@@ -1,9 +1,15 @@
 import { Stack, usePathname, ThemeProvider, DarkTheme, DefaultTheme } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { AuthProvider, useAuth } from "../src/auth";
 import { AppearanceProvider, useAppearance } from "../src/appearance";
+import { startOfflineScoringSync } from "../src/offline-scoring";
+import { OfflineRounds } from "../src/offline-rounds";
+import { sessionAuthority } from "../src/supabase";
+import { deviceScoringOwner } from "../src/offline-scoring-access";
+
+const DeviceScore = lazy(() => import("./rounds/[roundId]/score"));
 
 export const unstable_settings = { initialRouteName: "index" };
 
@@ -11,16 +17,31 @@ function Routes() {
   const { colors } = useAppearance();
   const { loading, user, recoveryRequired, authError, retry } = useAuth();
   const pathname = usePathname();
+  const scoringOwner = user?.id;
+  const [deviceRound, setDeviceRound] = useState<{ owner: string; id: string } | null>(null);
+  useEffect(() => {
+    if (!scoringOwner || loading || recoveryRequired || authError) return;
+    return startOfflineScoringSync(scoringOwner);
+  }, [scoringOwner, loading, recoveryRequired, authError]);
   useEffect(() => {
     if (__DEV__) console.debug("[ROUTE]", {
       pathname, loading, authError, protectedGuard: !!user && !recoveryRequired,
       destination: loading ? "loading" : authError ? "retry" : !user ? "sign-in" : recoveryRequired ? "recover" : "sessions",
     });
   }, [pathname, loading, authError, user, recoveryRequired]);
-  if (loading) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}><ActivityIndicator color={colors.accent} accessibilityLabel="Checking sign-in" /></View>;
-  if (authError) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 18, padding: 24, backgroundColor: colors.background }}>
+  const deviceOwner = !recoveryRequired ? deviceScoringOwner(sessionAuthority?.snapshot()) : null;
+  if ((authError || loading) && deviceOwner && deviceRound?.owner === deviceOwner) return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <Pressable accessibilityRole="button" onPress={() => setDeviceRound(null)} style={{ minHeight: 48, padding: 14 }}><Text style={{ color: colors.accent }}>Back to device Rounds</Text></Pressable>
+    <Suspense fallback={<ActivityIndicator accessibilityLabel="Opening device scoring" color={colors.accent} />}>
+      <DeviceScore key={`${deviceOwner}:${deviceRound.id}`} offlineAccount={deviceOwner} offlineRoundId={deviceRound.id} />
+    </Suspense>
+  </View>;
+  if (loading) return <View style={{ flex: 1, justifyContent: "center", gap: 16, padding: 24, backgroundColor: colors.background }}><ActivityIndicator color={colors.accent} accessibilityLabel="Checking sign-in" />{deviceOwner ? <OfflineRounds key={deviceOwner} deviceOwner={deviceOwner} onOpen={id => setDeviceRound({ owner: deviceOwner, id })} /> : null}</View>;
+  if (authError) return <View style={{ flex: 1, justifyContent: "center", gap: 18, padding: 24, backgroundColor: colors.background }}>
     <Text style={{ color: colors.text, textAlign: "center" }}>Arc Track could not verify your sign-in. Check your connection and try again.</Text>
     <Pressable accessibilityRole="button" onPress={retry} style={{ padding: 16 }}><Text style={{ color: colors.accent, fontWeight: "700" }}>Retry</Text></Pressable>
+    {deviceOwner ? <><Text style={{ color: colors.muted }}>Device-only scoring is available for the previously signed-in account. Normal app access remains locked until sign-in is verified.</Text>
+      <OfflineRounds key={deviceOwner} deviceOwner={deviceOwner} onOpen={id => setDeviceRound({ owner: deviceOwner, id })} /></> : null}
   </View>;
   // A different accepted account must not inherit mounted screens/data from the
   // previous account. Refresh and ordinary navigation keep this identity stable.

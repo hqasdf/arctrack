@@ -23,6 +23,32 @@ async function requireCurrentOwner(expectedUserId?: string) {
   if (error || data.session?.user.id !== expectedUserId) throw new Error("The scoring account changed. Sign in again before saving.");
 }
 
+function mobileSnapshot(raw: unknown, end: number): ArrowSnapshot {
+  const row = raw as { revision: string; arrow: null | { id: string; arrow_number: number; score_points: number; is_x: boolean; plot_x: number | null; plot_y: number | null; face_index: number | null } };
+  if (!row || typeof row.revision !== "string" || !("arrow" in row)) throw Error("Arrow confirmation unavailable.");
+  const a = row.arrow;
+  return { revision: row.revision.toLowerCase(), arrow: a ? { id: a.id, end, arrow: a.arrow_number,
+    score: a.is_x ? "X" : a.score_points === 0 ? "M" : String(a.score_points) as ArrowEntry["score"],
+    plot: a.plot_x === null || a.plot_y === null ? null : { x: a.plot_x, y: a.plot_y,
+      ...(a.face_index === null ? {} : { faceIndex: a.face_index as 0 | 1 | 2 }) }, syncState: "saved" } : null };
+}
+async function offlineSlotCall(slot: { end: number; arrow: number }, endId: string, owner: string, name: string, args: Record<string, unknown>) {
+  await requireCurrentOwner(owner);
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const { data, error } = await client().rpc(name, { p_end: endId, p_number: slot.arrow, ...args }).abortSignal(controller.signal);
+    await requireCurrentOwner(owner);
+    if (error) throw Object.assign(Error("The server revision could not be verified. Check sign-in and connectivity. Offline scoring requires the scoring-integrity migration."), { code: error.code });
+    return mobileSnapshot(data, slot.end);
+  } finally { clearTimeout(timer); }
+}
+export function readMobileArrowSnapshot(slot: { end: number; arrow: number }, endId: string, owner: string) {
+  return offlineSlotCall(slot, endId, owner, "read_owned_arrow_slot", {});
+}
+export function writeMobileArrowSnapshot(slot: { end: number; arrow: number }, endId: string, desired: ArrowEntry | null, expected: string, request: string, owner: string) {
+  return offlineSlotCall(slot, endId, owner, "write_owned_arrow_slot", { p_expected: expected, p_request: request, p_arrow: desired ? arrowWriteFields(desired) : null });
+}
+
 /** Loaded-Round writer with authoritative reconciliation and durable CAS fences. */
 export function createMobileArrowPersistence(initial:ArrowEntry[],endIds:Map<number,string>,owner:string) {
   function snapshot(raw:unknown,end:number):ArrowSnapshot {

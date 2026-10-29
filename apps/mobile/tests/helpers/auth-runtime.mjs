@@ -6,6 +6,7 @@ import ts from "typescript";
 import * as flow from "../../src/auth-flow.ts";
 import * as state from "../../src/auth-state.ts";
 import * as passkeyLifecycle from "../../src/passkeys/lifecycle.ts";
+import { deviceScoringOwner } from "../../src/offline-scoring-access.ts";
 
 const require = createRequire(import.meta.url);
 const mobileRoot = new URL("../../", import.meta.url);
@@ -145,7 +146,7 @@ export function providerRuntime({ storedRecovery = null, restoredUser = null, re
   };
 }
 
-export function routingRuntime(authState) {
+export function routingRuntime(authState, authoritySnapshot) {
   let stack;
   function Stack(props) { stack = props; return null; }
   Stack.Screen = function Screen() { return null; };
@@ -159,12 +160,16 @@ export function routingRuntime(authState) {
     "expo-status-bar": { StatusBar: () => null },
     "react-native": { ActivityIndicator: () => null, Pressable: ({ children }) => children, Text: ({ children }) => children, View: ({ children }) => children },
     "../src/auth": auth,
+    "../src/offline-scoring": { startOfflineScoringSync: () => () => {} },
+    "../src/offline-rounds": { OfflineRounds: ({ deviceOwner }) => React.createElement("p", null, `Device scoring for ${deviceOwner}`) },
+    "../src/offline-scoring-access": { deviceScoringOwner },
+    "../src/supabase": { sessionAuthority: { snapshot: () => authoritySnapshot } },
     "../src/auth-flow": flow,
     "../src/theme": { colors: {} },
     "../src/appearance": { AppearanceProvider: ({ children }) => children, useAppearance: () => ({ colors: {}, resolvedTheme: "light" }) },
   });
-  renderToString(React.createElement(RootLayout));
-  if (!stack) return { blocked: true };
+  const html = renderToString(React.createElement(RootLayout));
+  if (!stack) return { blocked: true, html };
   const keys = readdirSync(new URL("app/", mobileRoot), { recursive: true })
     .filter((file) => /\.[tj]sx?$/.test(file)).map((file) => `./${file.replaceAll("\\", "/")}`);
   const context = () => ({ default: () => null });
