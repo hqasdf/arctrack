@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./contact": "./src/contact.ts",
     "./arrow-persistence": "./src/arrow-persistence.ts",
     "./counter": "./src/counter-model.ts",
     ".": "./src/index.ts",

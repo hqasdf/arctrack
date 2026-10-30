@@ -1,4 +1,5 @@
 import { publicPageMetadata } from "@/lib/seo";
+import { BUSINESS_CONTACT_EMAIL, BUSINESS_CONTACT_MAILTO } from "@arc-track/core/contact";
 import Link from "next/link";
 import { Icon } from "@/components/ui/icon";
 import styles from "./privacy.module.css";
@@ -33,7 +34,7 @@ export default function PrivacyPage() {
 
     <section id="contact" className={styles.section}>
       <h2>1. Privacy contact</h2>
-      <p><strong>Privacy contact:</strong> <a href="mailto:wonghanqian123456@gmail.com">wonghanqian123456@gmail.com</a></p>
+      <p><strong>Privacy contact:</strong> <a href={BUSINESS_CONTACT_MAILTO}>{BUSINESS_CONTACT_EMAIL}</a></p>
       <p>Use the privacy contact for questions about this policy, access or correction requests, deletion concerns and other privacy requests. The operator receives and reviews these enquiries, including failed-deletion concerns, and handles requests in accordance with applicable law. We may need to verify your identity before acting on an account-related request. Arc Track is the application covered by this policy; provider links below are not substitutes for the Arc Track privacy contact.</p>
     </section>
 

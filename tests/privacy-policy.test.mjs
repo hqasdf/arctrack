@@ -1,3 +1,4 @@
+import * as contact from "@arc-track/core/contact";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -13,6 +14,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 const pageExports = {};
 new Function("require", "exports", compiled)(name => {
   if (name === "@/lib/seo") return seo;
+    if (name === "@arc-track/core/contact") return contact;
   if (name === "next/link") return { __esModule: true, default: ({ prefetch, ...props }) => { void prefetch; return React.createElement("a", props); } };
   if (name === "@/components/ui/icon") return { Icon: () => React.createElement("svg", { "aria-hidden": true }) };
   if (name.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
@@ -39,7 +41,7 @@ test("Privacy Policy renders as public HTML without auth, cookies, user data or 
   assert.match(html, /href="\/delete-account"/);
   assert.match(html, /<h2>1\. Privacy contact<\/h2>/);
   assert.doesNotMatch(html, /Operator name|Operator:|Operator &amp; contact/);
-  assert.match(html, /<a href="mailto:wonghanqian123456@gmail\.com">wonghanqian123456@gmail\.com<\/a>/);
+  assert.match(html, /<a href="mailto:arctrack0@gmail\.com">arctrack0@gmail\.com<\/a>/);
   assert.doesNotMatch(html, /Monitored privacy email or contact URL|genuine privacy contact and/);
   assert.doesNotMatch(source, /readIdentity\(|requireUser\(|cookies\(|fetch\(|redirect\(/);
   assert.equal(pageExports.metadata.alternates.canonical, "https://archery-website.vercel.app/privacy");

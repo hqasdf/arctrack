@@ -11,6 +11,12 @@ This file records implementation evidence and publication checks; it is not a se
 Intended URL: https://archery-website.vercel.app/privacy
 Last reviewed: 17 October 2026.
 
+Current contact note (30 October 2026): the official public support and privacy
+email is [arctrack0@gmail.com](mailto:arctrack0@gmail.com). Website and Android code
+share `@arc-track/core/contact`. The checklist below is historical; changing local
+source does not publish the policy or update provider dashboards. See
+`docs/business-email-migration.md` at the repository root for current follow-up.
+
 ## Confirm before publication
 
 - Replace the explicit operator-name and monitored privacy-contact placeholders on the page.

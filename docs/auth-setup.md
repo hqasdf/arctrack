@@ -40,7 +40,12 @@ In Supabase Authentication settings:
 <p>{{ .Token }}</p>
 <p>This code expires in 5 minutes. Enter it on the website.</p>
 <p>If you did not request this email, ignore it.</p>
+<p>For account support, contact <a href="mailto:arctrack0@gmail.com">arctrack0@gmail.com</a>. Never send passwords or verification codes.</p>
 ```
+
+This is repository template guidance, not a change to hosted Supabase templates.
+Keep the existing OTP variables, SMTP sender identity and provider credentials.
+The public support mailbox is separate from the technical sending account.
 
 Do not include a confirmation link. Keep Confirm Email enabled. Supabase generates and verifies all codes. The app never generates its own OTP.
 

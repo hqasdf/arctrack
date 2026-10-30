@@ -470,3 +470,15 @@ Coach review
 ```
 
 The goal of Arc Track is to give archers a clearer picture of their performance over time and make training data genuinely useful.
+
+## Support and privacy contact
+
+For general support, technical or account assistance, privacy requests and account
+deletion assistance, contact [arctrack0@gmail.com](mailto:arctrack0@gmail.com).
+Do not send passwords, verification codes or private integration credentials.
+Self-service deletion remains available at
+[Delete Account](https://archery-website.vercel.app/delete-account); support is also
+available if you cannot sign in. Ownership must be verified for account requests.
+
+Website and Android code share `@arc-track/core/contact` for the official public
+address. This contact is separate from SMTP sender credentials and Auth identities.

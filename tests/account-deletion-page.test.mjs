@@ -1,3 +1,4 @@
+import * as contact from "@arc-track/core/contact";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -14,6 +15,7 @@ async function renderPage(identity) {
   const emails = [], pageExports = {};
   new Function("require", "exports", compiled)(name => {
     if (name === "@/lib/seo") return seo;
+    if (name === "@arc-track/core/contact") return contact;
     if (name === "next/link") return { __esModule: true, default: ({ prefetch, ...props }) => { void prefetch; return React.createElement("a", props); } };
     if (name === "react/jsx-runtime") return jsx;
     if (name === "@/lib/auth/session.server") return { readIdentity: async () => identity };
@@ -32,7 +34,7 @@ test("signed-out deletion page exposes instructions and retention details withou
   assert.match(html, /Without installing or opening the app/);
   assert.match(html, /current password/);
   assert.match(html, /Permanently delete my account/);
-  assert.match(html, /<a href="mailto:wonghanqian123456@gmail\.com">wonghanqian123456@gmail\.com<\/a>/);
+  assert.match(html, /<a href="mailto:arctrack0@gmail\.com">arctrack0@gmail\.com<\/a>/);
   assert.doesNotMatch(html, /Monitored account-deletion support email or contact URL|Contact details and retention information/);
   assert.match(html, /Shared organisations, Training Plans and plan days remain/);
   assert.match(html, /retention reasons and periods/);

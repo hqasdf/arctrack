@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BUSINESS_CONTACT_EMAIL, BUSINESS_CONTACT_MAILTO } from "@arc-track/core/contact";
 import { publicPageMetadata } from "@/lib/seo";
 import { readIdentity } from "@/lib/auth/session.server";
 import { AccountDeletionForm } from "@/features/profile/components/account-deletion-form";
@@ -43,7 +44,7 @@ export default async function DeleteAccountPage() {
 
       <h3>Contact for deletion requests</h3>
       <p>If you cannot access your account, or need help requesting deletion of account-related information, contact Arc Track support. Ownership must be verified before a request can be fulfilled. Do not send your password or verification codes.</p>
-      <p>For support and account-deletion requests, email <a href="mailto:wonghanqian123456@gmail.com">wonghanqian123456@gmail.com</a>.</p>
+      <p>For support and account-deletion requests, email <a href={BUSINESS_CONTACT_MAILTO}>{BUSINESS_CONTACT_EMAIL}</a>.</p>
 
       <h3>Data removed when deletion succeeds</h3>
       <ul>

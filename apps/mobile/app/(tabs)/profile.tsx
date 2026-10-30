@@ -1,4 +1,5 @@
 import { useFocusEffect } from "expo-router";
+import { BUSINESS_CONTACT_EMAIL, BUSINESS_CONTACT_MAILTO } from "@arc-track/core/contact";
 import { useCallback, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { createThemedStyles, useAppearance } from "../../src/appearance";
@@ -89,6 +90,10 @@ export default function ProfileScreen() {
       void Linking.openURL("https://archery-website.vercel.app/delete-account").catch(() => setError("The account deletion page could not be opened. Please try again."));
     }}><Text style={styles.link}>Delete Account</Text></Pressable>
     <PrivacyPolicyLink />
+    <Pressable accessibilityRole="link" accessibilityLabel={`Contact Arc Track support at ${BUSINESS_CONTACT_EMAIL}`}
+      style={{ minHeight: 44, justifyContent: "center" }} onPress={() => {
+        void Linking.openURL(BUSINESS_CONTACT_MAILTO).catch(() => setError(`An email app could not be opened. Contact ${BUSINESS_CONTACT_EMAIL} directly. Do not send passwords or verification codes.`));
+      }}><Text style={styles.link}>Contact support: {BUSINESS_CONTACT_EMAIL}</Text></Pressable>
   </ScrollView>;
 }
 

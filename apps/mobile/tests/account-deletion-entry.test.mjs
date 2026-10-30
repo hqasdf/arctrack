@@ -1,3 +1,4 @@
+import * as contact from "@arc-track/core/contact";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -7,6 +8,7 @@ import * as jsx from "react/jsx-runtime";
 function profile(openURL) {
   const errors = [];
   const modules = {
+    "@arc-track/core/contact": contact,
     "expo-router": { useFocusEffect() {} },
     react: { useCallback: fn => fn, useState: initial => [initial, value => errors.push(value)] },
     "react/jsx-runtime": jsx,
@@ -25,13 +27,14 @@ function profile(openURL) {
   const compiled = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const exports = {};
   new Function("require", "exports", compiled)(name => { assert.ok(name in modules, name); return modules[name]; }, exports);
-  function find(node) {
+  function find(node, support = false) {
     if (!node || typeof node !== "object") return null;
-    if (node.type === "Pressable" && node.props.children?.props.children === "Delete Account") return node;
-    for (const child of [node.props?.children].flat(Infinity)) { const result = find(child); if (result) return result; }
+    if (node.type === "Pressable" && (support ? node.props.accessibilityLabel === `Contact Arc Track support at ${contact.BUSINESS_CONTACT_EMAIL}` : node.props.children?.props.children === "Delete Account")) return node;
+    for (const child of [node.props?.children].flat(Infinity)) { const result = find(child, support); if (result) return result; }
     return null;
   }
-  return { button: find(exports.default()), errors };
+  const tree = exports.default();
+  return { button: find(tree), support: find(tree, true), errors };
 }
 
 test("Expo Delete Account opens only the shared canonical web resource without user IDs or credentials", async () => {
@@ -46,4 +49,20 @@ test("browser-open failure shows a safe retry error without changing Auth or cou
   const screen = profile(async () => { throw new Error("private native detail"); });
   screen.button.props.onPress(); await Promise.resolve();
   assert.deepEqual(screen.errors, ["The account deletion page could not be opened. Please try again."]);
+});
+
+test("Profile support displays the official public contact and opens only its mailto without account details", async () => {
+  const calls = [], screen = profile(async url => { calls.push(url); });
+  assert.equal(screen.support.props.accessibilityRole, "link");
+  assert.equal(screen.support.props.style.minHeight, 44);
+  assert.equal(screen.support.props.children.props.children.join(""), "Contact support: arctrack0@gmail.com");
+  screen.support.props.onPress(); await Promise.resolve();
+  assert.deepEqual(calls, ["mailto:arctrack0@gmail.com"]);
+  assert.deepEqual(screen.errors, []);
+});
+
+test("Profile support failure retains a usable address and never exposes native error details", async () => {
+  const screen = profile(async () => { throw Error("private native detail"); });
+  screen.support.props.onPress(); await Promise.resolve();
+  assert.deepEqual(screen.errors, ["An email app could not be opened. Contact arctrack0@gmail.com directly. Do not send passwords or verification codes."]);
 });
