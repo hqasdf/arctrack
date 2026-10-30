@@ -46,7 +46,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -63,6 +63,26 @@ jobs:
         run: npm run test:essential
       - if: github.event_name == 'workflow_dispatch' && inputs.full_regression
         run: npm test
+      - name: Required production build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Report production asset sizes
+        run: npm run report:build
+      - name: Mobile Lighthouse reports (initially non-blocking)
+        continue-on-error: true
+        run: npm run test:performance
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Retain public performance reports
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0 (Node 24)
+        with:
+          name: public-performance-${{ github.sha }}
+          path: .verification/performance/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
 
   mobile:
     needs: changes

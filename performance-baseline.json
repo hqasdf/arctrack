@@ -1,0 +1,102 @@
+{
+  "status": "provisional-local-baseline",
+  "measuredAt": "2026-10-30T16:15:13.373Z",
+  "source": "2281e1be468693995c2f233713c6c4be8d4b6f08 plus local validation-only changes",
+  "measurement": {
+    "platform": "win32",
+    "builder": "webpack",
+    "lighthouse": "13.6.0"
+  },
+  "node": "v24.19.0",
+  "runs": 3,
+  "conditions": "Lighthouse default mobile emulation and simulated throttling; fresh browser profiles; headless Chrome; loopback production server; no app credentials. TBT is not field INP. WebGL capability varies by runner.",
+  "routes": {
+    "/": {
+      "lcpMs": {
+        "median": 1068.5407,
+        "min": 1067.8238,
+        "max": 1087.6756999999998
+      },
+      "cls": {
+        "median": 0,
+        "min": 0,
+        "max": 0
+      },
+      "tbtMs": {
+        "median": 345.08809999999994,
+        "min": 326,
+        "max": 639.5
+      },
+      "javascriptBytes": {
+        "median": 303402,
+        "min": 303402,
+        "max": 303402
+      },
+      "pageBytes": {
+        "median": 345349,
+        "min": 345140,
+        "max": 345558
+      }
+    },
+    "/sign-in": {
+      "lcpMs": {
+        "median": 921.8435,
+        "min": 915.1216999999999,
+        "max": 924.1076
+      },
+      "cls": {
+        "median": 0,
+        "min": 0,
+        "max": 0
+      },
+      "tbtMs": {
+        "median": 130,
+        "min": 125,
+        "max": 141
+      },
+      "javascriptBytes": {
+        "median": 160654,
+        "min": 160654,
+        "max": 160654
+      },
+      "pageBytes": {
+        "median": 192571,
+        "min": 192524,
+        "max": 193057
+      }
+    },
+    "/privacy": {
+      "lcpMs": {
+        "median": 1066.4569,
+        "min": 1065.0997,
+        "max": 1069.2658
+      },
+      "cls": {
+        "median": 0,
+        "min": 0,
+        "max": 0
+      },
+      "tbtMs": {
+        "median": 144,
+        "min": 136.99999999999977,
+        "max": 166
+      },
+      "javascriptBytes": {
+        "median": 147585,
+        "min": 147585,
+        "max": 147585
+      },
+      "pageBytes": {
+        "median": 173852,
+        "min": 173852,
+        "max": 173852
+      }
+    }
+  },
+  "build": {
+    "javascriptBytes": 1844955,
+    "cssBytes": 218709,
+    "builder": "turbopack",
+    "platform": "win32"
+  }
+}
