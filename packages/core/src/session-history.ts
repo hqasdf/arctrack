@@ -5,9 +5,10 @@ export type HistoryRound={id:string;round_number:number;name:string;division:str
 export type HistorySession={id:string;user_id:string;title:string;session_date:string;session_type:string;arrow_count:number;created_at:string;session_rounds:HistoryRound[]};
 export type HistorySessionIndex=Omit<HistorySession,'session_rounds'>;
 export type HistoryOptions={owner?:string;organization?:string;session?:string;sessionType?:string;details?:boolean;allowedOwners?:readonly string[]};
-type HistoryClient={rpc(name:string,args:Record<string,unknown>):PromiseLike<{data:unknown;error:unknown}>};
+type HistoryClient={rpc(name:string,args:Record<string,unknown>):PromiseLike<{data:unknown;error:unknown;status?:number}>};
 export class SessionHistoryError extends Error {
- constructor(){super('Complete Session history could not be verified. No partial results were used. Please retry.');this.name='SessionHistoryError';}
+ readonly reason:'authorization'|'unavailable';
+ constructor(reason:'authorization'|'unavailable'='unavailable'){super('Complete Session history could not be verified. No partial results were used. Please retry.');this.name='SessionHistoryError';this.reason=reason;}
 }
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const integer=(v:unknown,min=0):v is number=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=min;
@@ -65,7 +66,7 @@ export function verifySessionHistory(value:unknown,actor:string,options:HistoryO
 export function readCompleteSessionHistory(client:HistoryClient,actor:string,options:HistoryOptions&{details:false}):Promise<HistorySessionIndex[]>;
 export function readCompleteSessionHistory(client:HistoryClient,actor:string,options?:HistoryOptions&{details?:true}):Promise<HistorySession[]>;
 export async function readCompleteSessionHistory(client:HistoryClient,actor:string,options:HistoryOptions={}):Promise<HistorySessionIndex[]>{
- const {data,error}=await client.rpc('read_complete_session_history_v1',{p_actor:actor,p_owner:options.owner??null,p_organization:options.organization??null,p_session:options.session??null,p_type:options.sessionType??null,p_details:options.details!==false});
- if(error)throw new SessionHistoryError();
+ const {data,error,status}=await client.rpc('read_complete_session_history_v1',{p_actor:actor,p_owner:options.owner??null,p_organization:options.organization??null,p_session:options.session??null,p_type:options.sessionType??null,p_details:options.details!==false});
+ if(error){const failure=error as {code?:string;status?:number};throw new SessionHistoryError(status===401||status===403||failure.status===401||failure.status===403||['42501','PGRST301','PGRST302'].includes(failure.code??'')?'authorization':'unavailable');}
  return options.details===false?verifySessionHistory(data,actor,{...options,details:false}):verifySessionHistory(data,actor,{...options,details:true});
 }

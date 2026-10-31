@@ -47,3 +47,9 @@ test('Coach roster changes between identity and history reads fail explicitly',(
  assert.throws(()=>verifySessionHistory(envelope([row(1)]),id(2),{organization:id(3),allowedOwners:[owner,id(4)]}));
  assert.throws(()=>verifySessionHistory({...envelope([row(1)]),owners:null},owner));
 });
+test('read failures retain safe authorization categories without provider details',async()=>{
+ for(const [error,reason] of [[{code:'42501',message:'private provider response'},'authorization'],[{status:401},'authorization'],[{code:'PGRST301'},'authorization'],[{code:'57014'},'unavailable']]){
+  await assert.rejects(readCompleteSessionHistory({rpc:async()=>({data:null,error})},owner),e=>e instanceof SessionHistoryError&&e.reason===reason&&!e.message.includes('private provider'));
+ }
+ for(const status of [401,403])await assert.rejects(readCompleteSessionHistory({rpc:async()=>({data:null,error:{code:'provider-code'},status})},owner),e=>e.reason==='authorization');
+});

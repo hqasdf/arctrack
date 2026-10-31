@@ -10,13 +10,7 @@ import { arrowAverage, points, roundTotal, type RoundDraft, type SessionDraft } 
 export { DEFAULT_ANALYTICS_FILTERS };
 export type { AnalyticsFilters, VolumeInterval };
 
-export function singaporeToday(date: Date) {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: "Asia/Singapore", year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
+export { singaporeDate as singaporeToday } from "@arc-track/core/dates";
 
 export function mobileAnalyticsView(sessions: SessionDraft[], filters: AnalyticsFilters, today: string, interval: VolumeInterval) {
   const available = getAvailableFilters(sessions, filters, today);

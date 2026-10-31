@@ -1,10 +1,11 @@
+import {useScopedFocusRead} from "@/src/use-scoped-focus-read";
 import { createCoachStyles } from "@/src/coach-ui";
 ﻿import { targetFaceLabel } from "@arc-track/core/analytics";
 import { calculateOverview } from "@arc-track/core/analytics";
 import { summarizeCoachRound } from "@arc-track/core/coach-round";
 import { formatDateOnly } from "@arc-track/core/dates";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/src/auth";
 import { readCoachAthleteSessionIndex, readCoachSessionDetail } from "@/src/coach-read";
@@ -15,7 +16,6 @@ import { useCoachPalette } from "@/src/coach-ui";
 import { MobileCoachFeedback, MobileSessionNotes } from "@/src/notes-feedback-ui";
 import { singleTrainingPlanRouteParam } from "@/src/training-plan-route-params";
 
-type Detail = NonNullable<Awaited<ReturnType<typeof readCoachSessionDetail>>>;
 
 export default function CoachSessionScreen() {
   const coachPalette = useCoachPalette();
@@ -24,34 +24,20 @@ export default function CoachSessionScreen() {
   const params = useLocalSearchParams<{ organizationId?: string | string[]; userId?: string | string[]; sessionId?: string | string[] }>();
   const organizationId = singleTrainingPlanRouteParam(params.organizationId), userId = singleTrainingPlanRouteParam(params.userId), sessionId = singleTrainingPlanRouteParam(params.sessionId);
   const { user } = useAuth();
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [index, setIndex] = useState<Array<{ id: string; session_date: string }>>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const request = useRef(0), loadedScopeRef = useRef("");
-  const [loadedScope, setLoadedScope] = useState("");
-  const scope = `${user?.id ?? ""}:${organizationId}:${userId}:${sessionId}`;
-  const activeScope = useRef(scope);
-  useEffect(() => { activeScope.current = scope; const pending = request; return () => { pending.current++; }; }, [scope]);
-  const load = useCallback(async () => {
-    if (!user || !organizationId || !userId || !sessionId) { setLoading(false); return; }
-    const ticket = ++request.current, requestedScope = scope;
-    const current = () => ticket === request.current && activeScope.current === requestedScope;
-    if (loadedScopeRef.current !== requestedScope) setLoading(true); setError(null);
-    try {
-      const [loaded, ordered] = await Promise.all([
-        readCoachSessionDetail(user.id, organizationId, userId, sessionId),
-        readCoachAthleteSessionIndex(user.id, organizationId, userId),
-      ]);
-      if (!current()) return;
-      setDetail(loaded); setIndex(ordered ?? []); loadedScopeRef.current = requestedScope; setLoadedScope(requestedScope);
-    }
-    catch { if (current()) setError("Athlete Session could not be loaded. Try again."); }
-    finally { if (current()) setLoading(false); }
-  }, [user, organizationId, userId, sessionId, scope]);
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
-  if (loading || (loadedScope !== scope && !error && organizationId && userId && sessionId)) return <View style={styles.state}><ActivityIndicator color={coachPalette.accent} /></View>;
-  if (error && (!detail || loadedScope !== scope)) return <View style={styles.state}><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>Retry</Text></Pressable></View>;
+  const actor=user?.id;
+  const scope=`${actor??''}:${organizationId}:${userId}:${sessionId}`;
+  const read=useCallback(async()=>{
+    if(!actor||!organizationId||!userId||!sessionId)return null;
+    const [detail,index]=await Promise.all([
+      readCoachSessionDetail(actor,organizationId,userId,sessionId),
+      readCoachAthleteSessionIndex(actor,organizationId,userId),
+    ]);
+    return detail&&index?{detail,index}:null;
+  },[actor,organizationId,userId,sessionId]);
+  const {data,loading,error,reload:load}=useScopedFocusRead(actor&&organizationId&&userId&&sessionId?JSON.stringify([actor,organizationId,userId,sessionId]):null,read,"Athlete Session could not be loaded. Try again.",true);
+  const detail=data?.detail??null,index=data?.index??[];
+  if (loading) return <View style={styles.state}><ActivityIndicator color={coachPalette.accent} /></View>;
+  if (error && !detail) return <View style={styles.state}><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>Retry</Text></Pressable></View>;
   if (!detail || !user || !organizationId || !userId || !sessionId) return <View style={styles.state}><Text style={styles.muted}>This Session is not available to you.</Text></View>;
   const { session, rounds } = detail;
   const overview = calculateOverview(rounds.map(({ round }) => ({ sessionId, sessionTitle: session.title, sessionType: session.sessionType, date: session.date, round })));

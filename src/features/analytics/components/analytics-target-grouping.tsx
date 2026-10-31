@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { TargetFaceType } from "@/features/sessions/scoring-model";
 import type { TargetGrouping } from "../analytics-model";
 import styles from "./analytics.module.css";
@@ -13,7 +13,7 @@ const tripleCentres = [-110, 0, 110] as const;
 const views = { full_face: "-105 -105 210 210", six_ring: "-65 -65 130 130", triple_face: "-58 -168 116 336" } as const;
 const labels: Record<TargetFaceType, string> = { full_face: "Full face", six_ring: "6-ring", triple_face: "Triple face" };
 
-export function AnalyticsTargetGrouping({ groups }: { groups: TargetGrouping[] }) {
+export const AnalyticsTargetGrouping = memo(function AnalyticsTargetGrouping({ groups }: { groups: TargetGrouping[] }) {
   const [requestedFace, setRequestedFace] = useState<TargetFaceType | null>(null);
   const active = groups.find((group) => group.faceType === requestedFace) ?? groups.find((group) => group.arrows.length > 0) ?? groups[0] ?? null;
 
@@ -34,7 +34,7 @@ export function AnalyticsTargetGrouping({ groups }: { groups: TargetGrouping[] }
     </div>}
     <p className={styles.groupingContext}>{active.arrows.length} plotted {active.arrows.length === 1 ? "Arrow" : "Arrows"}{active.missingPlotCount > 0 ? ` · ${active.missingPlotCount} without plot coordinates` : ""}{active.unassignedTripleCount > 0 ? ` · ${active.unassignedTripleCount} Triple-face plots without a face index excluded` : ""}</p>
   </div>;
-}
+});
 
 function Face({ cy, radii }: { cy: number; radii: number[] }) {
   return <g>{radii.map((radius) => <circle key={radius} cx="0" cy={cy} r={radius * 100} fill={ringColours[radius]} stroke="#4b443e" strokeWidth=".7"/>)}<circle cx="0" cy={cy} r="5" fill="none" stroke="#4b443e" strokeWidth=".7"/><circle cx="0" cy={cy} r="1.5" fill="none" stroke="#4b443e" strokeWidth=".6"/></g>;

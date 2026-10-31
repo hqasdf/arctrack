@@ -1,18 +1,18 @@
+import {useScopedFocusRead} from "@/src/use-scoped-focus-read";
 import { buildCoachAthleteInsights, coachFilterOptions, DEFAULT_COACH_FILTERS, type CoachFilters } from "@arc-track/core/coach-analytics";
 import { formatDateOnly } from "@arc-track/core/dates";
 import { trainingPlanStatus } from "@arc-track/core/training-plan";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useAuth } from "@/src/auth";
 import { useCoachPalette, CoachHeadline, CoachBars, CoachFilterPanel, CoachLine, CoachMetric, CoachNav, CoachSection, useCoachStyles } from "@/src/coach-ui";
 import { singaporeToday } from "@/src/mobile-analytics";
-import { athleteLabel, readCoachAthleteSessions, readCoachAthletes, type CoachAthlete } from "@/src/organizations";
+import { athleteLabel, readCoachAthleteSessions, readCoachAthletes } from "@/src/organizations";
 import { MobileSessionFeedbackHistory } from "@/src/notes-feedback-ui";
 import { readMobileCoachAthleteTrainingPlanProgress } from "@/src/training-plans-read";
 import { visibleTrainingWeek } from "@/src/training-plans-ui";
 import { singleTrainingPlanRouteParam } from "@/src/training-plan-route-params";
-import type { CoachAnalyticsSession } from "@arc-track/core/coach-analytics";
 
 export default function CoachAthleteScreen() {
   const coachPalette = useCoachPalette();
@@ -24,45 +24,32 @@ export default function CoachAthleteScreen() {
   const organizationId = singleTrainingPlanRouteParam(rawOrganizationId);
   const userId = singleTrainingPlanRouteParam(rawUserId);
   const { user } = useAuth();
-  const [athlete, setAthlete] = useState<CoachAthlete | null>(null);
-  const [sessions, setSessions] = useState<CoachAnalyticsSession[]>([]);
-  const [trainingPlans, setTrainingPlans] = useState<Awaited<ReturnType<typeof readMobileCoachAthleteTrainingPlanProgress>>>([]);
-  const [trainingPlansError, setTrainingPlansError] = useState(false);
+  const actor=user?.id;
+  const scope=`${actor??''}:${organizationId}:${userId}`;
   const [filters, setFilters] = useState<CoachFilters>(DEFAULT_COACH_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const request = useRef(0), loadedScopeRef = useRef("");
-  const [loadedScope, setLoadedScope] = useState("");
-  const scope = `${user?.id ?? ""}:${organizationId}:${userId}`;
-  const activeScope = useRef(scope);
-  useEffect(() => { activeScope.current = scope; const pending = request; return () => { pending.current++; }; }, [scope]);
-  const load = useCallback(async () => {
-    if (!user || !organizationId || !userId) { setLoading(false); return; }
-    const ticket = ++request.current, requestedScope = scope;
-    const current = () => ticket === request.current && activeScope.current === requestedScope;
-    if (loadedScopeRef.current !== requestedScope) setLoading(true); setError(null);
-    try {
-      const roster = await readCoachAthletes(user.id, organizationId);
-      if (!current()) return;
-      const match = roster?.find((item) => item.userId === userId) ?? null;
-      if (!match) { setAthlete(null); setSessions([]); loadedScopeRef.current = requestedScope; setLoadedScope(requestedScope); return; }
-      const [loaded, plans] = await Promise.all([
-        readCoachAthleteSessions(user.id, organizationId, userId, roster ?? undefined),
-        readMobileCoachAthleteTrainingPlanProgress(user.id, organizationId, userId, singaporeToday(new Date())).catch(() => null),
-      ]);
-      if (!current()) return;
-      setAthlete(match); setSessions((loaded ?? []).map((session) => ({ ...session, userId }))); loadedScopeRef.current = requestedScope; setLoadedScope(requestedScope);
-      setTrainingPlans(plans ?? []); setTrainingPlansError(plans === null);
-    } catch { if (current()) setError("Athlete performance could not be loaded. Try again."); }
-    finally { if (current()) setLoading(false); }
-  }, [user, organizationId, userId, scope]);
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const read=useCallback(async(current:()=>boolean)=>{
+    if(!actor||!organizationId||!userId)return null;
+    const roster=await readCoachAthletes(actor,organizationId);
+    if(!current())return null;
+    const athlete=roster?.find(item=>item.userId===userId);
+    if(!athlete)return null;
+    const [loaded,plans]=await Promise.all([
+      readCoachAthleteSessions(actor,organizationId,userId,roster??undefined),
+      readMobileCoachAthleteTrainingPlanProgress(actor,organizationId,userId,singaporeToday(new Date())).catch(()=>null),
+    ]);
+    if(loaded===null)return null;
+    return {athlete,sessions:loaded.map(session=>({...session,userId})),trainingPlans:plans??[],trainingPlansError:plans===null};
+  },[actor,organizationId,userId]);
+  const {data,loading,error,reload:load}=useScopedFocusRead(actor&&organizationId&&userId?JSON.stringify([actor,organizationId,userId]):null,read,"Athlete performance could not be loaded. Try again.",true);
+  const athlete=data?.athlete??null;
+  const sessions=useMemo(()=>data?.sessions??[],[data]);
+  const trainingPlans=data?.trainingPlans??[],trainingPlansError=data?.trainingPlansError??false;
   const today = singaporeToday(new Date());
   const options = useMemo(() => coachFilterOptions(sessions, today, filters), [sessions, today, filters]);
   const insights = useMemo(() => athlete ? buildCoachAthleteInsights({ userId: athlete.userId, name: athleteLabel(athlete) }, sessions, filters, today) : null, [athlete, sessions, filters, today]);
-  if (loading || (loadedScope !== scope && !error && organizationId && userId)) return <View style={coachStyles.state}><ActivityIndicator color={coachPalette.accent}/></View>;
-  if (!user || !athlete || !insights || !organizationId || !userId || loadedScope !== scope) return <View style={coachStyles.state}><Text style={coachStyles.muted}>{error ?? "This athlete is not available in your active roster."}</Text>{error ? <Pressable onPress={() => void load()}><Text style={coachStyles.link}>Retry</Text></Pressable> : null}</View>;
+  if (loading) return <View style={coachStyles.state}><ActivityIndicator color={coachPalette.accent}/></View>;
+  if (!user || !athlete || !insights || !organizationId || !userId) return <View style={coachStyles.state}><Text style={coachStyles.muted}>{error ?? "This athlete is not available in your active roster."}</Text>{error ? <Pressable onPress={() => void load()}><Text style={coachStyles.link}>Retry</Text></Pressable> : null}</View>;
   const openSession = (sessionId: string) => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]", params: { organizationId, userId, sessionId } });
   const openRound = (sessionId: string, roundId: string) => router.push({ pathname: "/organization/[organizationId]/athletes/[userId]/sessions/[sessionId]/rounds/[roundId]", params: { organizationId, userId, sessionId, roundId } });
   const best = insights.overview.bestRound;

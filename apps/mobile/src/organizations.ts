@@ -1,4 +1,4 @@
-import {readCompleteSessionHistory} from "@arc-track/core/session-history";
+import {readCompleteSessionHistory,SessionHistoryError} from "@arc-track/core/session-history";
 import type { SessionDraft } from "@arc-track/core/scoring";
 import { mapSessionDetail } from "./session-mapper";
 import { supabase } from "./supabase";
@@ -50,18 +50,24 @@ export async function regenerateJoinCode(id: string) {
 
 export async function readCoachOrganization(userId: string, organizationId: string) {
   if (!supabase) throw new Error("Coach access could not be checked.");
-  const { data, error } = await supabase.from("organization_members")
+  const { data, error, status } = await supabase.from("organization_members")
     .select("organization_id,organizations(name)").eq("organization_id", organizationId)
     .eq("user_id", userId).eq("status", "active").eq("role", "head_coach").maybeSingle();
-  if (error) throw new Error("Coach access could not be checked.");
+  if (error) {
+    if(status===401||status===403||error.code==='42501')throw new SessionHistoryError('authorization');
+    throw new Error("Coach access could not be checked.");
+  }
   if (!data?.organizations) return null;
   return { id: organizationId, name: (data.organizations as unknown as { name: string }).name };
 }
 export async function readCoachAthletes(userId: string, organizationId: string): Promise<CoachAthlete[] | null> {
   if (!supabase) throw new Error("Athlete roster could not be loaded.");
   if (!await readCoachOrganization(userId, organizationId)) return null;
-  const { data, error } = await supabase.rpc("read_coach_athlete_roster", { p_organization_id: organizationId });
-  if (error) throw new Error("Athlete roster could not be loaded.");
+  const { data, error, status } = await supabase.rpc("read_coach_athlete_roster", { p_organization_id: organizationId });
+  if (error) {
+    if(status===401||status===403||error.code==='42501')throw new SessionHistoryError('authorization');
+    throw new Error("Athlete roster could not be loaded.");
+  }
   return mapCoachRoster(data ?? []);
 }
 export async function readCoachAthleteSessions(userId: string, organizationId: string, athleteId: string, knownAthletes?: CoachAthlete[]): Promise<SessionDraft[] | null> {

@@ -1,9 +1,10 @@
+import {useScopedFocusRead} from "@/src/use-scoped-focus-read";
 import { createCoachStyles } from "@/src/coach-ui";
 ﻿import { summarizeCoachRound } from "@arc-track/core/coach-round";
 import { formatDateOnly } from "@arc-track/core/dates";
 import { roundTotal, xCount } from "@arc-track/core/scoring";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useCallback } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/src/auth";
 import { readCoachRoundDetail } from "@/src/coach-read";
@@ -13,7 +14,6 @@ import { CoachBars, CoachLine } from "@/src/coach-ui";
 import { PAGE_TOP_SPACING } from "@/src/theme";
 import { useCoachPalette } from "@/src/coach-ui";
 
-type Detail = NonNullable<Awaited<ReturnType<typeof readCoachRoundDetail>>>;
 
 export default function CoachRoundScreen() {
   const coachPalette = useCoachPalette();
@@ -21,17 +21,9 @@ export default function CoachRoundScreen() {
 
   const { organizationId, userId, sessionId, roundId } = useLocalSearchParams<{ organizationId: string; userId: string; sessionId: string; roundId: string }>();
   const { user } = useAuth();
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    if (!user || !organizationId || !userId || !sessionId || !roundId) return;
-    setLoading(true); setError(null);
-    try { setDetail(await readCoachRoundDetail(user.id, organizationId, userId, sessionId, roundId)); }
-    catch { setError("Athlete Round could not be loaded. Try again."); }
-    finally { setLoading(false); }
-  }, [user, organizationId, userId, sessionId, roundId]);
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const actor=user?.id;
+  const read=useCallback(async()=>actor&&organizationId&&userId&&sessionId&&roundId?readCoachRoundDetail(actor,organizationId,userId,sessionId,roundId):null,[actor,organizationId,userId,sessionId,roundId]);
+  const {data:detail,loading,error,reload:load}=useScopedFocusRead(actor&&organizationId&&userId&&sessionId&&roundId?JSON.stringify([actor,organizationId,userId,sessionId,roundId]):null,read,"Athlete Round could not be loaded. Try again.",true);
   if (loading) return <View style={styles.state}><ActivityIndicator color={coachPalette.accent} /></View>;
   if (error) return <View style={styles.state}><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>Retry</Text></Pressable></View>;
   if (!detail) return <View style={styles.state}><Text style={styles.muted}>This Round is not available to you.</Text></View>;

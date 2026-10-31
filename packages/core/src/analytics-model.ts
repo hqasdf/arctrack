@@ -1,3 +1,4 @@
+import { analyticsDateWindow, matchesAnalyticsDate } from "./date.ts";
 import type { Division } from "./round-presets.ts";
 import { points, roundTotal as sumArrowPoints, type ArrowEntry, type RoundDraft, type SessionDraft, type SessionType, type TargetFaceType } from "./scoring-model.ts";
 import { calculateGroupingSpread } from "./session-insights-model.ts";
@@ -244,10 +245,7 @@ function matchesPrimaryFilters(item: AnalyticsRound, filters: Pick<AnalyticsFilt
 
 function matchesSessionPrimaryFilters(session: Pick<SessionDraft, "sessionType" | "date">, filters: Pick<AnalyticsFilters, "sessionType" | "dateRange">, today: string) {
   if (filters.sessionType !== "all" && session.sessionType !== filters.sessionType) return false;
-  if (filters.dateRange === "all") return true;
-  const days = filters.dateRange === "7" ? 6 : 29;
-  const cutoff = shiftDate(today, -days);
-  return session.date >= cutoff && session.date <= today;
+  return matchesAnalyticsDate(session.date, analyticsDateWindow(filters.dateRange, today));
 }
 
 function shiftDate(value: string, days: number) {

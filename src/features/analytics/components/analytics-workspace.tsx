@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { chartAxis, chartTick } from "@arc-track/core/chart-axis";
 import type { SessionDraft } from "@/features/sessions/scoring-model";
 import { calculateArrowVolume, calculateDistancePerformance, calculateOverview, calculateTargetGroupings, calculateTrend, DEFAULT_ANALYTICS_FILTERS, filterAnalyticsRounds, formatAnalyticsDate, formatAnalyticsWeekRange, getAvailableFilters, type AnalyticsDateRange, type AnalyticsFilters, type AnalyticsSessionType, type ArrowVolumePoint, type TrendPoint, type VolumeInterval } from "../analytics-model";
@@ -78,33 +78,39 @@ function Metric({ label, value }: { label: string; value: string }) { return <ar
 function EmptyState({ title, body }: { title: string; body: string }) { return <div className={styles.emptyState}><h3>{title}</h3><p>{body}</p></div>; }
 function formatAverage(value: number | null) { return value === null ? "—" : value.toFixed(2); }
 function formatPercentage(value: number | null) { return value === null ? "—" : `${value.toFixed(1)}%`; }
-function TrendChart({ points }: { points: TrendPoint[] }) {
+const TrendChart = memo(function TrendChart({ points }: { points: TrendPoint[] }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const left = 54, right = 774, top = 18, bottom = 210;
-  const { min, max, ticks } = chartAxis(points.map((point) => point.average), "score");
-  const x = (index: number) => points.length === 1 ? (left + right) / 2 : left + index / (points.length - 1) * (right - left);
-  const y = (average: number) => bottom - (average - min) / (max - min) * (bottom - top);
-  const path = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index).toFixed(1)} ${y(point.average).toFixed(1)}`).join(" ");
-  return <div className={styles.chartWrap}><svg viewBox="0 0 800 244" role="img" aria-label="Average score per Arrow by Round over time">
-    {ticks.map((value) => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} className={styles.gridLine}/><text x="43" y={y(value) + 4} textAnchor="end" className={styles.axisLabel}>{chartTick(value, "score")}</text></g>)}
-    <path d={path} className={styles.trendLine}/>
-    {points.map((point, index) => { const detail = `${formatAnalyticsDate(point.date)} · ${point.roundName}: ${point.average.toFixed(2)} avg/Arrow · ${point.arrowCount} scored Arrows`; return <circle key={point.id} cx={x(index)} cy={y(point.average)} r="6" className={styles.trendPoint} tabIndex={0} aria-label={detail} onMouseEnter={() => setSelected(detail)} onMouseLeave={() => setSelected(null)} onFocus={() => setSelected(detail)} onBlur={() => setSelected(null)}><title>{detail}</title></circle>; })}
-  </svg>{selected ? <p className={styles.chartDetail} role="status">{selected}</p> : null}</div>;
-}
+  const plot = useMemo(() => {
+    const left = 54, right = 774, top = 18, bottom = 210;
+    const { min, max, ticks } = chartAxis(points.map((point) => point.average), "score");
+    const x = (index: number) => points.length === 1 ? (left + right) / 2 : left + index / (points.length - 1) * (right - left);
+    const y = (average: number) => bottom - (average - min) / (max - min) * (bottom - top);
+    const path = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index).toFixed(1)} ${y(point.average).toFixed(1)}`).join(" ");
+    return <svg viewBox="0 0 800 244" role="img" aria-label="Average score per Arrow by Round over time">
+      {ticks.map((value) => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} className={styles.gridLine}/><text x="43" y={y(value) + 4} textAnchor="end" className={styles.axisLabel}>{chartTick(value, "score")}</text></g>)}
+      <path d={path} className={styles.trendLine}/>
+      {points.map((point, index) => { const detail = `${formatAnalyticsDate(point.date)} · ${point.roundName}: ${point.average.toFixed(2)} avg/Arrow · ${point.arrowCount} scored Arrows`; return <circle key={point.id} cx={x(index)} cy={y(point.average)} r="6" className={styles.trendPoint} tabIndex={0} aria-label={detail} onMouseEnter={() => setSelected(detail)} onMouseLeave={() => setSelected(null)} onFocus={() => setSelected(detail)} onBlur={() => setSelected(null)}><title>{detail}</title></circle>; })}
+    </svg>;
+  }, [points]);
+  return <div className={styles.chartWrap}>{plot}{selected ? <p className={styles.chartDetail} role="status">{selected}</p> : null}</div>;
+});
 
-function VolumeChart({ points, interval }: { points: ArrowVolumePoint[]; interval: VolumeInterval }) {
+const VolumeChart = memo(function VolumeChart({ points, interval }: { points: ArrowVolumePoint[]; interval: VolumeInterval }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const width = Math.max(560, points.length * 76 + 80), left = 52, right = width - 20, top = 18, bottom = 196;
-  const { max: maximum, ticks } = chartAxis(points.map((point) => point.arrowCount), "count", true);
-  const x = (index: number) => left + (index + .5) / points.length * (right - left);
-  const y = (value: number) => bottom - value / maximum * (bottom - top);
-  const slotWidth = (right - left) / points.length;
-  const barWidth = Math.min(48, Math.max(18, slotWidth * .58));
-  return <><div className={styles.volumeChart}><svg viewBox={`0 0 ${width} 238`} style={{ minWidth: `${width}px` }} role="img" aria-label={`${interval === "daily" ? "Daily" : "Weekly"} Session Arrow volume`}>
-    {ticks.map((value) => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} className={styles.gridLine}/><text x="43" y={y(value) + 4} textAnchor="end" className={styles.axisLabel}>{chartTick(value, "count")}</text></g>)}
-    {points.map((point, index) => { const barTop = y(point.arrowCount); const detail = `${formatVolumeRange(point, interval)}: ${point.arrowCount} Session Arrows`; return <g key={point.key}><rect x={x(index) - barWidth / 2} y={barTop} width={barWidth} height={bottom - barTop} rx="5" className={styles.volumeBar} tabIndex={0} aria-label={detail} onMouseEnter={() => setSelected(detail)} onMouseLeave={() => setSelected(null)} onFocus={() => setSelected(detail)} onBlur={() => setSelected(null)}><title>{detail}</title></rect><text x={x(index)} y={barTop - 7} textAnchor="middle" className={styles.barValue}>{point.arrowCount}</text><text x={x(index)} y="218" textAnchor="middle" className={styles.axisLabel}>{formatVolumeAxisLabel(point, interval)}</text></g>; })}
-  </svg></div>{selected ? <p className={styles.chartDetail} role="status">{selected}</p> : null}<div className={styles.volumeList}>{points.map((point) => <div key={point.key}><span>{formatVolumeRange(point, interval)}</span><strong>{point.arrowCount} {point.arrowCount === 1 ? "Arrow" : "Arrows"}</strong></div>)}</div></>;
-}
+  const { chart, list } = useMemo(() => {
+    const width = Math.max(560, points.length * 76 + 80), left = 52, right = width - 20, top = 18, bottom = 196;
+    const { max: maximum, ticks } = chartAxis(points.map((point) => point.arrowCount), "count", true);
+    const x = (index: number) => left + (index + .5) / points.length * (right - left);
+    const y = (value: number) => bottom - value / maximum * (bottom - top);
+    const slotWidth = (right - left) / points.length;
+    const barWidth = Math.min(48, Math.max(18, slotWidth * .58));
+    return { chart: <div className={styles.volumeChart}><svg viewBox={`0 0 ${width} 238`} style={{ minWidth: `${width}px` }} role="img" aria-label={`${interval === "daily" ? "Daily" : "Weekly"} Session Arrow volume`}>
+      {ticks.map((value) => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} className={styles.gridLine}/><text x="43" y={y(value) + 4} textAnchor="end" className={styles.axisLabel}>{chartTick(value, "count")}</text></g>)}
+      {points.map((point, index) => { const barTop = y(point.arrowCount); const detail = `${formatVolumeRange(point, interval)}: ${point.arrowCount} Session Arrows`; return <g key={point.key}><rect x={x(index) - barWidth / 2} y={barTop} width={barWidth} height={bottom - barTop} rx="5" className={styles.volumeBar} tabIndex={0} aria-label={detail} onMouseEnter={() => setSelected(detail)} onMouseLeave={() => setSelected(null)} onFocus={() => setSelected(detail)} onBlur={() => setSelected(null)}><title>{detail}</title></rect><text x={x(index)} y={barTop - 7} textAnchor="middle" className={styles.barValue}>{point.arrowCount}</text><text x={x(index)} y="218" textAnchor="middle" className={styles.axisLabel}>{formatVolumeAxisLabel(point, interval)}</text></g>; })}
+    </svg></div>, list: <div className={styles.volumeList}>{points.map((point) => <div key={point.key}><span>{formatVolumeRange(point, interval)}</span><strong>{point.arrowCount} {point.arrowCount === 1 ? "Arrow" : "Arrows"}</strong></div>)}</div> };
+  }, [points, interval]);
+  return <>{chart}{selected ? <p className={styles.chartDetail} role="status">{selected}</p> : null}{list}</>;
+});
 
 function formatVolumeAxisLabel(point: ArrowVolumePoint, interval: VolumeInterval) {
   return interval === "daily" ? formatAnalyticsDate(point.startDate, false) : formatAnalyticsWeekRange(point.startDate, point.endDate);

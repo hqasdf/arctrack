@@ -3,7 +3,6 @@
   type AnalyticsDateRange, type AnalyticsSessionType,
 } from "@arc-track/core/analytics";
 import type { SessionDraft, TargetFaceType } from "@arc-track/core/scoring";
-import { useFocusEffect } from "expo-router";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Line, Polyline, Text as SvgText } from "react-native-svg";
@@ -16,35 +15,29 @@ import {
   type AnalyticsFilters, type VolumeInterval,
 } from "../../src/mobile-analytics";
 import { readOwnAnalyticsSessions } from "../../src/sessions";
+import {useScopedFocusRead} from '../../src/use-scoped-focus-read';
 import { PAGE_TOP_SPACING } from "../../src/theme";
 import { createThemedStyles, useAppearance } from "../../src/appearance";
 
 const average = (value: number | null) => value === null ? "—" : value.toFixed(2);
 const percentage = (value: number | null) => value === null ? "—" : `${value.toFixed(1)}%`;
 const faceNames: Record<TargetFaceType, string> = { full_face: "Full face", six_ring: "6-ring", triple_face: "Triple face" };
+const EMPTY_SESSIONS:SessionDraft[]=[];
 
 export default function AnalyticsScreen() {
   const styles = useStyles();
   const { colors } = useAppearance();
   const { user } = useAuth();
-  const [sessions, setSessions] = useState<SessionDraft[]>([]);
   const [filters, setFilters] = useState<AnalyticsFilters>(DEFAULT_ANALYTICS_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [interval, setInterval] = useState<VolumeInterval>("daily");
   const [requestedFace, setRequestedFace] = useState<TargetFaceType | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const today = singaporeToday(new Date());
 
-  const load = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    try { setSessions(await readOwnAnalyticsSessions(user.id)); }
-    catch { setError("Analytics could not be loaded. Check your connection and try again."); }
-    finally { setLoading(false); }
-  }, [user]);
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const userId=user?.id;
+  const read=useCallback(async()=>userId?readOwnAnalyticsSessions(userId):null,[userId]);
+  const {data,loading,error,reload:load}=useScopedFocusRead(userId??null,read,"Analytics could not be loaded. Check your connection and try again.");
+  const sessions=data??EMPTY_SESSIONS;
 
   const view = useMemo(() => mobileAnalyticsView(sessions, filters, today, interval), [sessions, filters, today, interval]);
   const activeGroup = view.groupings.find((group) => group.faceType === requestedFace)
