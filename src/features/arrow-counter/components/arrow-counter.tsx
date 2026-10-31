@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type UIEvent, type WheelEvent } from "react";
 import { addArrows, COUNTER_STORAGE_KEY, DEFAULT_COUNTER, lastAdditionDisplay, readCounter, resetCounter, setIncrement, undoLastAddition, type ArrowCounterState } from "../counter-model";
 import styles from "./arrow-counter.module.css";
+import { useDraftGuard } from "@/features/notes-feedback/draft-guard";
 
-export function ArrowCounter() {
+export function ArrowCounter({onStorageChange}:{onStorageChange?:(safe:boolean)=>void}={}) {
   const [counter, setCounter] = useState<ArrowCounterState>(DEFAULT_COUNTER);
   const [ready, setReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -16,9 +17,11 @@ export function ArrowCounter() {
   const [incrementInput, setIncrementInput] = useState(String(DEFAULT_COUNTER.increment));
   const [confirmReset, setConfirmReset] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [unpreserved,setUnpreserved]=useState(false);
   const selectorRef = useRef<HTMLDivElement>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewRef = useRef(DEFAULT_COUNTER.increment);
+  useDraftGuard(unpreserved||previewIncrement!==counter.increment,"Counter changes are not yet safely saved on this device. Leave and risk losing the latest changes?");
   const wheelRemainder = useRef(0);
   const wheelStart = Math.max(1, counter.increment - 20);
   const wheelValues = Array.from({ length: 41 }, (_, index) => wheelStart + index);
@@ -45,6 +48,7 @@ export function ArrowCounter() {
           stored = readCounter(parsed);
         }
       } catch {
+        onStorageChange?.(false);
         setMessage("This browser could not load the saved counter.");
         setLoadFailed(true);
         setReady(false);
@@ -59,9 +63,10 @@ export function ArrowCounter() {
       setReady(true);
       setLoadFailed(false);
       setMessage(null);
+      onStorageChange?.(true);
     });
     return () => { active = false; };
-  }, [loadAttempt]);
+  }, [loadAttempt,onStorageChange]);
 
   function apply(change: (current: ArrowCounterState) => ArrowCounterState) {
     if (!writable.current) return;
@@ -73,7 +78,9 @@ export function ArrowCounter() {
     setMessage(null);
     try {
       window.localStorage.setItem(COUNTER_STORAGE_KEY, JSON.stringify(next));
+      setUnpreserved(false);onStorageChange?.(true);
     } catch {
+      setUnpreserved(true);onStorageChange?.(false);
       setMessage("This browser could not save the counter. Keep this page open to retain the current tally.");
     }
   }
@@ -117,6 +124,7 @@ export function ArrowCounter() {
       if (previewRef.current !== value) {
         previewRef.current = value;
         setPreviewIncrement(value);
+        onStorageChange?.(value===currentCounter.current.increment&&!unpreserved);
         if (window.matchMedia("(pointer: coarse)").matches && typeof navigator.vibrate === "function") {
           try { navigator.vibrate(8); } catch { /* Haptics are optional and browser-controlled. */ }
         }
@@ -152,6 +160,7 @@ export function ArrowCounter() {
   }
 
   return <section className={styles.counter} data-arrow-counter-root aria-label="Arrow Counter">
+    {unpreserved&&<button type="button" onClick={()=>apply(current=>({...current}))}>Retry device save</button>}
     <h1 className={styles.srOnly}>Arrow Counter</h1>
     <div className={styles.toolbar}>
       <Link href="/sessions" className={styles.back} aria-label="Back to Sessions"><Icon name="back"/></Link>

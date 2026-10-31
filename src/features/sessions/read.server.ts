@@ -28,6 +28,15 @@ export async function readSessions(options?:{sessionType?:SessionType}):Promise<
   return ((data??[]) as unknown as DbSession[]).map(mapSession);
 }
 
+/** Refresh one already-open Session, including every Round, without reading history. */
+export async function readOwnedSession(sessionId:string):Promise<SessionDraft|null> {
+  const user=await requireUser();
+  const supabase=await createAuthClient();
+  const {data,error}=await supabase.from("sessions").select(SESSION_DETAIL_SELECT).eq("user_id",user.id).eq("id",sessionId).maybeSingle();
+  if(error)throw Error("The Session could not be refreshed.");
+  return data?mapSession(data as unknown as DbSession):null;
+}
+
 export function mapSession(row:DbSession):SessionDraft {
   const rounds=(row.session_rounds??[]).map(mapRound);
   return {id:row.id,title:row.title,date:row.session_date,sessionType:row.session_type as SessionType,arrowCount:row.arrow_count,rounds:newestRoundsFirst(rounds)};

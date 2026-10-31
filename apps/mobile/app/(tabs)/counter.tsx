@@ -10,6 +10,7 @@ import {
 import { PAGE_TOP_SPACING } from "../../src/theme";
 import { createThemedStyles } from "../../src/appearance";
 import { COUNTER_TOTAL_COLUMN_FLEX, COUNTER_WHEEL_COLUMN_FLEX, COUNTER_WHEEL_ROW_HEIGHT, COUNTER_WHEEL_VISIBLE_ROWS, COUNTER_WHEEL_WINDOW, counterWheelRangeStart, counterWheelValueFromOffset, shouldRecenterCounterWheel, shouldTickCounterWheel } from "../../src/counter-wheel-model";
+import { DeviceSaveNavigationGuard } from "../../src/device-save-navigation-guard";
 
 export default function CounterScreen() {
   const styles = useStyles();
@@ -26,6 +27,15 @@ export default function CounterScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const writes = useRef(Promise.resolve());
   const currentCounter = useRef<CounterState>(DEFAULT_COUNTER);
+  const [devicePending,setDevicePending]=useState(false),[deviceFailed,setDeviceFailed]=useState(false);
+  const preserved=useRef(true),writeVersion=useRef(0);
+  const persist=useCallback((next:CounterState)=>{
+    const version=++writeVersion.current;preserved.current=false;setDevicePending(true);setDeviceFailed(false);setMessage(null);
+    writes.current=writes.current.catch(()=>{}).then(()=>AsyncStorage.setItem(COUNTER_STORAGE_KEY,JSON.stringify(next)));
+    void writes.current.then(()=>{if(version===writeVersion.current){preserved.current=true;setDevicePending(false);setDeviceFailed(false);}},()=>{
+      if(version===writeVersion.current){setDeviceFailed(true);setMessage("Counter could not be saved on this device. Retry before leaving.");}
+    });
+  },[]);
 
   useEffect(() => {
     let active = true;
@@ -47,9 +57,8 @@ export default function CounterScreen() {
     if (next === currentCounter.current) return;
     currentCounter.current = next;
     setCounter(next);
-    writes.current = writes.current.catch(() => {}).then(() => AsyncStorage.setItem(COUNTER_STORAGE_KEY, JSON.stringify(next)));
-    void writes.current.catch(() => setMessage("Counter could not be saved on this device."));
-  }, [ready]);
+    persist(next);
+  }, [ready,persist]);
   const changeIncrement = useCallback((increment: number) => {
     if (!ready) return;
     if (!shouldTickCounterWheel(currentCounter.current.increment, increment)) return;
@@ -97,6 +106,8 @@ export default function CounterScreen() {
     </View>
     <View style={styles.lastAdded} accessibilityLiveRegion="polite"><Text style={styles.lastAddedLabel}>Last added</Text><Text style={styles.lastAddedTime}>{lastAdditionDisplay(counter).time}</Text><Text style={styles.lastAddedLabel}>{lastAdditionDisplay(counter).detail}</Text></View>
     {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
+    {devicePending&&!deviceFailed?<Text accessibilityLiveRegion="polite" style={styles.lastAddedLabel}>Saving on this device…</Text>:null}
+    {deviceFailed?<Pressable accessibilityRole="button" onPress={()=>persist(currentCounter.current)} style={styles.tool}><Text style={styles.toolText}>Retry device save</Text></Pressable>:null}
     {loadFailed ? <Pressable accessibilityRole="button" accessibilityLabel="Retry loading saved counter"
       onPress={() => { setLoadFailed(false); setMessage(null); setLoadAttempt(value => value + 1); }} style={styles.tool}>
       <Text style={styles.toolText}>Retry</Text>
@@ -105,6 +116,7 @@ export default function CounterScreen() {
       onPress={() => apply(addArrows)} style={({ pressed }) => [styles.clicker, compact && styles.compactClicker, pressed && styles.pressed]}>
       <Text style={[styles.arrow, compact && styles.compactArrow]}>↑</Text><Text style={styles.addText}>+{counter.increment}</Text>
     </Pressable>
+    <DeviceSaveNavigationGuard pending={devicePending} wait={async()=>{for(;;){const job=writes.current;await job;if(job===writes.current)return;}}} ready={()=>preserved.current}/>
   </ScrollView>;
 }
 

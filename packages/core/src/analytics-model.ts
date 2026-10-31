@@ -1,6 +1,6 @@
 import type { Division } from "./round-presets.ts";
 import { points, roundTotal as sumArrowPoints, type ArrowEntry, type RoundDraft, type SessionDraft, type SessionType, type TargetFaceType } from "./scoring-model.ts";
-import { calculateGroupingMetrics } from "./session-insights-model.ts";
+import { calculateGroupingSpread } from "./session-insights-model.ts";
 export { formatDateOnly as formatAnalyticsDate, formatWeekRange as formatAnalyticsWeekRange } from "./date.ts";
 
 export type AnalyticsSessionType = SessionType | "all";
@@ -272,5 +272,5 @@ function comparisonMetric(rounds: AnalyticsRound[], allowSpread: boolean): Compa
   const total = sumArrowPoints(arrows);
   const xCount = arrows.filter((arrow) => arrow.score === "X").length;
   const tenPlusXCount = arrows.filter((arrow) => points(arrow.score) === 10).length;
-  return { average: arrows.length ? total / arrows.length : null, xPercentage: arrows.length ? xCount / arrows.length * 100 : null, tenPlusXPercentage: arrows.length ? tenPlusXCount / arrows.length * 100 : null, arrowCount: arrows.length, spread: allowSpread ? calculateGroupingMetrics(plotted)?.spreadNormalized ?? null : null, plottedArrowCount: plotted.length };
+  return { average: arrows.length ? total / arrows.length : null, xPercentage: arrows.length ? xCount / arrows.length * 100 : null, tenPlusXPercentage: arrows.length ? tenPlusXCount / arrows.length * 100 : null, arrowCount: arrows.length, spread: allowSpread ? calculateGroupingSpread(plotted)?.spreadNormalized ?? null : null, plottedArrowCount: plotted.length };
 }

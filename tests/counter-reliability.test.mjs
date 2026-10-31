@@ -6,15 +6,15 @@ import ts from 'typescript';
 import * as model from '../src/features/arrow-counter/counter-model.ts';
 const require=createRequire(import.meta.url),tick=()=>new Promise(setImmediate);
 function runtime(raw=null){
- let slots=[],cursor=0,effects=[],readFailure=false,writeFailure=false;
+ let slots=[],cursor=0,effects=[],readFailure=false,writeFailure=false,guarded=false;
  const timers=new Map(),writes=[];let serial=0;
  const same=(a,b)=>a&&b&&a.length===b.length&&a.every((x,i)=>Object.is(x,b[i]));
  const react={useState(initial){const i=cursor++;if(!(i in slots))slots[i]=initial;return[slots[i],v=>slots[i]=typeof v==='function'?v(slots[i]):v]},useRef(initial){return slots[cursor++]??={current:initial}},useEffect(fn,deps){const i=cursor++;if(!same(slots[i]?.deps,deps)){const old=slots[i];slots[i]={deps};effects.push(()=>{old?.cleanup?.();slots[i].cleanup=fn()})}},useLayoutEffect(){cursor++;}};
  const win={localStorage:{getItem(){if(readFailure)throw Error('unavailable');return raw},setItem(k,v){if(writeFailure)throw Error('full');raw=v;writes.push(JSON.parse(v))}},matchMedia:()=>({matches:false})};
  const compiled=ts.transpileModule(readFileSync(new URL('../src/features/arrow-counter/components/arrow-counter.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText;
- const out={};new Function('require','exports','window','document','setTimeout','clearTimeout',compiled)(n=>n==='react'?react:n==='next/link'?{__esModule:true,default:'a'}:n==='../counter-model'?model:n.endsWith('.css')?{__esModule:true,default:{}}:require(n),out,win,{activeElement:null,getElementById:()=>null},fn=>{const id=++serial;timers.set(id,fn);return id},id=>timers.delete(id));
+ const out={};new Function('require','exports','window','document','setTimeout','clearTimeout',compiled)(n=>n==='@/features/notes-feedback/draft-guard'?{useDraftGuard:dirty=>{guarded=dirty;}}:n==='react'?react:n==='next/link'?{__esModule:true,default:'a'}:n==='../counter-model'?model:n.endsWith('.css')?{__esModule:true,default:{}}:require(n),out,win,{activeElement:null,getElementById:()=>null},fn=>{const id=++serial;timers.set(id,fn);return id},id=>timers.delete(id));
  const render=()=>{cursor=0;const tree=out.ArrowCounter();const run=effects;effects=[];run.forEach(e=>e());return tree};
- return{render,writes,timers,raw:()=>raw,failRead:v=>readFailure=v,failWrite:v=>writeFailure=v,async ready(){render();await tick();return render()}};
+ return{render,writes,timers,guarded:()=>guarded,raw:()=>raw,failRead:v=>readFailure=v,failWrite:v=>writeFailure=v,async ready(){render();await tick();return render()}};
 }
 const nodes=n=>!n||typeof n!=='object'?[]:Array.isArray(n)?n.flatMap(nodes):[n,...nodes(n.props?.children)];
 const button=(tree,label)=>nodes(tree).find(n=>n.type==='button'&&(n.props['aria-label']===label||n.props.children===label));
@@ -47,4 +47,9 @@ test('timestamps survive reload, selection does not change them, and save failur
  nodes(r.render()).find(n=>n.type==='input').props.onChange({target:{value:'10'}});assert.equal(r.writes.at(-1).history[0].addedAt,stamp);
  const restored=runtime(r.raw());await restored.ready();assert.equal(model.readCounter(JSON.parse(restored.raw())).history[0].addedAt,stamp);
  r.failWrite(true);add(r.render()).props.onClick();tree=r.render();assert.ok(nodes(tree).some(n=>n.props?.role==='alert'));assert.ok(nodes(tree).some(n=>n.type==='strong'&&n.props.children===16));
+});
+
+test('counter storage failure remains guarded until an explicit device retry succeeds',async()=>{
+ const r=runtime();let tree=await r.ready();r.failWrite(true);add(tree).props.onClick();tree=r.render();assert.equal(r.guarded(),true);
+ r.failWrite(false);button(tree,'Retry device save').props.onClick();r.render();assert.equal(r.guarded(),false);assert.equal(JSON.parse(r.raw()).totalArrows,model.DEFAULT_COUNTER.increment);
 });

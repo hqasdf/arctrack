@@ -25,6 +25,7 @@ import {
 import { PAGE_TOP_SPACING } from "../../../src/theme";
 import { createThemedStyles, useAppearance } from "../../../src/appearance";
 import { RecentRoundConfigs } from "../../../src/recent-round-configs";
+import { DeviceSaveNavigationGuard } from "../../../src/device-save-navigation-guard";
 import { roundUpdateEnabled, updateMobileRoundSettings } from "../../../src/writes";
 
 type LoadedRound = { session: SessionDraft; round: RoundDraft };
@@ -58,9 +59,12 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
   const screenActive = localOnly || pathname === `/rounds/${roundId}/score`;
   const lifecycle = useRef(0);
   const loadVersion = useRef(0);
+  const loadingRound=useRef(false);
+  const [revalidating,setRevalidating]=useState(false);
   const mounted = useRef(false);
   const focused = useRef(false);
   const [loadedOwner, setLoadedOwner] = useState<string | null>(null);
+  const shownOwner=useRef<string|null>(null);
   const [loaded, setLoaded] = useState<LoadedRound | null>(null);
   const [arrows, setArrows] = useState<ArrowEntry[]>([]);
   const arrowsRef = useRef<ArrowEntry[]>([]);
@@ -74,6 +78,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
   const [preparing, setPreparing] = useState("");
   const localChanges = useRef(new Map<string, { version: number; entry: ArrowEntry | null }>());
   const [localSaving, setLocalSaving] = useState(0);
+  const [unstored,setUnstored]=useState(false);
   const versions = useRef(new Map<string, number>());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -94,6 +99,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
 
   const selectSlot = useCallback((next: ArrowSlot, explicit = false) => { slotRef.current = next; editingKeyRef.current = explicit ? arrowKey(next.end, next.arrow) : null; setEditingKey(editingKeyRef.current); setSlot(next); }, []);
   const showOffline = useCallback((view: OfflineView) => {
+    setUnstored(persistence.current?.hasUnstored?.()??false);
     const visible = new Map(view.arrows.map(a => [arrowKey(a.end, a.arrow), a]));
     for (const [key, change] of localChanges.current) {
       if (change.entry) visible.set(key, change.entry); else visible.delete(key);
@@ -103,11 +109,12 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
     setLoaded({ ...view.loaded, round: { ...view.loaded.round, arrows: currentArrows } });
   }, []);
   const load = useCallback(async (preferredSlot?: ArrowSlot) => {
+    if(loadingRound.current)return;loadingRound.current=true;setRevalidating(true);
     const request = ++loadVersion.current;
     const generation = lifecycle.current;
-    if (!userId || !roundId) { setLoaded(null); setLoading(false); return; }
+    if (!userId || !roundId) { loadingRound.current=false;setRevalidating(false);setLoaded(null); setLoading(false); return; }
     const current = () => mounted.current && focused.current && generation === lifecycle.current && request === loadVersion.current;
-    setLoading(true);
+    if(shownOwner.current!==`${userId}:${roundId}`)setLoading(true);
     setLoadError(null);
     try {
       await waitForRoundWrites(userId, roundId);
@@ -130,24 +137,27 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
         showOffline(view);
       });
       const defaultSlot = firstEmptySlot(result.round, result.round.arrows);
-      selectSlot(preferredSlot && preferredSlot.end <= result.round.ends ? preferredSlot : defaultSlot);
-      setLatestPlotKey(null);
+      const resumeSlot=preferredSlot??(shownOwner.current===`${userId}:${roundId}`?slotRef.current:defaultSlot);
+      selectSlot(resumeSlot.end<=result.round.ends&&resumeSlot.arrow<=result.round.arrowsPerEnd?resumeSlot:defaultSlot);
+      if(shownOwner.current!==`${userId}:${roundId}`)setLatestPlotKey(null);
       setLoaded(result);
       setLoadedOwner(`${userId}:${roundId}`);
+      shownOwner.current=`${userId}:${roundId}`;
     } catch (issue) {
       if (current()) setLoadError(issue instanceof Error ? issue.message : "This Round could not be loaded. Check your connection and try again.");
     } finally {
+      if(request===loadVersion.current){loadingRound.current=false;setRevalidating(false);}
       if (current()) setLoading(false);
     }
   }, [userId, roundId, selectSlot, localOnly, showOffline]);
-  const invalidateLoad = useCallback(() => { ++loadVersion.current; persistence.current?.stop(); }, []);
+  const invalidateLoad = useCallback(() => { ++loadVersion.current;loadingRound.current=false;persistence.current?.stop(); }, []);
 
   useEffect(() => {
     mounted.current = true;
     const generation = lifecycle.current;
     const subscription = AppState.addEventListener("change", state => {
       if (state === "active" && focused.current) void load();
-      else { ++loadVersion.current; persistence.current?.stop(); }
+      else { ++loadVersion.current;loadingRound.current=false;persistence.current?.stop(); }
     });
     return () => { mounted.current = false; lifecycle.current = generation + 1; persistence.current?.stop(); subscription.remove(); };
   }, [load]);
@@ -190,6 +200,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
     });
   }
   function handlePlot(plot: Plot) {
+    if(loadingRound.current||loadError)return;
     if (!loaded) return;
     const current = slotRef.current;
     const key = arrowKey(current.end, current.arrow);
@@ -203,6 +214,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
     setShowCorrection(false);
   }
   function correctScore(score: ScoreLabel) {
+    if(loadingRound.current||loadError)return;
     const current = slotRef.current;
     const selected = arrowsRef.current.find((item) => item.end === current.end && item.arrow === current.arrow);
     if (!selected) return;
@@ -212,6 +224,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
     setShowCorrection(false);
   }
   function clearMarker() {
+    if(loadingRound.current||loadError)return;
     const current = slotRef.current;
     const selected = arrowsRef.current.find((item) => item.end === current.end && item.arrow === current.arrow);
     if (!selected?.plot) return;
@@ -220,6 +233,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
     persist(entry);
   }
   function retrySelected() {
+    if(loadingRound.current||loadError)return;
     const current = slotRef.current;
     const selected = arrowsRef.current.find((item) => item.end === current.end && item.arrow === current.arrow);
     if (!selected || selected.syncState !== "failed") return;
@@ -228,6 +242,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
     persist(entry);
   }
   function removePrevious() {
+    if(loadingRound.current||loadError)return;
     if (!loaded) return;
     const removed = previousPlottedArrow(arrowsRef.current, slotRef.current);
     if (!removed) return;
@@ -258,6 +273,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
   }
 
   function openConfigure() {
+    if(loadingRound.current||loadError)return;
     if (!loaded || localOnly || localChanges.current.size || offline?.pending || arrowsRef.current.length > 0) return;
     setConfigureDraft({ name: loaded.round.name, division: loaded.round.division, distanceMetres: loaded.round.distanceMetres,
       faceDiameterCm: loaded.round.faceDiameterCm, plannedEnds: loaded.round.ends });
@@ -266,6 +282,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
   }
 
   async function saveConfigure() {
+    if(loadingRound.current||loadError)return;
     if (!loaded || localOnly || localChanges.current.size || offline?.pending || !configureDraft || !roundUpdateEnabled || arrowsRef.current.length > 0 || savingConfigure) return;
     setSavingConfigure(true);
     const generation = lifecycle.current;
@@ -283,7 +300,7 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
   }
 
   if (loading || loaded && loadedOwner !== `${userId}:${roundId}`) return <View style={styles.state}><ActivityIndicator color={colors.accent} accessibilityLabel="Loading scoring Round" /><Text style={styles.message}>{preparing || "Loading scoring Round"}</Text></View>;
-  if (loadError) return <View style={styles.state}><Text style={styles.message}>{loadError}</Text><Pressable accessibilityRole="button" onPress={() => void load()} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable></View>;
+  if (loadError&&!loaded) return <View style={styles.state}><Text style={styles.message}>{loadError}</Text><Pressable accessibilityRole="button" onPress={() => void load()} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable></View>;
   if (!loaded) return <View style={styles.state}><Text style={styles.message}>Round not found or you do not have access.</Text></View>;
 
   const round = loaded.round;
@@ -297,7 +314,11 @@ export default function ScoreRoundScreen({ offlineAccount, offlineRoundId }: { o
 
   return <ScrollView ref={pageScroll} style={styles.page} contentContainerStyle={styles.content}
     scrollEventThrottle={16} onScroll={(event) => { pageOffset.current = event.nativeEvent.contentOffset; }}>
+    {!localOnly&&<DeviceSaveNavigationGuard pending={localSaving>0||unstored} wait={()=>userId?waitForRoundWrites(userId,roundId):Promise.resolve()}
+      ready={()=>localChanges.current.size===0&&!persistence.current?.hasUnstored?.()}/>}
     <Text style={styles.eyebrow}>{loaded.session.title} · ROUND {round.roundNumber}</Text>
+    {revalidating&&<Text accessibilityLiveRegion="polite" style={styles.meta}>Refreshing this Round. Device scores remain preserved.</Text>}
+    {loadError&&<View><Text accessibilityRole="alert" style={styles.warning}>{loadError} Device scores are shown for recovery; retry before editing.</Text><Pressable accessibilityRole="button" onPress={()=>void load()}><Text style={styles.retryText}>Retry Round refresh</Text></Pressable></View>}
     <View style={styles.titleRow}><Text style={styles.title}>{round.name}</Text>
       {!localOnly && !localSaving && !offline?.pending && canConfigureRound({ ...round, arrows }) ? <Pressable accessibilityRole="button" accessibilityLabel="Configure Round settings" onPress={openConfigure} style={styles.configureButton}>
         <ArcIcon name="settings" color={colors.accent} size={21} />

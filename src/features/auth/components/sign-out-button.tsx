@@ -8,7 +8,7 @@ import styles from "./auth.module.css";
 export function SignOutButton() {
   const [state, action, pending] = useActionState(signOut, INITIAL_AUTH_STATE);
   return (
-    <form action={action} className={styles.signOut}>
+    <form action={action} className={styles.signOut} data-account-sign-out>
       <button type="submit" disabled={pending}>
         {pending ? "Signing out…" : "Sign out"}
       </button>

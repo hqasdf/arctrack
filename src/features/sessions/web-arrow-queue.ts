@@ -12,7 +12,9 @@ type Cell = {
   status: "saved" | "saving" | "failed";
   error: string | null;
   job: Promise<void> | null;
+  pendingDeletion: boolean;
 };
+export type QueueRecovery = Array<{ identity: ArrowEntry; confirmed: ArrowEntry | null; desired: ArrowEntry | null }>;
 
 // Postgres double precision may serialize through JSON with a few last-bit changes.
 const PLOT_COORDINATE_EPSILON = 1e-12;
@@ -48,7 +50,7 @@ export class WebArrowQueue {
     for (const arrow of initial) this.cells.set(arrowKey(arrow.end, arrow.arrow), {
       identity: arrow, uncertain: false,
       confirmed: { ...arrow, syncState: "saved" }, desired: { ...arrow, syncState: "saved" },
-      version: 0, status: "saved", error: null, job: null,
+      version: 0, status: "saved", error: null, job: null, pendingDeletion: false,
     });
   }
 
@@ -62,16 +64,28 @@ export class WebArrowQueue {
   }
   hasUnconfirmed() { return [...this.cells.values()].some((cell) => cell.status !== "saved"); }
   firstError() { return [...this.cells.values()].find((cell) => cell.error)?.error ?? null; }
+  recovery(): QueueRecovery {
+    return [...this.cells.values()].filter(cell => cell.status !== "saved")
+      .map(({ identity, confirmed, desired, pendingDeletion }) => ({ identity, confirmed, desired: pendingDeletion ? null : desired }));
+  }
+  restore(recovery: QueueRecovery) {
+    for (const item of recovery) this.cells.set(arrowKey(item.identity.end, item.identity.arrow), {
+      ...item, pendingDeletion:item.desired===null, uncertain: true, version: 0, job: null, status: "failed",
+      error: "Device-preserved changes need confirmation. Retry to reconcile safely with the server.",
+    });
+  }
+  retryAll() { for (const [key] of this.cells) this.retry(key); }
 
   edit(arrow: ArrowEntry) {
     const key = arrowKey(arrow.end, arrow.arrow);
     const cell = this.cells.get(key) ?? {
       identity: arrow, uncertain: false,
       confirmed: null, desired: null, version: 0, status: "saved" as const,
-      error: null, job: null,
+      error: null, job: null, pendingDeletion: false,
     };
     if (cell.status === "saved" && sameContent(cell.confirmed, arrow)) return;
     cell.desired = { ...arrow, id: cell.confirmed?.id ?? arrow.id };
+    cell.pendingDeletion = false;
     cell.version += 1;
     cell.status = "saving";
     cell.error = null;
@@ -84,6 +98,7 @@ export class WebArrowQueue {
     const cell = this.cells.get(key);
     if (!cell || cell.desired === null) return;
     cell.desired = null;
+    cell.pendingDeletion = true;
     cell.version += 1;
     cell.status = "saving";
     cell.error = null;
@@ -94,6 +109,7 @@ export class WebArrowQueue {
   retry(key: string) {
     const cell = this.cells.get(key);
     if (!cell || cell.status !== "failed") return;
+    if(cell.pendingDeletion)cell.desired=null;
     cell.status = "saving";
     cell.error = null;
     this.changed();

@@ -85,7 +85,12 @@ test('actual web Configure Round recalls 9 × 4 into normal fields and submits t
     'next/navigation': { useRouter: () => ({ refresh() {} }) }, '@arc-track/core/round-order': { newestRoundsFirst }, '../scoring-model': scoring, '../round-presets': presets,
     '../actions': { deleteRound: async () => {throw Error('Configure must not delete the Round');}, configureEmptyRound: async(id,expected,value) => { assert.equal(id,roundId);assert.equal(expected.ends,config.ends);calls.push(value); return { ok: true, data: { ...value, id:roundId, roundNumber:1, arrows:[] } }; } },
     './recent-round-configs': { RecentRoundConfigs: 'Recent' }, './round-presets-panel': { RoundPresetsPanel: 'Presets' }, './session-category-tabs': { SessionCategoryTabs: 'Tabs' }, './scoring-workspace': { ScoringWorkspace: 'Scoring' },
-    '@/features/notes-feedback/session-notes-panel': { SessionNotesPanel: 'Notes' }, '@/features/notes-feedback/coach-feedback-panel': { CoachFeedbackPanel: 'Feedback' }, '@/features/notes-feedback/draft-guard': { confirmDraftNavigation: () => true },
+    './session-feedback-history': { SessionFeedbackHistory: 'FeedbackHistory' },
+    '@/features/arrow-counter/components/arrow-counter': { ArrowCounter: 'Counter' },
+    '../training-navigation': { navigateTraining:()=>{},TRAINING_NAVIGATION:'training' },
+    '../session-snapshot': { sessionSnapshot },
+    '@/features/organizations/training-plan-events': { notifyTrainingPlanProgress:()=>{} },
+    '@/features/notes-feedback/session-notes-panel': { SessionNotesPanel: 'Notes' }, '@/features/notes-feedback/coach-feedback-panel': { CoachFeedbackPanel: 'Feedback' }, '@/features/notes-feedback/draft-guard': { confirmDraftNavigation: () => true,useDraftGuard:()=>{} },
     '@/features/live-coaching/presence': { LivePresence: 'Presence' }, '@/features/session-health/garmin-session-health': { GarminSessionHealth: 'Health' }, '@/features/weather/components/session-weather': { SessionWeatherHistory: 'Weather' },
   });
   ui.setComponent(ui.exports.SessionsWorkspace); ui.setProps({ viewerId: actor, initialSessionId: sessionId, initialSessions: [{ id: sessionId, title: 'Owned Session', date: '2026-10-27', sessionType: 'training', arrowCount: 0, rounds: [round] }] }); ui.render();
@@ -97,3 +102,4 @@ test('actual web Configure Round recalls 9 × 4 into normal fields and submits t
   await ui.nodes().find(n => n.type === 'form').props.onSubmit({ preventDefault() {} }); await ui.settle();
   assert.deepEqual(calls[0], { sessionId, ...config }); assert.equal(ui.nodes().find(n => n.type === 'Scoring').props.round.ends, 9); ui.dispose();
 });
+import { sessionSnapshot } from '../src/features/sessions/session-snapshot.ts';

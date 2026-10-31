@@ -9,6 +9,7 @@ import * as nativeState from "../apps/mobile/src/scoring-state.ts";
 import * as nativeQueue from "../apps/mobile/src/arrow-save-queue.ts";
 import { WebArrowQueue } from "../src/features/sessions/web-arrow-queue.ts";
 import { createArrowPersistence } from "@arc-track/core/arrow-persistence";
+import { DeviceScoringRecovery } from "../src/features/sessions/device-scoring.ts";
 
 import { memoryScoring } from "../apps/mobile/tests/helpers/offline-scoring.mjs";
 
@@ -61,6 +62,9 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
   };
   async function write(entry) { calls.push(structuredClone(entry)); return save(entry); }
   const modules = name => {
+    if (name === "../device-scoring") return { DeviceScoringRecovery };
+    if (name === "@/features/notes-feedback/draft-guard") return { useDraftGuard:()=>{} };
+    if (name.endsWith("/device-save-navigation-guard")) return { DeviceSaveNavigationGuard:()=>null };
     if (name === "react") return react;
     if (name === "react-native") return { AppState: { currentState: "active", addEventListener: () => ({ remove() {} }) }, ActivityIndicator: "Spinner", Modal: "Modal", Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text", TextInput: "TextInput", View: "View", StyleSheet: { create: value => value } };
     if (name === "react-native-safe-area-context") return { SafeAreaProvider: "SafeAreaProvider", SafeAreaView: "SafeAreaView" };
@@ -105,10 +109,13 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
     try { return { ok: true, json: async () => ({ ok: true, data: await write({ id: scoring.arrowKey(input.endNumber, input.arrowNumber), end: input.endNumber, arrow: input.arrowNumber, score: input.score, plot: input.plot }) }) }; }
     catch { return { ok: false, json: async () => ({ ok: false, message: "Offline" }) }; }
   };
-  new Function("require", "module", "exports", "fetch", scripts[platform])(modules, loaded, loaded.exports, fetch);
+  const disk=options.disk??new Map();
+  const browser={confirm:message=>options.confirm?.(message)??false,location:{origin:'https://arc.example',href:'https://arc.example/sessions?session=session&round=round'},localStorage:{getItem:key=>disk.get(key)??null,setItem:(key,value)=>{if(options.failStorage)throw Error('quota');disk.set(key,value);},removeItem:key=>disk.delete(key)}};
+  const navigator={locks:{request:async(_name,_options,callback)=>callback({name:'exclusive'})}};
+  new Function("require", "module", "exports", "fetch", "window", "navigator", scripts[platform])(modules, loaded, loaded.exports, fetch,browser,navigator);
   function render() {
     cursor = 0;
-    tree = platform === "web" ? loaded.exports.ScoringWorkspace({ sessionId: "session", sessionTitle: "Practice", sessionDate: "2026-10-17", round,
+    tree = platform === "web" ? loaded.exports.ScoringWorkspace({ sessionId: "session", sessionTitle: "Practice", sessionDate: "2026-10-17", round,viewerId:options.viewerId,
       onChange: update => { round = update(round); }, onBack() {}, onConfigure() {} }) : loaded.exports.default();
     while (effects.length) effects.shift()();
     return tree;
@@ -127,13 +134,23 @@ async function screen(platform, initial = {}, save = async entry => ({ ...entry,
     (node.props.onClick ?? node.props.onPress)();
   }
   render(); await tick(); render();
-  return { target, press, calls, reads, refreshToken() { user = { ...user }; render(); },
+  return { target, press, calls, reads,disk,setServer:(value)=>persisted.set(scoring.arrowKey(value.end,value.arrow),{revision:crypto.randomUUID(),arrow:value}),text:()=>text(tree), refreshToken() { user = { ...user }; render(); },
     changeUser(next) { user = next; render(); }, changeRound(next) { round = { ...roundTemplate, ...next }; render(); },
     unmount() { hooks.forEach(hook => hook?.cleanup?.()); unmounted = true; }, lateUpdates: () => lateUpdates,
     settle: async () => { await tick(); await tick(); render(); } };
 }
 
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+test('web scoring journals an authenticated edit before completion and continues a pending save after leaving the view',async()=>{
+  const gate=deferred(),ui=await screen('web',{},async entry=>{await gate.promise;return{...entry,id:'saved'};},{viewerId:'owner'});
+  ui.target().onPlot({x:.1,y:0});await tick();assert.equal(ui.disk.size,1);
+  const journal=JSON.parse([...ui.disk.values()][0]);assert.equal(journal.owner,'owner');assert.equal(journal.queue.length,1);assert.equal(journal.persistence[0][1].ownRequests.length,1);
+  ui.unmount();gate.resolve();await tick();await tick();assert.equal(ui.calls.length,1);assert.equal(ui.disk.size,0);
+});
+test('web storage failure retains the intended Arrow and prevents an unjournaled mutation',async()=>{
+  const ui=await screen('web',{},async entry=>entry,{viewerId:'owner',failStorage:true});
+  ui.target().onPlot({x:.1,y:0});await ui.settle();assert.equal(ui.calls.length,0);assert.match(ui.text(),/could not be saved|Needs attention/);ui.unmount();
+});
 test('Expo same-account token refresh preserves pending per-slot saves and the latest repeated correction', async () => {
   const gate = deferred(); let count = 0;
   const ui = await screen('expo', {}, async entry => { if (++count === 1) await gate.promise; return { ...entry, id: 'saved' }; });
@@ -271,3 +288,15 @@ for (const platform of ["web", "expo"]) {
     assert.equal(ui.target().arrows[0].syncState, "saved");
   });
 }
+
+for(const accept of [false,true])test(`web server-version review ${accept?'confirms only the inspected state':'cancellation preserves device intentions'}`,async()=>{
+  let prompt;
+  const ui=await screen('web',{},async entry=>({...entry,id:'saved'}),{viewerId:'owner',confirm:message=>{prompt=message;return accept;}});
+  ui.setServer({...plotted(1,1),score:'7',plot:{x:.3,y:.2}});
+  ui.target().onPlot({x:.1,y:0});await ui.settle();assert.equal(ui.calls.length,0);
+  ui.press('Review server versions');await ui.settle();
+  assert.match(prompt,/device 10.*0.100.*server 7.*0.300/);
+  if(accept){assert.equal(ui.target().arrows[0].score,'7');assert.equal(ui.target().arrows[0].syncState,'saved');assert.equal(ui.calls.length,1);assert.equal(ui.disk.size,0);}
+  else{assert.equal(ui.target().arrows[0].score,'10');assert.equal(ui.calls.length,0);assert.equal(ui.disk.size,1);}
+  ui.unmount();
+});

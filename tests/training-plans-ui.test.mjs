@@ -46,7 +46,8 @@ test("web athlete Sessions keeps a ring for each active plan and Coach uses the 
   const ui = read("src/features/organizations/components/training-plan-ui.tsx");
   const sessions = read("src/app/(platform)/sessions/page.tsx");
   const reader = read("src/features/organizations/training-plans-read.server.ts");
-  assert.match(sessions, /<AthletePlanCard plans=\{plans\}/);
+  assert.match(sessions, /<AthletePlanProgress plans=\{plans\}/);
+  assert.match(read("src/features/organizations/components/athlete-plan-progress.tsx"), /<AthletePlanCard plans=/);
   assert.match(ui, /active\.map\(\(\{ plan, progress \}\)/);
   assert.match(ui, /<GoalRing week=\{displayedWeek\(progress, today\)\}/);
   assert.match(ui, /<GoalRing week=\{displayedWeek\(selected\.progress, today\)\}/);
@@ -54,14 +55,15 @@ test("web athlete Sessions keeps a ring for each active plan and Coach uses the 
   assert.match(reader, /arrow_count/);
 });
 
-test("web scoring refreshes server-rendered Training Plan progress only after Arrow saves flush", () => {
+test("web scoring refreshes Training Plan progress without reloading Session history, only after Arrow saves flush", () => {
   const scoring = read("src/features/sessions/components/scoring-workspace.tsx");
   const workspace = read("src/features/sessions/components/sessions-workspace.tsx");
   const flush = scoring.indexOf("const settled=await queue.flush()");
   const guard = scoring.indexOf("if (settled)", flush);
   const back = scoring.indexOf("destination()", guard);
-  const refresh = workspace.indexOf("router.refresh()", workspace.indexOf("onBack="));
+  const refresh = workspace.indexOf("notifyTrainingPlanProgress()", workspace.indexOf("onBack="));
   assert.ok(flush >= 0 && guard > flush && back > guard, "back navigation must follow a successful queue flush");
-  assert.ok(refresh >= 0, "return to Session must request fresh server-rendered Training Plan progress");
-  assert.match(workspace, /onBack=\{\(\)=>\{setView\("session"\);router\.refresh\(\);\}\}/);
+  assert.ok(refresh >= 0, "return to Session must request fresh Training Plan progress");
+  assert.match(workspace, /onBack=\{\(\)=>\{setView\("session"\);navigateTraining\(session.id\);notifyTrainingPlanProgress\(\);\}\}/);
+  assert.doesNotMatch(workspace,/router.refresh/);
 });

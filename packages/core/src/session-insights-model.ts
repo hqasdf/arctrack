@@ -87,13 +87,24 @@ export function calculateEndAnalysis(round: RoundDraft): EndAnalysis {
   return { ends, completedEndCount: completed.length, average, best, worst, consistency, trendSlope };
 }
 
+/** Centroid and RMS spread only; does not compute the quadratic group diameter. */
+export function calculateGroupingSpread(arrows: Pick<GroupingPoint, "x" | "y">[]) {
+  if (arrows.length === 0) return null;
+  const centreX = arrows.reduce((sum, arrow) => sum + arrow.x, 0) / arrows.length;
+  const centreY = arrows.reduce((sum, arrow) => sum + arrow.y, 0) / arrows.length;
+  const spreadNormalized = arrows.length >= 3
+    ? Math.sqrt(arrows.reduce((sum, arrow) => sum + (arrow.x - centreX) ** 2 + (arrow.y - centreY) ** 2, 0) / arrows.length)
+    : null;
+  return { centreX, centreY, spreadNormalized };
+}
+
 export function calculateGroupingMetrics(
   arrows: Pick<GroupingPoint, "x" | "y">[],
   faceDiameterCm?: number,
 ): GroupingMetrics | null {
-  if (arrows.length === 0) return null;
-  const centreX = arrows.reduce((sum, arrow) => sum + arrow.x, 0) / arrows.length;
-  const centreY = arrows.reduce((sum, arrow) => sum + arrow.y, 0) / arrows.length;
+  const spread = calculateGroupingSpread(arrows);
+  if (!spread) return null;
+  const { centreX, centreY, spreadNormalized } = spread;
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const arrow of arrows) {
     minX = Math.min(minX, arrow.x); maxX = Math.max(maxX, arrow.x);
@@ -102,9 +113,6 @@ export function calculateGroupingMetrics(
   const horizontalSpreadNormalized = maxX - minX;
   const verticalSpreadNormalized = maxY - minY;
   const enoughArrows = arrows.length >= 3;
-  const spreadNormalized = enoughArrows
-    ? Math.sqrt(arrows.reduce((sum, arrow) => sum + (arrow.x - centreX) ** 2 + (arrow.y - centreY) ** 2, 0) / arrows.length)
-    : null;
   const groupSizeNormalized = enoughArrows ? maximumPairwiseDistance(arrows) : null;
   const faceRadiusCm = faceDiameterCm === undefined ? null : faceDiameterCm / 2;
   return {

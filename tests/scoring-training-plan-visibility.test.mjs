@@ -8,11 +8,13 @@ test("Training Plan content belongs to non-scoring Sessions views, not the scori
   const scoring = await readFile(new URL("../src/features/sessions/components/scoring-workspace.tsx", import.meta.url), "utf8");
   assert.match(page, /readOwnTrainingPlanProgress\(today\)/);
   assert.match(page, /SessionsWorkspace initialSessions={sessions} trainingPlanContent=/);
-  assert.match(page, /AthletePlanCard plans={plans} today={today}/);
-  const scoringBranch = workspace.slice(workspace.indexOf('if (view==="scoring"'), workspace.indexOf('  return <>', workspace.indexOf('if (view==="scoring"')));
-  assert.match(scoringBranch, /return <>\{viewerId&&<LivePresence scoringSessionId=\{session.id\}\/>\}<ScoringWorkspace/);
+  assert.match(page, /AthletePlanProgress plans={plans} today={today}/);
+  const scoringBranch = workspace.slice(workspace.indexOf('if ((view==="scoring"'), workspace.indexOf('  const sessionDetails', workspace.indexOf('if ((view==="scoring"')));
+  assert.match(scoringBranch, /LivePresence scoringSessionId=\{session.id\}/);
+  assert.match(scoringBranch, /<ScoringWorkspace/);
   assert.doesNotMatch(scoringBranch, /trainingPlanContent|AthletePlanCard/);
   assert.doesNotMatch(scoring, /AthletePlanCard|readOwnTrainingPlanProgress/);
   assert.match(scoring, /const settled=await queue.flush\(\)/);
-  assert.match(scoringBranch, /onBack={\(\)=>{setView\("session"\);router.refresh\(\);}}/);
+  assert.match(scoringBranch, /onBack={\(\)=>{setView\("session"\);navigateTraining\(session.id\);notifyTrainingPlanProgress\(\);}}/);
+  assert.doesNotMatch(scoringBranch,/router.refresh/);
 });

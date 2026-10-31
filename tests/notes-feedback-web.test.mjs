@@ -105,7 +105,7 @@ test("feedback history pagination uses stable created-at and id cursor and remov
 
 test("integrations key Session and actor lifecycles, guard in-page exits, and expose only Session feedback history", () => {
   const source=readFileSync(new URL("../src/features/sessions/components/sessions-workspace.tsx",import.meta.url),"utf8");
-  assert.match(source,/key=\{`notes:\$\{viewerId\}:\$\{session.id\}`\}/);assert.match(source,/if\(!mayLeaveNotes\(\)\)return;setActiveRoundId/);assert.match(source,/if\(mayLeaveNotes\(\)\)setView\("sessions"\)/);assert.match(source,/async function startRound\(\) \{ if \(!mayLeaveNotes\(\)\) return/);
+  assert.match(source,/key=\{`notes:\$\{viewerId\}:\$\{session.id\}`\}/);assert.match(source,/if\(!mayLeaveNotes\(\)\)return;setActiveRoundId/);assert.match(source,/if\(mayLeaveNotes\(\)\)\{setView\("sessions"\);navigateTraining\(\)/);assert.match(source,/async function startRound\(\) \{ if \(!mayLeaveNotes\(\)\) return/);
   const coach=readFileSync(new URL("../src/features/organizations/components/coach-athlete-detail.tsx",import.meta.url),"utf8");assert.doesNotMatch(coach,/kind: "general"/);assert.match(coach,/Scoring records are read only/);
 });
 
@@ -120,6 +120,8 @@ test("dirty-draft guard covers links, refresh/close, modern traversal and legacy
     exports.useDraftGuard(true);let prevented=false,stopped=false;
     windowEvents.get("beforeunload")({preventDefault(){prevented=true;}});assert.equal(prevented,true);
     prevented=false;documentEvents.get("click")({button:0,target:{closest:()=>({href:"https://example.test/profile",target:"",hasAttribute:()=>false})},preventDefault(){prevented=true;},stopPropagation(){stopped=true;}});assert.equal(prevented,true);assert.equal(stopped,true);
+    prevented=false;documentEvents.get("submit")({target:{matches:()=>true},preventDefault(){prevented=true;},stopPropagation(){}});assert.equal(prevented,true,'unpreserved changes guard sign-out');
+    prevented=false;documentEvents.get("submit")({target:{matches:()=>false},preventDefault(){prevented=true;},stopPropagation(){}});assert.equal(prevented,false,'normal draft submission remains available');
     if(modern){prevented=false;navigationEvents.get("navigate")({navigationType:"traverse",cancelable:true,preventDefault(){prevented=true;}});assert.equal(prevented,true);}
     else {stopped=false;windowEvents.get("popstate")({stopImmediatePropagation(){stopped=true;}});assert.equal(stopped,true);assert.equal(restores[0][2],win.location.href);}
     confirmed=true;assert.equal(exports.confirmDraftNavigation(true),true);cleanup();assert.equal(windowEvents.size,0);assert.equal(documentEvents.size,0);assert.equal(navigationEvents.size,0);

@@ -26,7 +26,7 @@ async function load(path, mocks = {}) {
   };
   const script = ts.transpileModule(await readFile(new URL(path, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
   const compiled = { exports: {} };
-  const imports = name => name === "react" ? react : mocks[name] ?? (name.includes("notes-feedback") ? { SessionNotesPanel: () => null, CoachFeedbackPanel: () => null, AthleteFeedbackHistory: () => null, confirmDraftNavigation: () => true } : name === "expo-router" ? { useFocusEffect: fn => react.useEffect(fn, [fn]) } : name.endsWith(".css") ? { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) } : require(name));
+  const imports = name => name === "react" ? react : mocks[name] ?? (name.includes("notes-feedback") ? { SessionNotesPanel: () => null, CoachFeedbackPanel: () => null, AthleteFeedbackHistory: () => null, confirmDraftNavigation: () => true, useDraftGuard:()=>{} } : name === "expo-router" ? { useFocusEffect: fn => react.useEffect(fn, [fn]) } : name.endsWith(".css") ? { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) } : require(name));
   new Function("require", "module", "exports", "getComputedStyle", script)(imports, compiled, compiled.exports, node => ({ overflowX: node.overflowX ?? "visible" }));
   return { exports: compiled.exports, render(fn) { cursor = 0; const tree = fn(compiled.exports); while (effects.length) effects.shift()(); return tree; } };
 }
@@ -97,6 +97,11 @@ test("web categories preserve classification, Session actions and an unsubmitted
     "../scoring-model": scoring, "../round-presets": presets,
     "../actions": { createSession: async input => { created.push(input); return { ok: true, data: { ...sessions[0], ...input, id: "new" } }; } },
     "./recent-round-configs": { RecentRoundConfigs: "RecentRoundConfigs" },
+    "./session-feedback-history": { SessionFeedbackHistory: "FeedbackHistory" },
+    "@/features/arrow-counter/components/arrow-counter": { ArrowCounter: "Counter" },
+    "../training-navigation": { navigateTraining:()=>{},TRAINING_NAVIGATION:'training' },
+    "../session-snapshot": { sessionSnapshot },
+    "@/features/organizations/training-plan-events": { notifyTrainingPlanProgress:()=>{} },
     "./session-category-tabs": { SessionCategoryTabs: "CategoryTabs" }, "./round-presets-panel": { RoundPresetsPanel: "Presets" }, "./scoring-workspace": { ScoringWorkspace: "Scoring" },
     "@/features/weather/components/session-weather": { SessionWeatherHistory: "Weather" },
     "@/features/live-coaching/presence": {LivePresence:()=>null},
@@ -159,3 +164,4 @@ test("Expo filters the existing loaded list and keeps Plan content and navigatio
   button.props.onPress(); assert.equal(routes.at(-1), "/sessions/new");
   assert.equal(reads, 1); assert.equal(planReads, 1);
 });
+import { sessionSnapshot } from '../src/features/sessions/session-snapshot.ts';

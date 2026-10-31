@@ -4,13 +4,14 @@ import React from 'react';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
-export function loadSessionModule(path, dependencies = {}, hooks = React, globals = {}) {
-  const code = ts.transpileModule(readFileSync(new URL('../../' + path, import.meta.url), 'utf8'), {
+export function loadSessionModule(path, dependencies = {}, hooks = React, globals = {}, source) {
+  const code = ts.transpileModule(source ?? readFileSync(new URL('../../' + path, import.meta.url), 'utf8'), {
     fileName: path, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const exports = {};
   new Function('require', 'exports', ...Object.keys(globals), code)(name => {
     if (name in dependencies) return dependencies[name];
+    if (name === '@/features/sessions/training-navigation') return loadSessionModule('src/features/sessions/training-navigation.ts',{},hooks,globals);
     if (name === 'react') return hooks;
     if (name.endsWith('.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => 'sessionHealth_' + key }) };
     if (name === 'next/link') return { __esModule: true, default: props => React.createElement('a', props) };

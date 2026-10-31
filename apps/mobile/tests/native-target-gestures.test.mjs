@@ -17,6 +17,7 @@ function load(path, dependencies, getPalette = () => ({})) {
   } }).outputText;
   const exports = {};
   new Function("require", "exports", compiled)(name => {
+    if (name.endsWith("/device-save-navigation-guard")) return { DeviceSaveNavigationGuard:()=>null };
     if (name.endsWith("/appearance")) return { useAppearance: () => ({ colors: getPalette() }), createThemedStyles: factory => () => factory(getPalette()) };
     if (name === "react/jsx-runtime") return jsx;
     assert.ok(name in dependencies, `Unexpected dependency: ${name}`);

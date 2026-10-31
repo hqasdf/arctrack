@@ -108,6 +108,7 @@ test("signed-out Health requests stop at the existing redirect boundary before s
 
 test("Analytics is the primary navigation entry on desktop and mobile for Health", async () => {
   const navigation = await load("src/components/layout/navigation.tsx", {
+    "@/features/sessions/training-navigation": {navigateTraining:()=>{},TRAINING_NAVIGATION:"training",TRAINING_LOCATION_CHANGED:"changed"},
     "react": { ...React, useState: () => [false, () => {}], useEffect: () => {}, useRef: () => ({ current: null }) },
     "next/navigation": { usePathname: () => "/analytics/health" },
     "next/link": { __esModule: true, default: (props) => React.createElement("a", props) },

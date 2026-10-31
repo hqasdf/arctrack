@@ -59,6 +59,7 @@ function counterRuntime({ getItem, setItem, renderWheel = false, storedState = {
     "../../src/counter-model": model,
     "../../src/counter-wheel-model": wheelModel,
     "../../src/theme": { colors: {}, PAGE_TOP_SPACING: 40 },
+    "../../src/device-save-navigation-guard": { DeviceSaveNavigationGuard:()=>null },
   };
   const source = readFileSync(new URL("../app/(tabs)/counter.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: {

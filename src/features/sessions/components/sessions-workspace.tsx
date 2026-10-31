@@ -1,6 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { newestRoundsFirst } from "@arc-track/core/round-order";
 import { configureEmptyRound, createRoundWithEnds, createSession, deleteRound, deleteSession, updateSessionArrowCount } from "../actions";
 import { DIVISIONS, ROUND_PRESETS, TARGET_FACE_OPTIONS, type Division, type RoundPreset } from "../round-presets";
@@ -11,19 +10,23 @@ import { SessionCategoryTabs } from "./session-category-tabs";
 import { ScoringWorkspace } from "./scoring-workspace";
 import { SessionNotesPanel } from "@/features/notes-feedback/session-notes-panel";
 import { CoachFeedbackPanel } from "@/features/notes-feedback/coach-feedback-panel";
-import { confirmDraftNavigation } from "@/features/notes-feedback/draft-guard";
+import { SessionFeedbackHistory } from "./session-feedback-history";
+import { confirmDraftNavigation, useDraftGuard } from "@/features/notes-feedback/draft-guard";
+import { ArrowCounter } from "@/features/arrow-counter/components/arrow-counter";
+import { navigateTraining, TRAINING_NAVIGATION, TRAINING_LOCATION_CHANGED } from "../training-navigation";
+import { notifyTrainingPlanProgress } from "@/features/organizations/training-plan-events";
+import { sessionSnapshot } from "../session-snapshot";
 import styles from "./sessions.module.css";
 import {LivePresence} from '@/features/live-coaching/presence';
 import { GarminSessionHealth } from '@/features/session-health/garmin-session-health';
 import { SessionWeatherHistory } from "@/features/weather/components/session-weather";
 
-type View="sessions"|"new-session"|"session"|"setup"|"scoring";
+type View="sessions"|"new-session"|"session"|"setup"|"scoring"|"counter";
 type RoundForm=Omit<RoundDraft,"id"|"roundNumber"|"arrows">;
 const today=new Date().toISOString().slice(0,10);
 const base=ROUND_PRESETS[3];
 
 export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,initialSessionId}:{initialSessions:SessionDraft[];trainingPlanContent?:ReactNode;viewerId?:string;initialSessionId?:string}) {
-  const router=useRouter();
   const notesDirty=useRef(false);
   const onNotesDirtyChange=useCallback((dirty:boolean)=>{notesDirty.current=dirty;},[]);
   const mayLeaveNotes=()=>confirmDraftNavigation(notesDirty.current);
@@ -41,8 +44,59 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,
   const [pending,setPending]=useState(false);
   const [arrowCountSaving,setArrowCountSaving]=useState(false);
   const [message,setMessage]=useState<string|null>(null);
+  const [counterVisited,setCounterVisited]=useState(false),[counterSafe,setCounterSafe]=useState(true);
+  const [sessionRevision,setSessionRevision]=useState(0);
+  const pendingRounds=useRef(new Set<string>()),editGeneration=useRef(0);
+  const counterStorageChange=useCallback((safe:boolean)=>{
+    setCounterSafe(safe);if(safe)pendingRounds.current.delete("counter");else pendingRounds.current.add("counter");
+  },[]);
   const session=sessions.find((item)=>item.id===activeSessionId)??null;
   const activeRound=session?.rounds.find((round)=>round.id===activeRoundId)??null;
+  const latestSessions=useRef(sessions);
+  useEffect(()=>{latestSessions.current=sessions;},[sessions]);
+  useDraftGuard(view==="new-session"&&(sessionForm.title!==""||sessionForm.sessionType!=="training"||sessionForm.date!==today)||view==="setup",
+    "This form has not been submitted. Leave and discard its current configuration?");
+  useEffect(()=>{
+    if(typeof window==="undefined"||!window.location)return;
+    const restore=()=>{
+      if(window.location.pathname!=="/sessions")return;
+      const query=new URLSearchParams(window.location.search),selected=latestSessions.current.find(item=>item.id===query.get("session"));
+      const round=selected?.rounds.find(item=>item.id===query.get("round"));
+      if(round&&query.get("tool")==="counter")setCounterVisited(true);
+      if(!selected){setActiveSessionId(null);setActiveRoundId(null);setView("sessions");return;}
+      setActiveSessionId(selected.id);setActiveRoundId(round?.id??null);setView(round?(query.get("tool")==="counter"?"counter":"scoring"):"session");
+    };
+    restore();window.addEventListener("popstate",restore);window.addEventListener(TRAINING_NAVIGATION,restore);
+    return()=>{window.removeEventListener("popstate",restore);window.removeEventListener(TRAINING_NAVIGATION,restore);};
+  },[]);
+  useEffect(()=>{
+    if(!viewerId||typeof window==="undefined"||!window.location)return;
+    let alive=true,last=Date.now(),request:AbortController|null=null;
+    const refresh=async()=>{
+      if(document.visibilityState!=="visible"||request||pendingRounds.current.size||Date.now()-last<60000)return;
+      const query=new URLSearchParams(window.location.search),id=query.get("session");
+      if(!id||!query.get("round"))return;
+      const cached=latestSessions.current.find(item=>item.id===id);if(!cached)return;
+      const generation=editGeneration.current,abort=new AbortController();request=abort;
+      try{
+        const response=await fetch(`/api/sessions/${encodeURIComponent(id)}`,{cache:"no-store",credentials:"same-origin",signal:abort.signal});
+        if(!alive||abort.signal.aborted||generation!==editGeneration.current||pendingRounds.current.size||new URLSearchParams(window.location.search).get("session")!==id)return;
+        if(response.status===401){setSessions([]);setActiveSessionId(null);setActiveRoundId(null);setView("sessions");setMessage("Sign-in must be verified before Session data can be shown. Device changes were preserved.");return;}
+        if(response.status===404){setSessions(current=>current.filter(item=>item.id!==id));setView("sessions");setActiveSessionId(null);setActiveRoundId(null);navigateTraining();setMessage("This Session is no longer available. Device recovery was preserved.");return;}
+        const result=await response.json() as {session?:SessionDraft};
+        if(!response.ok||!result.session||result.session.id!==id||!Array.isArray(result.session.rounds))throw Error();
+        if(!alive||generation!==editGeneration.current||pendingRounds.current.size||new URLSearchParams(window.location.search).get("session")!==id)return;
+        last=Date.now();setMessage(null);
+        if(sessionSnapshot(cached)!==sessionSnapshot(result.session)){
+          const updated=result.session;setSessions(current=>current.map(item=>item.id===id?updated:item));setSessionRevision(value=>value+1);
+        }
+      }catch{if(alive&&!abort.signal.aborted)setMessage("Session refresh is unavailable. Loaded scores and device recovery remain visible; saving still verifies server revisions.");}
+      finally{if(request===abort)request=null;}
+    };
+    const run=()=>{void refresh();};
+    window.addEventListener("focus",run);window.addEventListener("online",run);window.addEventListener(TRAINING_LOCATION_CHANGED,run);document.addEventListener("visibilitychange",run);
+    return()=>{alive=false;request?.abort();window.removeEventListener("focus",run);window.removeEventListener("online",run);window.removeEventListener(TRAINING_LOCATION_CHANGED,run);document.removeEventListener("visibilitychange",run);};
+  },[viewerId]);
 
   function choosePreset(preset:RoundPreset) {
     const target=defaultTarget(preset.distanceMetres,roundForm.division,{faceDiameterCm:preset.faceDiameterCm,faceType:preset.faceType});
@@ -61,16 +115,19 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,
   function chooseTargetOption(id:string) { const option=TARGET_FACE_OPTIONS.find((item)=>item.id===id); if (option) setRoundForm((current)=>({...current,faceDiameterCm:option.diameterCm,faceType:option.faceType})); }
 
   async function submitSession(event:React.FormEvent) {
+    editGeneration.current++;
     event.preventDefault(); setPending(true); setMessage(null);
     const result=await createSession(sessionForm); setPending(false);
     if (!result.ok) { setMessage(result.message); return; }
     setSessions((current)=>[result.data,...current]); setArrowCountDrafts((current)=>({...current,[result.data.id]:String(result.data.arrowCount)})); setActiveSessionId(result.data.id); setView("session"); setSessionForm({title:"",date:today,sessionType:"training"});
+    navigateTraining(result.data.id);
   }
   async function submitRound(event:React.FormEvent) {
     event.preventDefault();
     await createRound(configuringRoundId);
   }
   async function createRound(replaceRoundId:string|null=null) {
+    editGeneration.current++;
     if (!session) return; setMessage(null);
     if (!/^\d+$/.test(distanceText)||!Number.isSafeInteger(Number(distanceText))||Number(distanceText)<1||Number(distanceText)>32767) { setMessage("Enter a valid positive distance before continuing."); return; }
     const oldRound=replaceRoundId?session.rounds.find((round)=>round.id===replaceRoundId):null;
@@ -89,7 +146,7 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,
       setMessage(result.message); return;
     }
     setSessions((current)=>current.map((item)=>item.id===session.id?{...item,rounds:newestRoundsFirst(oldRound?item.rounds.map((round)=>round.id===oldRound.id?result.data:round):[...item.rounds,result.data])}:item));
-    setActiveRoundId(result.data.id); setConfiguringRoundId(null); setView("scoring");
+    setActiveRoundId(result.data.id); setConfiguringRoundId(null); setView("scoring");navigateTraining(session.id,result.data.id);
   }
   async function startRound() { if (!mayLeaveNotes()) return; setConfiguringRoundId(null); await createRound(); }
   function configureRound(round:RoundDraft) {
@@ -98,18 +155,22 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,
     setSelectedPreset(ROUND_PRESETS.find((preset)=>preset.name===round.name&&preset.distanceMetres===round.distanceMetres)?.id??null); setMessage(null); setView("setup");
   }
   function updateRound(roundId:string,update:(round:RoundDraft)=>RoundDraft) {
+    editGeneration.current++;
     setSessions((current)=>current.map((item)=>item.id===activeSessionId?{...item,rounds:item.rounds.map((round)=>round.id===roundId?update(round):round)}:item));
   }
   async function removeRound(roundId:string) {
+    editGeneration.current++;
     setMessage(null); const result=await deleteRound(roundId); if (!result.ok) { setMessage(result.message); return; }
     setSessions((current)=>current.map((item)=>item.id===activeSessionId?{...item,rounds:item.rounds.filter((round)=>round.id!==roundId)}:item));
   }
   async function removeSession(sessionId:string) {
+    editGeneration.current++;
     if (!mayLeaveNotes()) return;
     setMessage(null); const result=await deleteSession(sessionId); if (!result.ok) { setMessage(result.message); return; }
     setSessions((current)=>current.filter((item)=>item.id!==sessionId)); setActiveSessionId(null); setView("sessions");
   }
   async function saveSessionArrowCount() {
+    editGeneration.current++;
     if (!session) return;
     const value=arrowCountDrafts[session.id]??String(session.arrowCount);
     if (!/^\d+$/.test(value)) { setMessage("Arrow count must be a non-negative whole number."); return; }
@@ -119,29 +180,29 @@ export function SessionsWorkspace({initialSessions,trainingPlanContent,viewerId,
     setSessions((current)=>current.map((item)=>item.id===session.id?{...item,arrowCount:result.data}:item));
     setArrowCountDrafts((current)=>({...current,[session.id]:String(result.data)}));
   }
-  function openSession(item:SessionDraft) { if (!mayLeaveNotes()) return; setActiveSessionId(item.id); setActiveRoundId(null); setMessage(null); setView("session"); }
+  function openSession(item:SessionDraft) { if (!mayLeaveNotes()) return; setActiveSessionId(item.id); setActiveRoundId(null); setMessage(null); setView("session");navigateTraining(item.id); }
   const trainingSessions=sessions.filter((item)=>item.sessionType==="training");
   const competitionSessions=sessions.filter((item)=>item.sessionType==="competition");
 
-  if (view==="scoring"&&session&&activeRound) return <>{viewerId&&<LivePresence scoringSessionId={session.id}/>}<ScoringWorkspace key={activeRound.id} sessionId={session.id} sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>{setView("session");router.refresh();}} onConfigure={()=>configureRound(activeRound)}/></>;
+  if ((view==="scoring"||view==="counter")&&session&&activeRound) return <>{viewerId&&<LivePresence scoringSessionId={session.id}/>}{message&&<p role="status">{message}</p>}<div hidden={view!=="scoring"}><ScoringWorkspace key={`${activeRound.id}:${sessionRevision}`} onPendingChange={pending=>{if(pending)pendingRounds.current.add(activeRound.id);else pendingRounds.current.delete(activeRound.id);}} active={view==="scoring"} viewerId={viewerId} sessionId={session.id} sessionTitle={session.title} sessionDate={session.date} round={activeRound} onChange={(update)=>updateRound(activeRound.id,update)} onBack={()=>{setView("session");navigateTraining(session.id);notifyTrainingPlanProgress();}} onCounter={()=>{setCounterVisited(true);setView("counter");navigateTraining(session.id,activeRound.id,true);}} onConfigure={()=>configureRound(activeRound)}/></div>{counterVisited&&<div hidden={view!=="counter"}><button type="button" disabled={!counterSafe} onClick={()=>{setView("scoring");navigateTraining(session.id,activeRound.id);}}>Continue Scoring</button><ArrowCounter onStorageChange={counterStorageChange}/></div>}</>;
   const sessionDetails = session ? <>
       <div className={styles.sessionArrowCount}><label htmlFor={`session-arrow-count-${session.id}`}><span>Arrow count</span><input id={`session-arrow-count-${session.id}`} required type="text" inputMode="numeric" pattern="[0-9]*" value={arrowCountDrafts[session.id]??String(session.arrowCount)} onChange={(event)=>{if (/^\d*$/.test(event.target.value)) setArrowCountDrafts((current)=>({...current,[session.id]:event.target.value}));}}/></label><button type="button" disabled={arrowCountSaving} onClick={saveSessionArrowCount}>{arrowCountSaving?"Saving…":"Save"}</button></div>
       <SessionWeatherHistory sessionId={session.id}/>
   </> : null;
-  const roundCards = session ? (session.rounds.length===0?<div className={styles.emptyRounds}><h3>Ready to shoot?</h3><p>Start a Round with the current settings. You can configure an empty Round from the scoring screen.</p></div>:<div className={styles.roundCards}>{session.rounds.map((round)=><article key={round.id} className={styles.roundCard}><div><p className={styles.kicker}>{round.division}</p><h3>{round.name}</h3><p>{round.distanceMetres} m · {round.ends} ends × {round.arrowsPerEnd} arrows</p><p className={styles.roundScore}>Score: <strong>{roundTotal(round.arrows)}</strong> <span>· Arrow avg. <strong>{formatArrowAverage(round.arrows)}</strong></span></p></div><div className={styles.cardActions}><button type="button" onClick={()=>{if(!mayLeaveNotes())return;setActiveRoundId(round.id);setView("scoring");}}>Open</button><button type="button" className={styles.dangerText} onClick={()=>removeRound(round.id)}>Delete</button></div></article>)}</div>) : null;
+  const roundCards = session ? (session.rounds.length===0?<div className={styles.emptyRounds}><h3>Ready to shoot?</h3><p>Start a Round with the current settings. You can configure an empty Round from the scoring screen.</p></div>:<div className={styles.roundCards}>{session.rounds.map((round)=><article key={round.id} className={styles.roundCard}><div><p className={styles.kicker}>{round.division}</p><h3>{round.name}</h3><p>{round.distanceMetres} m · {round.ends} ends × {round.arrowsPerEnd} arrows</p><p className={styles.roundScore}>Score: <strong>{roundTotal(round.arrows)}</strong> <span>· Arrow avg. <strong>{formatArrowAverage(round.arrows)}</strong></span></p></div><div className={styles.cardActions}><button type="button" onClick={()=>{if(!mayLeaveNotes())return;setActiveRoundId(round.id);setView("scoring");navigateTraining(session.id,round.id);}}>Open</button><button type="button" className={styles.dangerText} onClick={()=>removeRound(round.id)}>Delete</button></div></article>)}</div>) : null;
   return <>{view!=="sessions"&&trainingPlanContent}<section className={styles.workspace}>
     {message&&<p className={styles.saveError} role="alert">{message}</p>}
-    {view==="sessions"&&viewerId&&<details><summary>Session Feedback history</summary><CoachFeedbackPanel context={{viewerId}} history/></details>}
+    {view==="sessions"&&viewerId&&<SessionFeedbackHistory key={viewerId} viewerId={viewerId}/>}
     {view==="sessions"&&<SessionCategoryTabs category={category} onCategoryChange={setCategory} toolbar={<div className={styles.sessionHeading}><div><h2>{sessions.length?"Your saved Sessions":"Start today’s scorecard"}</h2><p>{sessions.length?"Open a Session or start another scorecard.":"Create a Session, then add as many Rounds as you need."}</p></div><button className={styles.primary} type="button" onClick={()=>setView("new-session")}>New Session</button></div>} training={<>{trainingPlanContent}<SessionSection heading="Training" emptyMessage="No Training Sessions yet." sessions={trainingSessions} onOpen={openSession} onDelete={removeSession}/></>} competition={<SessionSection heading="Competition" emptyMessage="No Competitions yet." sessions={competitionSessions} onOpen={openSession} onDelete={removeSession}/>}/>}
     {view==="new-session"&&<form className={styles.formCard} onSubmit={submitSession}>
-      <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>{if(mayLeaveNotes())setView("sessions");}}>← Sessions</button><p>New Session</p></div><h2>Create a Session</h2><p className={styles.formIntro}>Choose how this Session should appear in your journal.</p>
+      <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>{if(mayLeaveNotes()){setView("sessions");navigateTraining();}}}>← Sessions</button><p>New Session</p></div><h2>Create a Session</h2><p className={styles.formIntro}>Choose how this Session should appear in your journal.</p>
       <fieldset className={styles.sessionTypeChoice}><legend>Session type</legend><label><input type="radio" name="session-type" value="training" checked={sessionForm.sessionType==="training"} onChange={()=>setSessionForm({...sessionForm,sessionType:"training"})}/><span>Training Session</span></label><label><input type="radio" name="session-type" value="competition" checked={sessionForm.sessionType==="competition"} onChange={()=>setSessionForm({...sessionForm,sessionType:"competition"})}/><span>Competition</span></label></fieldset>
       <div className={styles.formGrid}><label><span>Session date</span><input required type="date" value={sessionForm.date} onChange={(e)=>setSessionForm({...sessionForm,date:e.target.value})}/></label><label><span>{sessionForm.sessionType==="competition"?"Competition name":"Title"} <small>optional</small></span><input type="text" maxLength={80} placeholder={sessionForm.sessionType==="competition"?"National Championships":"Evening practice"} value={sessionForm.title} onChange={(e)=>setSessionForm({...sessionForm,title:e.target.value})}/></label></div>
       <button className={styles.primary} disabled={pending} type="submit">{pending?"Saving…":"Create Session"}</button>
     </form>}
     {view==="session"&&session&&<div>
       <header className={styles.sessionHeader}>
-      <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>{if(mayLeaveNotes())setView("sessions");}}>← Sessions</button><p>{session.date}</p></div>
+      <div className={styles.viewTop}><button type="button" className={styles.textButton} onClick={()=>{if(mayLeaveNotes()){setView("sessions");navigateTraining();}}}>← Sessions</button><p>{session.date}</p></div>
       <div className={styles.sessionHeading}><div><p className={styles.kicker}>{session.sessionType==="competition"?"Competition":"Training Session"}</p><h2>{session.title}</h2></div><button className={styles.primary} type="button" disabled={pending} onClick={()=>void startRound()}>{pending?"Starting…":"Start Round"}</button></div>
       </header>
       <div className={styles.sessionLayout}>

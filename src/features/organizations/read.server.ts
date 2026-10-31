@@ -1,11 +1,12 @@
 import "server-only";
+import { cache } from "react";
 import { requireUser } from "@/lib/auth/session.server";
 import { createAuthClient } from "@/lib/supabase/server";
 import type { OrganizationRole } from "./validation";
 
 export type OwnOrganization = { id: string; name: string; role: OrganizationRole; joinCode: string | null };
 
-export async function readOwnOrganizations(includeJoinCodes = false): Promise<OwnOrganization[]> {
+const readOrganizationsForRequest = cache(async (includeJoinCodes: boolean): Promise<OwnOrganization[]> => {
   const user = await requireUser();
   const supabase = await createAuthClient();
   const { data, error } = await supabase.from("organization_members")
@@ -21,4 +22,9 @@ export async function readOwnOrganizations(includeJoinCodes = false): Promise<Ow
     if (codeError || !joinCode) throw new Error("Join code could not be loaded.");
     return { ...item, joinCode };
   }));
+});
+
+export function readOwnOrganizations(includeJoinCodes = false): Promise<OwnOrganization[]> {
+  // Normalize omitted/false arguments; React cache is scoped to the server render.
+  return readOrganizationsForRequest(includeJoinCodes);
 }

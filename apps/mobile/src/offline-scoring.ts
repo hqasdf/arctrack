@@ -85,6 +85,7 @@ export async function openOfflineScoring(owner: string, roundId: string,
   }
   return {
     view: engine.view,
+    hasUnstored: engine.hasUnstored,
     start(listener: (view: OfflineView) => void) {
       active = true; detach?.(); detach = engine.subscribe(listener);
       if (!localOnly && !shared.running) { engine.start(); shared.running = true; } listener(engine.view());
