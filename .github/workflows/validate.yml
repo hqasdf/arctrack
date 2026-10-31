@@ -1,12 +1,9 @@
 name: Validate Arc Track
 
 on:
-  pull_request:
-    branches: [main]
-    paths: ['src/**', 'tests/**', 'public/**', 'apps/mobile/**', 'packages/core/**', 'scripts/**', 'supabase/**', 'infra/**', '.github/workflows/**', '*.json', '*.mjs', '*.ts']
+  pull_request: {}
   push:
     branches: [main]
-    paths: ['src/**', 'tests/**', 'public/**', 'apps/mobile/**', 'packages/core/**', 'scripts/**', 'supabase/**', 'infra/**', '.github/workflows/**', '*.json', '*.mjs', '*.ts']
   workflow_dispatch:
     inputs:
       full_regression:
@@ -140,3 +137,21 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run check:maintenance
+
+  release-gate:
+    name: release-gate
+    needs: [changes, web, mobile, core, maintenance]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Verify all applicable validation results
+        run: node scripts/release-gate.mjs
+        env:
+          VALIDATION_NEEDS: ${{ toJSON(needs) }}

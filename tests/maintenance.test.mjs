@@ -8,7 +8,7 @@ import { validateMigrations, checkMigrations } from "../scripts/check-migrations
 import { validateWorkflow } from "../scripts/check-workflow.mjs";
 
 test("CI scopes web, mobile, core and migration work without running every platform on docs-only changes", () => {
-  assert.deepEqual(ciScope(["docs/development.md"]), { web: false, mobile: false, core: false, maintenance: false });
+  assert.deepEqual(ciScope(["docs/development.md"]), { web: false, mobile: false, core: false, maintenance: true });
   assert.equal(ciScope(["apps/mobile/src/theme.ts"]).web, false);
   assert.equal(ciScope(["src/features/profile/page.tsx"]).mobile, false);
   assert.equal(ciScope(["packages/core/src/counter-model.ts"]).mobile, true);
@@ -36,7 +36,10 @@ test("workflow parses and keeps actions pinned, tokens read-only and release com
   const source = readFileSync(new URL("../.github/workflows/validate.yml", import.meta.url), "utf8");
   const workflow = validateWorkflow(source);
   assert.ok(workflow.on.workflow_dispatch.inputs.full_regression);
-  for (const event of ["push", "pull_request"]) assert.ok(workflow.on[event].paths.includes("infra/**"));
+  for (const event of ["push", "pull_request"]) {
+    assert.equal(workflow.on[event]?.paths, undefined);
+    assert.equal(workflow.on[event]?.["paths-ignore"], undefined);
+  }
   assert.ok(workflow.jobs.maintenance.steps.some(step => step.run === "npm run check:maintenance"));
   const scripts = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).scripts;
   assert.ok(scripts["check:maintenance"].includes("npm run check:architecture"));
