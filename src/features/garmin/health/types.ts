@@ -6,6 +6,7 @@ export type GarminHealthValues = {
   sleepValidation?: string | null; sleepEndSeconds?: number | null;
   restingHeartRate?: number | null; steps?: number | null; stress?: number | null;
   activeSeconds?: number | null; bodyBattery?: number | null; bodyBatteryTime?: number | null;
+  activityName?:string;deviceName?:string;maxHeartRate?:number|null;activeCalories?:number|null;averageSpeed?:number|null;elevationGain?:number|null;elevationLoss?:number|null;runCadence?:number|null;bikeCadence?:number|null;
   activityType?: string; averageHeartRate?: number | null; distanceMeters?: number | null;
 };
 export type GarminHealthEvent = {

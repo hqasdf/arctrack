@@ -1,5 +1,5 @@
 import "server-only";
-import { approximateLocation, parseOpenMeteo, type ApproximateLocation } from "@arc-track/core/weather";
+import { WeatherIssue, weatherRetryAt, approximateLocation, parseOpenMeteo, type ApproximateLocation } from "@arc-track/core/weather";
 import { readWeatherJson } from "./http.server";
 
 export function weatherProviderConfig() {
@@ -15,7 +15,7 @@ export function weatherProviderConfig() {
 
 export async function fetchCurrentWeather(location: ApproximateLocation) {
   const config = weatherProviderConfig();
-  if (!config) throw new Error("Weather unavailable");
+  if (!config) throw new WeatherIssue("configuration",409,true);
   const coarse = approximateLocation(location.latitude, location.longitude);
   const url = new URL(config.endpoint);
   url.searchParams.set("latitude", String(coarse.latitude));
@@ -26,7 +26,9 @@ export async function fetchCurrentWeather(location: ApproximateLocation) {
   url.searchParams.set("timeformat", "unixtime");
   url.searchParams.set("timezone", "GMT");
   if (config.key) url.searchParams.set("apikey", config.key);
-  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000), redirect: "error" });
-  if (!response.ok) throw new Error("Weather unavailable");
-  return parseOpenMeteo(await readWeatherJson(response, 32 * 1024), Date.now());
+  let response:Response;
+  try{response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000), redirect: "error" });}catch{throw new WeatherIssue("provider_unavailable",502); }
+  if (!response.ok) throw new WeatherIssue(response.status===429?"provider_rate_limit":"provider_unavailable",response.status===429?429:502,response.status===401||response.status===403,weatherRetryAt(response.headers.get("retry-after")));
+  try{return parseOpenMeteo(await readWeatherJson(response, 32 * 1024), Date.now());}
+  catch{throw new WeatherIssue("provider_response",502);}
 }

@@ -1,6 +1,7 @@
-  import { supabase } from "./supabase";
+import {readCompleteSessionHistory} from "@arc-track/core/session-history";
+import { supabase } from "./supabase";
 import type { SessionDraft } from "@arc-track/core/scoring";
-import { mapSessionDetail, type DbSessionDetail } from "./session-mapper";
+import { mapSessionDetail } from "./session-mapper";
 
 export type MobileSession = {
   id: string;
@@ -12,11 +13,7 @@ export type MobileSession = {
 
 export async function readOwnSessions(userId: string): Promise<MobileSession[]> {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase.from("sessions")
-    .select("id,title,session_date,session_type,arrow_count")
-    .eq("user_id", userId)
-    .order("session_date", { ascending: false }).order("created_at", { ascending: false });
-  if (error) throw new Error("Sessions could not be loaded.");
+  const data=await readCompleteSessionHistory(supabase,userId,{details:false});
   return (data ?? []).map((row) => ({
     id: row.id,
     title: row.title,
@@ -34,23 +31,14 @@ export const SESSION_DETAIL_SELECT = `
 
 export async function readOwnAnalyticsSessions(userId: string): Promise<SessionDraft[]> {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase.from("sessions")
-    .select(SESSION_DETAIL_SELECT)
-    .eq("user_id", userId)
-    .order("session_date", { ascending: false }).order("created_at", { ascending: false });
-  if (error) throw new Error("Analytics could not be loaded.");
-  return (data ?? []).map((row) => mapSessionDetail(row as unknown as DbSessionDetail));
+  const rows=await readCompleteSessionHistory(supabase,userId);
+  return rows.map(mapSessionDetail);
 }
 
 export async function readOwnSession(userId: string, sessionId: string): Promise<SessionDraft | null> {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { data, error } = await supabase.from("sessions")
-    .select(SESSION_DETAIL_SELECT)
-    .eq("id", sessionId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw new Error("Session could not be loaded.");
-  return data ? mapSessionDetail(data as unknown as DbSessionDetail) : null;
+  const rows=await readCompleteSessionHistory(supabase,userId,{session:sessionId});
+  return rows[0]?mapSessionDetail(rows[0]):null;
 }
 
 export async function readOwnRound(userId: string, roundId: string): Promise<{ session: SessionDraft; round: SessionDraft["rounds"][number] } | null> {

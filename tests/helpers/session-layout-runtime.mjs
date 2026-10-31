@@ -37,7 +37,7 @@ export function createSessionUI(responder) {
     useEffect(fn, deps) { const i = cursor++; if (!slots[i] || !deps.every((v, n) => Object.is(v, slots[i].deps[n]))) { const old = slots[i]; slots[i] = { deps }; effects.push(() => { old?.cleanup?.(); slots[i].cleanup = fn(); }); } },
   };
   const compiled = loadSessionModule('src/features/session-health/garmin-session-health.tsx', {
-    './model': sessionModel, './heart-rate-timeline': { HeartRateTimeline: () => React.createElement('div', null, 'Recorded HR timeline') },
+    './model': sessionModel, './matched-activities':{MatchedActivities:()=>null},'./heart-rate-timeline': { HeartRateTimeline: () => React.createElement('div', null, 'Recorded HR timeline') },
   }, hooks, { document, window, setInterval: fn => { timers.add(fn); return fn; }, clearInterval: fn => timers.delete(fn), fetch: async (url, options) => { calls.push({ url, options }); return responder(url, options); } });
   const props = { sessionId: 'synthetic-session' };
   return {

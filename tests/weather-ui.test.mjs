@@ -12,6 +12,7 @@ const require = createRequire(import.meta.url);
 const source = await readFile(new URL("../src/features/weather/components/session-weather.tsx", import.meta.url), "utf8");
 const script = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
 function load(state) {
+  state={...state,scope:"session"};
   let hookCalls = 0;
   const fakeReact = { ...React, useState: value => { hookCalls++; return [typeof value === "function" ? value() : state, () => {}]; },
     useEffect() {}, useLayoutEffect() {}, useRef: value => ({ current: value }), useSyncExternalStore: () => false };
@@ -46,7 +47,7 @@ test("saved Session weather is compact and collapsible; no reading means no empt
   assert.match(html, /<details[^>]*>/); assert.match(html, /<summary><strong>Saved weather<\/strong>/);
   assert.match(html, /Observed/); assert.match(html, /Open-Meteo/);
   const empty = load({ status: "unavailable", readings: [], enabled: false, nextRefreshAt: null });
-  assert.equal(renderToStaticMarkup(React.createElement(empty.SessionWeatherHistory, { sessionId: "session" })), "");
+  assert.match(renderToStaticMarkup(React.createElement(empty.SessionWeatherHistory, { sessionId: "session" })), /Retry weather/);
 });
 test("wind arrow points downwind for all eight compass directions", () => {
   const rotations = [180, 225, 270, 315, 0, 45, 90, 135];

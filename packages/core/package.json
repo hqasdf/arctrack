@@ -24,7 +24,9 @@
     "./notes-feedback": "./src/notes-feedback.ts",
     "./weather": "./src/weather-model.ts",
     "./weather-collector": "./src/weather-collector.ts",
-    "./recent-round-configs": "./src/recent-round-configs.ts"
+    "./recent-round-configs": "./src/recent-round-configs.ts",
+    "./sessions": "./src/session-contracts.ts",
+    "./session-history": "./src/session-history.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.mjs",

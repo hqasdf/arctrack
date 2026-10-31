@@ -173,6 +173,7 @@ try {
     } else await owner.query(sql);
   }
   assert(budgetBefore && JSON.stringify(budgetBefore) === JSON.stringify(await budgetDefinition()), 'Existing shared operation budget is unchanged');
+  const historyAssertions=await (await import('./complete-session-history-fixture.mjs')).testCompleteSessionHistory(owner,pg,configuration);
   const fixtureResults = await owner.query(await readFile(join(root, 'supabase/tests/session-notes-coach-feedback.sql'), 'utf8'));
   const fixtureCount = firstRows(fixtureResults).find(row => row.passed_assertions !== undefined)?.passed_assertions;
   assert(Number.isInteger(fixtureCount) && fixtureCount > 0, 'Rollback fixture returned its assertion count');
@@ -246,6 +247,7 @@ try {
   const recentResults = await (await import('./recent-round-configs-fixture.mjs')).testRecentRoundConfigs(owner, pg, configuration);
   const integrityResults = await (await import('./scoring-integrity-fixture.mjs')).testScoringIntegrity(owner,pg,configuration);
   summary = {
+    completeSessionHistoryAssertions: historyAssertions,
     scoringIntegrityAssertions: integrityResults,
     recentRoundConfigs: recentResults,
     liveHr1Hz: hzResults,

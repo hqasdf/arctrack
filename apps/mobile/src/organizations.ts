@@ -1,6 +1,6 @@
+import {readCompleteSessionHistory} from "@arc-track/core/session-history";
 import type { SessionDraft } from "@arc-track/core/scoring";
-import { mapSessionDetail, type DbSessionDetail } from "./session-mapper";
-import { SESSION_DETAIL_SELECT } from "./sessions";
+import { mapSessionDetail } from "./session-mapper";
 import { supabase } from "./supabase";
 import { mapCoachRoster, mapOwnOrganizations, normalizeJoinCode, type CoachAthlete, type OwnOrganization } from "./organization-model";
 export { athleteLabel, mapCoachRoster, mapOwnOrganizations, normalizeJoinCode } from "./organization-model";
@@ -68,15 +68,7 @@ export async function readCoachAthleteSessions(userId: string, organizationId: s
   if (!supabase) throw new Error("Athlete Sessions could not be loaded.");
   const athletes = knownAthletes ?? await readCoachAthletes(userId, organizationId);
   if (!athletes?.some((athlete) => athlete.userId === athleteId)) return null;
-  const rows: DbSessionDetail[] = [];
-  for (let offset = 0; ; offset += 500) {
-    const { data, error } = await supabase.from("sessions").select(SESSION_DETAIL_SELECT)
-      .eq("user_id", athleteId).order("session_date", { ascending: false }).order("created_at", { ascending: false })
-      .range(offset, offset + 499);
-    if (error) throw new Error("Athlete Sessions could not be loaded.");
-    rows.push(...((data ?? []) as unknown as DbSessionDetail[]));
-    if ((data ?? []).length < 500) break;
-  }
+  const rows=await readCompleteSessionHistory(supabase,userId,{organization:organizationId,owner:athleteId});
   return rows.map(mapSessionDetail);
 }
 
@@ -84,20 +76,6 @@ export async function readCoachOrganizationSessions(userId: string, organization
   if (!supabase) throw new Error("Organisation Sessions could not be loaded.");
   const athletes = knownAthletes ?? await readCoachAthletes(userId, organizationId);
   if (athletes === null) return null;
-  if (athletes.length === 0) return [];
-  const rows: Array<DbSessionDetail & { user_id: string; created_at: string }> = [];
-  const ids = athletes.map((athlete) => athlete.userId);
-  for (let start = 0; start < ids.length; start += 100) {
-    const batch = ids.slice(start, start + 100);
-    for (let offset = 0; ; offset += 500) {
-      const { data, error } = await supabase.from("sessions").select(`user_id,created_at,${SESSION_DETAIL_SELECT}`)
-        .in("user_id", batch).order("session_date", { ascending: false }).order("created_at", { ascending: false })
-        .range(offset, offset + 499);
-      if (error) throw new Error("Organisation Sessions could not be loaded.");
-      rows.push(...((data ?? []) as unknown as Array<DbSessionDetail & { user_id: string; created_at: string }>));
-      if ((data ?? []).length < 500) break;
-    }
-  }
-  return rows.map((row) => ({ ...mapSessionDetail(row), userId: row.user_id, createdAt: row.created_at }))
-    .sort((a, b) => b.date.localeCompare(a.date));
+  const rows=await readCompleteSessionHistory(supabase,userId,{organization:organizationId,allowedOwners:athletes.map(a=>a.userId)});
+  return rows.map(row=>({...mapSessionDetail(row),userId:row.user_id,createdAt:row.created_at}));
 }

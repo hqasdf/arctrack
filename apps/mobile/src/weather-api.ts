@@ -1,4 +1,4 @@
-import type { ApproximateLocation, WeatherSnapshot, WeatherSuccess } from "@arc-track/core/weather";
+import { weatherHttpIssue, type ApproximateLocation, type WeatherSnapshot, type WeatherSuccess } from "@arc-track/core/weather";
 import { supabase } from "./supabase";
 
 const unavailable = () => Object.assign(new Error("Weather is unavailable."), { noRetry: true });
@@ -44,12 +44,9 @@ export function createWeatherApi(dependencies: {
         headers: { Authorization: `Bearer ${token}`, ...(roundId ? { "Content-Type": "application/json" } : {}) },
         ...(roundId ? { body: JSON.stringify({ roundId, location }) } : {}),
       });
-      const body: unknown = await response.json();
+      const body: unknown = await response.json().catch(()=>null);
       if (!response.ok || !body || typeof body !== "object" || !("ok" in body) || body.ok !== true) {
-        const issue = new Error("Weather is temporarily unavailable.");
-        if (response.status === 401 || response.status === 403 || response.status === 404 || response.status === 503) Object.assign(issue, { noRetry: true });
-        if (body && typeof body === "object" && "retryAt" in body && typeof body.retryAt === "string" && Number.isFinite(Date.parse(body.retryAt))) Object.assign(issue, { retryAt: body.retryAt });
-        throw issue;
+        throw weatherHttpIssue(response.status,body,response.headers.get("retry-after"));
       }
       const result = body as Record<string, unknown>;
       if (typeof result.enabled !== "boolean" || !Array.isArray(result.readings) || !result.readings.every(reading => isReading(reading, sessionId))

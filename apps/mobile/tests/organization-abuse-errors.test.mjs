@@ -10,6 +10,7 @@ async function loadJoin(result) {
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
   const exports = {};
   const modules = {
+    "@arc-track/core/session-history": {},
     "./supabase": { supabase: { rpc: async (name, args) => { calls.push({ name, args }); return result; } } },
     "./session-mapper": {}, "./sessions": {}, "./organization-model": model,
   };

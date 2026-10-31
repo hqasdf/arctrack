@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { WeatherCollector, type WeatherState } from "@arc-track/core/weather-collector";
-import { canCollectWeather, compassDirection, conditionDescription, isWeatherDistance, WEATHER_REFRESH_MS,
+import { weatherHttpIssue, weatherFailureState, canCollectWeather, compassDirection, conditionDescription, isWeatherDistance, WEATHER_REFRESH_MS,
   type WeatherResponse, type WeatherSnapshot, type WeatherSuccess } from "@arc-track/core/weather";
 import type { RoundDraft } from "@arc-track/core/scoring";
 import styles from "./session-weather.module.css";
@@ -20,13 +20,14 @@ async function requestWeather(sessionId: string, roundId?: string, location?: { 
     method: roundId ? "POST" : "GET", credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(20_000),
     ...(roundId ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roundId, location }) } : {}),
   });
-  const result = await response.json() as WeatherResponse;
-  if (!response.ok || !result.ok) throw Object.assign(new Error("Weather unavailable"), { noRetry: response.status === 401 || response.status === 403 });
+  const result = await response.json().catch(()=>null) as WeatherResponse|null;
+  if (!response.ok || !result?.ok) throw weatherHttpIssue(response.status,result,response.headers.get("retry-after"));
   return result;
 }
 function useWeather(sessionId: string, sessionDate?: string, round?: RoundDraft, collecting = false) {
   const foreground = useSyncExternalStore(subscribeVisibility, visible, serverVisible);
-  const [state, setState] = useState<WeatherState>(initial);
+  const [state, setState] = useState<WeatherState & {scope?:string}>(initial);
+  const [attempt,setAttempt]=useState(0);
   const [now, setNow] = useState(Date.now);
   const context = useRef({ round, sessionDate, collecting });
   useLayoutEffect(() => { context.current = { round, sessionDate, collecting }; }, [round, sessionDate, collecting]);
@@ -44,7 +45,7 @@ function useWeather(sessionId: string, sessionDate?: string, round?: RoundDraft,
         arrowsPerEnd: current.round.arrowsPerEnd, arrows: current.round.arrows }, Date.now());
     };
     const instance = new WeatherCollector({ load: () => requestWeather(sessionId), locate: () => locateForWeather(allowed),
-      capture: location => allowed() ? requestWeather(sessionId, roundId, location) : Promise.reject(Object.assign(new Error("Weather paused"), { noRetry: true })), onChange: next => { setNow(Date.now()); setState(next); } });
+      capture: location => allowed() ? requestWeather(sessionId, roundId, location) : Promise.reject(Object.assign(new Error("Weather paused"), { noRetry: true })), onChange: next => { setNow(Date.now()); setState({...next,scope:sessionId}); } });
     collector.current = instance;
     return () => { instance.dispose(); if (collector.current === instance) collector.current = null; };
   }, [sessionId, roundId]);
@@ -60,11 +61,12 @@ function useWeather(sessionId: string, sessionDate?: string, round?: RoundDraft,
   useEffect(() => {
     if (active || !foreground) return;
     let cancelled = false;
-    void requestWeather(sessionId).then(result => { if (!cancelled) { setNow(Date.now()); setState({ status: "ready", ...result }); } })
-      .catch(() => { if (!cancelled) setState({ ...initial, status: "unavailable" }); });
+    void requestWeather(sessionId).then(result => { if (!cancelled) { setNow(Date.now()); setState({ status: "ready", ...result,scope:sessionId }); } })
+      .catch(error => { if (!cancelled) setState(previous=>({...weatherFailureState(previous.scope===sessionId?previous:initial,error),scope:sessionId})); });
     return () => { cancelled = true; };
-  }, [sessionId, active, foreground]);
-  return { ...state, now };
+  }, [sessionId, active, foreground,attempt]);
+  useEffect(()=>{const resume=()=>{if(visible()){collector.current?.retry();setAttempt(value=>value+1);}};window.addEventListener("online",resume);return()=>window.removeEventListener("online",resume);},[]);
+  return { ...(state.scope===sessionId?state:initial), now,retry:()=>{if(active)collector.current?.retry();else setAttempt(value=>value+1);} };
 }
 function time(value: string) { return `${new Date(Date.parse(value) + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ")} SGT`; }
 const measurement = (value: number | null, unit: string) => value === null ? "—" : `${value}${unit}`;
@@ -122,11 +124,12 @@ function Reading({ reading, stale = false, compact = false }: { reading: Weather
 function Panel({ sessionId, sessionDate, round, collecting, history = false }: { sessionId: string; sessionDate?: string; round?: RoundDraft; collecting?: boolean; history?: boolean }) {
   const state = useWeather(sessionId, sessionDate, round, collecting);
   const latest = state.readings[0];
-  if (history && !latest) return null;
+  if (history && !latest && state.status!=="unavailable") return null;
+  if(history&&!latest)return <p role="status">Weather unavailable. <button type="button" onClick={state.retry}>Retry weather</button></p>;
   const stale = latest && (state.status === "unavailable" || state.now - Date.parse(latest.observedAt) >= WEATHER_REFRESH_MS);
   if (history) return <details className={styles.historyDisclosure}>
     <summary><strong>Saved weather</strong><span>{measurement(latest!.temperatureC, "°C")} · Wind {measurement(latest!.windSpeedKph, " km/h")}</span></summary>
-    <div className={styles.historyBody}>
+    <div className={styles.historyBody}>{state.status==="unavailable"&&<p role="status">Saved readings retained. <button type="button" onClick={state.retry}>Retry weather</button></p>}
       <div className={styles.historyList}>{state.readings.map((reading, index) => <Reading key={reading.id} reading={reading} compact={true} stale={index > 0 || !!stale}/>)}</div>
       <a className={styles.attribution} href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo</a>
     </div>
@@ -138,6 +141,7 @@ function Panel({ sessionId, sessionDate, round, collecting, history = false }: {
     </div>
     {latest ? <Reading reading={latest} stale={!!stale}/> : <p className={styles.stateMessage} role="status">{state.status === "loading" ? "Checking conditions…" : "Weather unavailable"}</p>}
     {latest && state.status === "unavailable" && <p className={styles.stateMessage} role="status">Weather unavailable. This saved observation is retained.</p>}
+    {state.status==="unavailable"&&<button type="button" onClick={state.retry}>Retry weather</button>}
     <a className={styles.attribution} href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather data by Open-Meteo</a>
   </section>;
 }

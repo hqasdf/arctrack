@@ -100,3 +100,27 @@ export function parseOpenMeteo(input: unknown, now: number): WeatherValues & { o
     conditionCode,
   };
 }
+
+export type WeatherErrorCode = 'invalid_request' | 'unauthenticated' | 'forbidden' | 'ineligible' | 'database_read' | 'provider_unavailable' | 'provider_rate_limit' | 'provider_response' | 'persistence' | 'configuration' | 'location_denied' | 'location_timeout';
+export class WeatherIssue extends Error {
+  readonly code:WeatherErrorCode; readonly status:number; readonly noRetry:boolean; readonly retryAt?:string;
+  constructor(code:WeatherErrorCode,status:number,noRetry=false,retryAt?:string){super('Weather unavailable');this.code=code;this.status=status;this.noRetry=noRetry;this.retryAt=retryAt;}
+}
+export function weatherRetryAt(value: string | null, now = Date.now()): string | undefined {
+  if (!value) return undefined;
+  const due = /^\d+$/.test(value.trim()) ? now + Number(value) * 1000 : Date.parse(value);
+  return Number.isFinite(due) && due > now ? new Date(Math.min(due, now + 24 * 60 * 60 * 1000)).toISOString() : undefined;
+}
+export function weatherHttpIssue(status: number, body: unknown, retryAfter: string | null): WeatherIssue {
+  const data = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+  const terminal = status >= 400 && status < 500 && status !== 408 && status !== 429;
+  const codes: WeatherErrorCode[] = ['invalid_request','unauthenticated','forbidden','ineligible','database_read','provider_unavailable','provider_rate_limit','provider_response','persistence','configuration'];
+  const code = codes.includes(data.code as WeatherErrorCode) ? data.code as WeatherErrorCode : status === 401 ? 'unauthenticated' : status === 403 ? 'forbidden' : status === 429 ? 'provider_rate_limit' : 'provider_unavailable';
+  const retryAt = weatherRetryAt(retryAfter) ?? (typeof data.retryAt === 'string' ? weatherRetryAt(data.retryAt) : undefined);
+  return new WeatherIssue(code, status, terminal || data.retryable === false, retryAt);
+}
+export function weatherFailureState<T extends { readings: WeatherSnapshot[] }>(previous: T, error: unknown): T & { status: 'unavailable'; message: string } {
+  const code = error instanceof WeatherIssue ? error.code : undefined;
+  return { ...previous, readings: code === 'unauthenticated' || code === 'forbidden' ? [] : previous.readings, status: 'unavailable',
+    message: code === 'location_denied' ? 'Location permission is unavailable. Check device permissions, then retry.' : code === 'unauthenticated' ? 'Sign in again to load weather.' : 'Weather refresh failed. Saved readings are retained; retry when available.' };
+}

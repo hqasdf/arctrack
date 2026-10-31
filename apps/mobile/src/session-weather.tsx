@@ -74,6 +74,7 @@ function WeatherPanel({ state }: { state: WeatherState }) {
       <View style={styles.observation}><Text style={styles.observationLabel}>{stale ? "Saved observation · not current" : "Observed"}</Text><Text style={styles.observationTime}>{observedTime(reading.observedAt)}</Text></View>
     </> : <Text accessibilityRole="text" style={styles.message}>{state.status === "loading" ? "Checking conditions…" : "Weather unavailable. Scoring is unaffected."}</Text>}
     {reading && state.status === "unavailable" ? <Text style={styles.message}>Weather unavailable. This saved observation is retained.</Text> : null}
+    {state.status==="unavailable"&&<Pressable accessibilityRole="button" onPress={state.retry}><Text style={styles.message}>Retry weather</Text></Pressable>}
     <Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://open-meteo.com/")} style={styles.attribution}>
       <Text style={styles.attributionText}>Weather data by Open-Meteo</Text>
     </Pressable>
@@ -91,7 +92,7 @@ export function SessionWeatherHistory({ session }: { session: SessionDraft }) {
   const state = useSessionWeather(session);
   const [expanded, setExpanded] = useState(false);
   const readings = [...state.readings].sort((a, b) => Date.parse(b.retrievedAt) - Date.parse(a.retrievedAt));
-  if (!readings.length) return null;
+  if (!readings.length) return state.status==="unavailable"?<Pressable accessibilityRole="button" onPress={state.retry}><Text style={styles.message}>Weather unavailable · Retry</Text></Pressable>:null;
   const latest = readings[0];
   return <View style={styles.historyDisclosure}>
     <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} style={styles.historySummary}>
@@ -99,6 +100,7 @@ export function SessionWeatherHistory({ session }: { session: SessionDraft }) {
       <Text style={styles.historyPreview}>{measurement(latest.temperatureC, "°C")} · Wind {measurement(latest.windSpeedKph, " km/h")}</Text>
       <Text style={styles.historyToggle}>{expanded ? "−" : "+"}</Text>
     </Pressable>
+    {state.status==="unavailable"&&<Pressable accessibilityRole="button" onPress={state.retry}><Text style={styles.message}>Saved readings retained · Retry weather</Text></Pressable>}
     {expanded ? <View style={styles.historyBody}>
       {readings.map((reading, index) => <CompactReading key={reading.id} reading={reading} stale={index > 0 || state.status === "unavailable" || Date.now() - Date.parse(reading.observedAt) >= WEATHER_REFRESH_MS}/>)}
       <Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://open-meteo.com/")} style={styles.attribution}><Text style={styles.attributionText}>Weather data by Open-Meteo</Text></Pressable>

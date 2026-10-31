@@ -1,8 +1,9 @@
 export type HRSample = [number, number | null];
 export type SessionActivityLink = { session_id: string; activity_id: string | null; updated_at: string };
-export type HRCandidate = { source_id: string; start_seconds: number; duration_seconds: number; activity_type: string | null; state: string; sample_count: number; published: boolean };
+export type HRCandidate = { activity_name?:string; source_id: string; start_seconds: number; duration_seconds: number; activity_type: string | null; state: string; sample_count: number; published: boolean };
 export type HRDataset = { id: string; source: 'activity' | 'daily'; sourceId: string; start: number; duration: number; samples: HRSample[] };
-export type SessionHealth = { link: SessionActivityLink | null; recording: HRCandidate | null; authorized: boolean; paused?: boolean; sync?: {state:string;error:string|null}|null; candidates: HRCandidate[]; datasets: HRDataset[] };
+export type MatchedSessionActivity=HRCandidate&{metrics:Record<string,number|string|null>};
+export type SessionHealth = { matched?:MatchedSessionActivity[];excluded?:string[];incomplete?:boolean; link: SessionActivityLink | null; recording: HRCandidate | null; authorized: boolean; match?:{mode:string;reason:string};metrics?:Record<string,number|string|null>; paused?: boolean; sync?: {state:string;error:string|null}|null; candidates: HRCandidate[]; datasets: HRDataset[] };
 export const singaporeTime = (seconds: number) => new Intl.DateTimeFormat('en-SG', { timeZone:'Asia/Singapore', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).format(new Date(seconds*1000));
 // Statistics use all original points, never graph downsampling. Activity values
 // hold until the next sample; we cap uncertain gaps at 60s rather than imply

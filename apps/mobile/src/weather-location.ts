@@ -1,8 +1,9 @@
 import * as Location from "expo-location";
-import { approximateLocation, type ApproximateLocation } from "@arc-track/core/weather";
+import { WeatherIssue, approximateLocation, type ApproximateLocation } from "@arc-track/core/weather";
 
 let prompted = false;
-const notAllowed = () => Object.assign(new Error("Location permission is unavailable."), { noRetry: true });
+let pendingFix:Promise<Location.LocationObject>|null=null;
+const notAllowed = () => new WeatherIssue("location_denied",403,true);
 
 /** One approximate foreground fix. No watcher, background task, or coordinate storage. */
 export async function locateForWeather(isActive: () => boolean): Promise<ApproximateLocation> {
@@ -18,9 +19,12 @@ export async function locateForWeather(isActive: () => boolean): Promise<Approxi
   if (!permission.granted || !isActive()) throw notAllowed();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    if(pendingFix)throw new WeatherIssue("location_timeout",408);
+    const request=Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low, mayShowUserSettingsDialog: false });
+    pendingFix=request;void request.then(()=>{if(pendingFix===request)pendingFix=null;},()=>{if(pendingFix===request)pendingFix=null;});
     const fix = await Promise.race([
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low, mayShowUserSettingsDialog: false }),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Location is temporarily unavailable.")), 15_000); }),
+      request,
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new WeatherIssue("location_timeout",408)), 15_000); }),
     ]);
     if (!isActive()) throw notAllowed();
     return approximateLocation(fix.coords.latitude, fix.coords.longitude);

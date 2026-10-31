@@ -34,12 +34,11 @@ test('the selected Session read endpoint rejects unauthenticated requests before
   const response=await GET(new Request('https://arc.example/api/sessions/test'),{params:Promise.resolve({sessionId:'test'})});assert.equal(response.status,401);assert.equal(reads,0);assert.equal(response.headers.get('cache-control'),'private, no-store');
 });
 test('selected Session reads filter by the verified owner and retain the existing complete Round contract',async()=>{
-  const filters=[];let select='';
-  const query={select(value){select=value;return query;},eq(name,value){filters.push([name,value]);return query;},maybeSingle:async()=>({data:null,error:null})};
+  const calls=[];
   const {readOwnedSession}=loadSessionModule('src/features/sessions/read.server.ts',{
-    'server-only':{},'@/lib/auth/session.server':{requireUser:async()=>({id:'verified-owner'})},
-    '@/lib/supabase/server':{createAuthClient:async()=>({from:table=>{assert.equal(table,'sessions');return query;}})},
+    'server-only':{},'@/lib/auth/session.server':{requireUser:async()=>({id:'00000000-0000-4000-8000-000000000001'})},
+    '@/lib/supabase/server':{createAuthClient:async()=>({rpc:async(name,args)=>{calls.push({name,args});return {data:{version:1,complete:true,details:true,owners:["00000000-0000-4000-8000-000000000001"],counts:{sessions:0,rounds:0,ends:0,arrows:0},items:[]},error:null};}})},
   });
-  assert.equal(await readOwnedSession('selected-session'),null);assert.deepEqual(filters,[['user_id','verified-owner'],['id','selected-session']]);
-  assert.match(select,/session_rounds/);assert.match(select,/session_ends/);assert.match(select,/plot_x,plot_y,face_index/);
+  assert.equal(await readOwnedSession('selected-session'),null);
+  assert.deepEqual(calls,[{name:'read_complete_session_history_v1',args:{p_actor:'00000000-0000-4000-8000-000000000001',p_owner:null,p_organization:null,p_session:'selected-session',p_type:null,p_details:true}}]);
 });

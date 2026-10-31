@@ -24,7 +24,7 @@ function load(file, dependencies) {
   }, module, module.exports, false);
   return module.exports;
 }
-const apiModel = load("weather-api.ts", { "./supabase": { supabase: null } });
+const apiModel = load("weather-api.ts", { "@arc-track/core/weather":weather, "./supabase": { supabase: null } });
 const now = Date.now();
 const snapshot = { id: "reading", sessionId: "session", roundId: "round", provider: "open-meteo",
   observedAt: new Date(now).toISOString(), retrievedAt: new Date(now).toISOString(),
@@ -136,7 +136,7 @@ function hookRuntime() {
   const session = { id: "session", date: weather.weatherToday(Date.now()) };
   let round = { id: "round", distanceMetres: 70, ends: 1, arrowsPerEnd: 6 }; let arrows = [];
   function render() { cursor = 0; const value = useSessionWeather(session, round, arrows); const pending = effects; effects = []; pending.forEach(effect => effect()); return value; }
-  return { calls, timers, render,
+  return { calls, timers, render,setSession:id=>{session.id=id;},failLoad:()=>{api.load=async()=>{throw Error("offline");};},
     setDate: value => { session.date = value; }, setRound: value => { round = value; }, setArrows: value => { arrows = value; },
     setFocus: value => { focused = value; }, setUser: value => { user = value; },
     background: () => appListener("background"), foreground: () => appListener("active"),
@@ -248,4 +248,20 @@ test("real Expo config evaluates foreground-only iOS text and coarse-only Androi
   assert.ok(permissions.some(item => item["android:name"] === "android.permission.ACCESS_COARSE_LOCATION" && item["tools:node"] !== "remove"));
   for (const name of ["ACCESS_FINE_LOCATION", "ACCESS_BACKGROUND_LOCATION", "FOREGROUND_SERVICE_LOCATION"])
     assert.ok(permissions.some(item => item["android:name"] === `android.permission.${name}` && item["tools:node"] === "remove"));
+});
+
+test('mobile retries transient HTTP failures and preserves Retry-After but stops unauthorized requests',async()=>{
+  for(const status of [401,403,429,500,503]){
+    const api=apiModel.createWeatherApi({origin:'https://arc.example',accessToken:async()=> 'synthetic',request:async()=>Response.json({ok:false},{status,headers:{'Retry-After':'120'}})});
+    await assert.rejects(api.load('session'),error=>{assert.equal(error.noRetry,status===401||status===403);assert.ok(Date.parse(error.retryAt)>Date.now());return true;});
+  }
+});
+
+test('native weather retains same-Session history on reload failure and hides it immediately on account or Session change',async()=>{
+ const h=hookRuntime();try{
+  const saved=await h.settle();assert.equal(saved.readings.length,1);h.failLoad();
+  h.setRound(undefined);const failed=await h.settle();assert.equal(failed.status,'unavailable');assert.equal(failed.readings[0].id,saved.readings[0].id);
+  h.setSession('other');assert.equal(h.render().readings.length,0);await h.settle();assert.equal(h.render().readings.length,0);
+  h.setUser({id:'other-owner'});assert.equal(h.render().readings.length,0);
+ }finally{h.dispose();}
 });

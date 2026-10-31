@@ -1,4 +1,5 @@
 import "server-only";
+import {readCompleteSessionHistory} from "@arc-track/core/session-history";
 import { requireUser } from "@/lib/auth/session.server";
 import { createAuthClient } from "@/lib/supabase/server";
 import { newestRoundsFirst } from "@arc-track/core/round-order";
@@ -18,23 +19,16 @@ export const SESSION_DETAIL_SELECT=`
 export async function readSessions(options?:{sessionType?:SessionType}):Promise<SessionDraft[]> {
   const user=await requireUser();
   const supabase=await createAuthClient();
-  function buildQuery() {
-    let query=supabase.from("sessions").select(SESSION_DETAIL_SELECT).eq("user_id",user.id).order("session_date",{ascending:false}).order("created_at",{ascending:false});
-    if (options?.sessionType) query=query.eq("session_type",options.sessionType);
-    return query;
-  }
-  const {data,error}=await buildQuery();
-  if (error) throw new Error("Sessions could not be loaded.");
-  return ((data??[]) as unknown as DbSession[]).map(mapSession);
+  const rows=await readCompleteSessionHistory(supabase,user.id,{sessionType:options?.sessionType});
+  return rows.map(mapSession);
 }
 
 /** Refresh one already-open Session, including every Round, without reading history. */
 export async function readOwnedSession(sessionId:string):Promise<SessionDraft|null> {
   const user=await requireUser();
   const supabase=await createAuthClient();
-  const {data,error}=await supabase.from("sessions").select(SESSION_DETAIL_SELECT).eq("user_id",user.id).eq("id",sessionId).maybeSingle();
-  if(error)throw Error("The Session could not be refreshed.");
-  return data?mapSession(data as unknown as DbSession):null;
+  const rows=await readCompleteSessionHistory(supabase,user.id,{session:sessionId});
+  return rows[0]?mapSession(rows[0]):null;
 }
 
 export function mapSession(row:DbSession):SessionDraft {

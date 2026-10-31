@@ -117,7 +117,7 @@ test("18m and historical Sessions never fetch current weather; missing migration
     assert.equal(result.enabled, false); assert.equal(h.providerCalls(), 0); assert.equal(h.rpcCalls.length, 0);
   }
   const h = serviceHarness({ readError: { code: "42P01" } });
-  assert.equal((await h.exports.readSessionWeather(h.identity, sessionId)).enabled, false);
+  await assert.rejects(h.exports.readSessionWeather(h.identity, sessionId),error=>error.code==="database_read"&&error.status===500);
 });
 
 test("capture claims before provider access and writes only normalized provider values as verified owner", async () => {
@@ -192,7 +192,7 @@ test("weather GET rejects foreign origins, missing IDs and failed owner checks w
   assert.equal((await route(h.exports).GET(new Request(`https://arc.example/api/session-weather?sessionId=${sessionId}`, { headers: { origin: "https://evil.example" } }))).status, 403);
   assert.equal((await route(h.exports).GET(new Request("https://arc.example/api/session-weather?sessionId=bad"))).status, 400);
   const denied = await route(serviceHarness({ owner: false }).exports).GET(new Request(`https://arc.example/api/session-weather?sessionId=${sessionId}`));
-  assert.deepEqual(await denied.json(), { ok: false, message: "Weather unavailable" });
+  assert.deepEqual(await denied.json(), { ok: false, message: "Weather unavailable",code:"forbidden",retryable:false });
 });
 
 function providerHarness(env, response, thrown = null) {
@@ -231,4 +231,18 @@ test("provider rejects HTTP errors, oversized responses, incorrect units and tra
     await assert.rejects(providerHarness(env, response).exports.fetchCurrentWeather({ latitude: 1, longitude: 103 }));
   }
   await assert.rejects(providerHarness(env, null, new DOMException("Timeout", "TimeoutError")).exports.fetchCurrentWeather({ latitude: 1, longitude: 103 }));
+});
+
+test('snapshot read and save failures have distinct sanitized retryable API categories',async()=>{
+  const read=serviceHarness({readError:{code:'secret-details'}});
+  const response=await route(read.exports).GET(new Request(`https://arc.example/api/session-weather?sessionId=${sessionId}`));
+  assert.equal(response.status,500);assert.deepEqual(await response.json(),{ok:false,message:'Weather unavailable',code:'database_read',retryable:true});
+  const saved=await route(serviceHarness({saveFailure:true}).exports).POST(post());assert.equal(saved.status,500);assert.equal((await saved.json()).code,'persistence');
+});
+
+test('provider rate limiting preserves a safe Retry-After deadline and malformed data is separately classified',async()=>{
+ const env={ARC_TRACK_WEATHER_ENABLED:'true',ARC_TRACK_WEATHER_MODE:'development',NODE_ENV:'development'};
+ const limited=providerHarness(env,new Response('private provider response',{status:429,headers:{'Retry-After':'120'}}));
+ await assert.rejects(limited.exports.fetchCurrentWeather({latitude:1,longitude:103}),error=>error.code==='provider_rate_limit'&&error.status===429&&!!error.retryAt&&!error.message.includes('private'));
+ await assert.rejects(providerHarness(env,Response.json({wrong:true})).exports.fetchCurrentWeather({latitude:1,longitude:103}),error=>error.code==='provider_response'&&error.status===502);
 });

@@ -137,6 +137,15 @@ export function normalizeGarminPush(input: unknown, options: { heartRate?: boole
           recordKey = sourceId;
           values = { activityType: text(row.activityType, 100), averageHeartRate: optional(row, "averageHeartRateInBeatsPerMinute", 300, 1),
             distanceMeters: optional(row, "distanceInMeters", 10000000, 0, false) };
+          if(row.activityName!=null)values.activityName=text(row.activityName,256);
+          if(row.deviceName!=null)values.deviceName=text(row.deviceName,256);
+          if(row.maxHeartRateInBeatsPerMinute!=null)values.maxHeartRate=optional(row,'maxHeartRateInBeatsPerMinute',300,1);
+          if(row.activeKilocalories!=null)values.activeCalories=optional(row,'activeKilocalories',10000000);
+          if(row.averageSpeedInMetersPerSecond!=null)values.averageSpeed=optional(row,'averageSpeedInMetersPerSecond',200,0,false);
+          if(row.totalElevationGainInMeters!=null)values.elevationGain=optional(row,'totalElevationGainInMeters',1000000,0,false);
+          if(row.totalElevationLossInMeters!=null)values.elevationLoss=optional(row,'totalElevationLossInMeters',1000000,0,false);
+          if(row.averageRunCadenceInStepsPerMinute!=null)values.runCadence=optional(row,'averageRunCadenceInStepsPerMinute',1000,0,false);
+          if(row.averageBikeCadenceInRoundsPerMinute!=null)values.bikeCadence=optional(row,'averageBikeCadenceInRoundsPerMinute',1000,0,false);
         }
       }
       const normalized = { garminUserId, kind, sourceId, recordKey, calendarDate, startTimeInSeconds, durationInSeconds, values, permissions, changeTimeInSeconds };

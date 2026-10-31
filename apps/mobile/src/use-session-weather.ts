@@ -1,4 +1,4 @@
-import { canCollectWeather } from "@arc-track/core/weather";
+import { weatherFailureState, canCollectWeather } from "@arc-track/core/weather";
 import { WeatherCollector, type WeatherState } from "@arc-track/core/weather-collector";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,7 +16,9 @@ export function useSessionWeather(session: SessionDraft, round?: RoundDraft, arr
   const userId = user?.id;
   const [focused, setFocused] = useState(false);
   const [foreground, setForeground] = useState(AppState.currentState === "active");
-  const [state, setState] = useState<WeatherState>(initial);
+  const [state, setState] = useState<WeatherState & {scope?:string}>(initial);
+  const scope=`${userId??""}:${session.id}`;
+  const [attempt,setAttempt]=useState(0);
   const collector = useRef<WeatherCollector | null>(null);
   const permitted = useRef(false);
   const context = useRef({ session, round, arrows });
@@ -55,11 +57,11 @@ export function useSessionWeather(session: SessionDraft, round?: RoundDraft, arr
         if (!allowedNow()) return Promise.reject(Object.assign(new Error("Weather collection paused."), { noRetry: true }));
         return mobileWeatherApi.capture(sessionId, roundId, location);
       },
-      onChange: setState,
+      onChange: next=>setState({...next,scope}),
     });
     collector.current = instance;
     return () => { instance.dispose(); if (collector.current === instance) collector.current = null; };
-  }, [sessionId, roundId, userId]);
+  }, [sessionId, roundId, userId, scope]);
   useEffect(() => { collector.current?.setActive(active); }, [active, sessionId, roundId, userId]);
 
   // History-only views (including old/completed Rounds) must never request location.
@@ -68,9 +70,10 @@ export function useSessionWeather(session: SessionDraft, round?: RoundDraft, arr
     let cancelled = false;
     if (!mobileWeatherApi.available) return;
     void mobileWeatherApi.load(sessionId).then(result => {
-      if (!cancelled) setState({ status: "ready", readings: result.readings, enabled: result.enabled, nextRefreshAt: result.nextRefreshAt });
-    }).catch(() => { if (!cancelled) setState({ ...initial, status: "unavailable" }); });
+      if (!cancelled) setState({ status: "ready", readings: result.readings, enabled: result.enabled, nextRefreshAt: result.nextRefreshAt,scope });
+    }).catch(error => { if (!cancelled) setState(previous=>({...weatherFailureState(previous.scope===scope?previous:initial,error),scope})); });
     return () => { cancelled = true; };
-  }, [sessionId, active, focused, foreground, userId]);
-  return mobileWeatherApi.available ? state : { ...initial, status: "unavailable" as const };
+  }, [sessionId, active, focused, foreground, userId, attempt, scope]);
+  const shown=mobileWeatherApi.available ? state.scope===scope?state:initial : { ...initial, status: "unavailable" as const };
+  return {...shown,retry:()=>{if(active)collector.current?.retry();else setAttempt(value=>value+1);}};
 }

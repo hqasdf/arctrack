@@ -13,7 +13,7 @@ function harness(overrides = {}) {
     load: async () => { calls.load++; return success(); },
     locate: async () => { calls.locate++; return { latitude: 1.35, longitude: 103.82 }; },
     capture: async () => { calls.capture++; due = new Date(now + WEATHER_REFRESH_MS).toISOString(); return success(); },
-    onChange: (state) => changes.push(state), now: () => now,
+    random:()=>0, onChange: (state) => changes.push(state), now: () => now,
     setTimer: (callback, delay) => { timers.set(++nextId, { at: now + delay, callback }); return nextId; },
     clearTimer: (id) => timers.delete(id), ...overrides,
   });
@@ -96,4 +96,11 @@ test("another device's pending claim is re-read at its short lease deadline with
   await h.advance(1000); assert.equal(loads, 2); assert.equal(captures, 1);
   assert.equal(h.changes.at(-1).readings[0].id, "other-device-weather");
   h.collector.dispose();
+});
+
+test('collector exhausts its automatic retry budget and explicit Retry starts a new bounded episode',async()=>{
+  const h=harness({load:async()=>{throw Error('offline');}});h.collector.setActive(true);await flush();
+  for(const wait of [60000,300000,900000])await h.advance(wait);
+  assert.equal(h.timers.size,0);assert.equal(h.changes.length,4);
+  h.collector.retry();await flush();assert.equal(h.changes.length,5);assert.equal(h.timers.size,1);h.collector.dispose();
 });

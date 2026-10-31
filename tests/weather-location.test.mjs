@@ -90,3 +90,11 @@ test("collector resumes after a denied browser permission becomes granted withou
     assert.equal(changes.at(-1).status, "ready");
   } finally { collector.dispose(); }
 });
+
+test('initial browser positioning timeout remains retryable with and without Permissions API',async()=>{
+  for(const permissions of [undefined,{query:async()=>({state:'prompt'})}]){
+    const h=browser(permissions);h.fail(3);
+    await assert.rejects(h.locate(()=>true),error=>error.code==='location_timeout'&&!error.noRetry);
+    h.fail('success');assert.deepEqual(await h.locate(()=>true),{latitude:1.35,longitude:103.82});assert.equal(h.calls.length,2);
+  }
+});

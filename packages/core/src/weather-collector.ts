@@ -1,4 +1,4 @@
-import { WEATHER_REFRESH_MS, type ApproximateLocation, type WeatherSnapshot, type WeatherSuccess } from "./weather-model.ts";
+import { weatherFailureState, WEATHER_REFRESH_MS, type ApproximateLocation, type WeatherSnapshot, type WeatherSuccess } from "./weather-model.ts";
 
 export type WeatherState = {
   status: "loading" | "ready" | "unavailable";
@@ -6,6 +6,7 @@ export type WeatherState = {
   enabled: boolean;
   nextRefreshAt: string | null;
   message?: string;
+  retry?: () => void;
 };
 export type WeatherCollectorDependencies = {
   load(): Promise<WeatherSuccess>;
@@ -14,6 +15,7 @@ export type WeatherCollectorDependencies = {
   onChange(state: WeatherState): void;
   now?: () => number;
   setTimer?: (callback: () => void, delayMs: number) => unknown;
+  random?: () => number;
   clearTimer?: (handle: unknown) => void;
 };
 const timers = globalThis as unknown as {
@@ -30,6 +32,7 @@ export class WeatherCollector {
   private pending = false;
   private timer: unknown;
   private failures = 0;
+  private retryNotBefore=0;
   private locationDenied = false;
   private state: WeatherState = { status: "loading", readings: [], enabled: false, nextRefreshAt: null };
   private readonly now: () => number;
@@ -52,9 +55,14 @@ export class WeatherCollector {
     this.cancelTimer();
     if (active) {
       // Recheck current permission on resume; platform helpers still suppress repeat prompts.
-      this.locationDenied = false;
+      this.locationDenied = false;this.failures=0;
       void this.refresh();
     }
+  }
+
+  retry(): void {
+    if(!this.active||this.disposed||this.busy||this.now()<this.retryNotBefore)return;
+    this.failures=0;this.locationDenied=false;this.cancelTimer();void this.refresh();
   }
 
   dispose(): void {
@@ -117,11 +125,13 @@ export class WeatherCollector {
     } catch (error) {
       if (!this.valid(generation)) return;
       this.locationDenied = !!error && typeof error === "object" && "noRetry" in error && error.noRetry === true;
-      this.publish({ ...this.state, status: "unavailable", message: this.locationDenied ? "Location permission is unavailable." : "Weather is temporarily unavailable." });
-      if (!this.locationDenied) {
+      this.publish(weatherFailureState(this.state,error));
+      const retryAt = error && typeof error === "object" && "retryAt" in error && typeof error.retryAt === "string" ? Date.parse(error.retryAt) : NaN;
+      this.retryNotBefore=Number.isFinite(retryAt)?retryAt:0;
+      if (!this.locationDenied && this.failures < 3) {
         const backoff = [60_000, 5 * 60_000, 15 * 60_000][Math.min(this.failures++, 2)];
-        const retryAt = error && typeof error === "object" && "retryAt" in error && typeof error.retryAt === "string" ? Date.parse(error.retryAt) : NaN;
-        this.schedule(Number.isFinite(retryAt) ? Math.max(backoff, retryAt - this.now()) : backoff);
+        const jitter=1+Math.max(0,Math.min(1,this.dependencies.random?.()??Math.random()))*.1;
+        this.schedule(Number.isFinite(retryAt) ? Math.max(backoff*jitter, retryAt - this.now()) : backoff*jitter);
       }
     } finally {
       this.busy = false;
