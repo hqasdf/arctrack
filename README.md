@@ -1,4 +1,4 @@
-# 🏹 Arc Track
+# 🏹 Arc Trackk
 
 **Arc Track** is an archery scoring and performance analytics platform built for recurve and compound archers.
 
